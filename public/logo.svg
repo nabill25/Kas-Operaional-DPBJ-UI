@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kas Operasional DPBJ">
+  <defs>
+    <linearGradient id="latar" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1A2F63"/>
+      <stop offset="1" stop-color="#050D24"/>
+    </linearGradient>
+    <linearGradient id="kuning" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE14D"/>
+      <stop offset="1" stop-color="#FFC400"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#latar)"/>
+  <rect x="10" y="17" width="44" height="31" rx="8" fill="url(#kuning)"/>
+  <rect x="10" y="17" width="44" height="10" rx="5" fill="#FFF6C7" opacity="0.55"/>
+  <rect x="35" y="27.5" width="19" height="12" rx="6" fill="#0A1A3F"/>
+  <circle cx="42" cy="33.5" r="2.7" fill="#FFD100"/>
+  <rect x="15" y="40" width="14" height="3" rx="1.5" fill="#0A1A3F" opacity="0.35"/>
+</svg>
