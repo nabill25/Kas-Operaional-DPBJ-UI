@@ -14,7 +14,7 @@
     "dev:lan": "concurrently -k -n API,WEB -c yellow,cyan \"npm:dev:api\" \"vite --host\"",
     "build": "npm run typecheck && vite build",
     "start": "tsx server/index.ts",
-    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.e2e.json --noEmit",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",

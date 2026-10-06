@@ -614,7 +614,7 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
     );
     await simpanPeserta(txDb, id, data);
     const ket = Number(row.total) !== data.total ? `Nilai ${formatRupiah(Number(row.total))} → ${formatRupiah(data.total)}` : null;
-    await catatRiwayat(txDb, row, user.id, 'data_diubah', ket, waktu);
+    await catatRiwayat(txDb, row, user.id, 'diubah', ket, waktu);
   });
 }
 
@@ -681,7 +681,7 @@ export async function tarikKembali(db: Db, user: SessionUser, id: number): Promi
       waktu,
       id,
     );
-    await catatRiwayat(txDb, row, user.id, 'tarik_kembali', null, waktu);
+    await catatRiwayat(txDb, row, user.id, 'ditarik', null, waktu);
   });
 }
 
@@ -928,7 +928,7 @@ export async function batalkanSelesai(db: Db, user: SessionUser, id: number, ala
       waktu,
       id,
     );
-    await catatRiwayat(txDb, row, user.id, 'batal_selesai', `${alasan} (invoice sebelumnya: ${row.no_invoice_mdk ?? '-'})`, waktu);
+    await catatRiwayat(txDb, row, user.id, 'selesai_dibatalkan', `${alasan} (invoice sebelumnya: ${row.no_invoice_mdk ?? '-'})`, waktu);
     await kirimNotifikasi(
       txDb,
       await penerimaPengaju(txDb, row),

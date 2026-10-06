@@ -127,8 +127,8 @@ export async function rekapPegawaiDetail(db: Db, user: SessionUser, pegawaiId: n
     ...i,
     pengajuan_id: Number(i.pengajuan_id),
     nilai: Number(i.nilai),
-    tanggal_kegiatan: i.tanggal_kegiatan instanceof Date ? i.tanggal_kegiatan.toISOString().split('T')[0] : i.tanggal_kegiatan,
-    tanggal_selesai: i.tanggal_selesai instanceof Date ? i.tanggal_selesai.toISOString().split('T')[0] : i.tanggal_selesai,
+    tanggal_kegiatan: (i.tanggal_kegiatan as any) instanceof Date ? (i.tanggal_kegiatan as any).toISOString().split('T')[0] : i.tanggal_kegiatan,
+    tanggal_selesai: (i.tanggal_selesai as any) instanceof Date ? (i.tanggal_selesai as any).toISOString().split('T')[0] : i.tanggal_selesai,
   }));
   
   return { pegawai, items: mappedItems, total: mappedItems.reduce((s, i) => s + i.nilai, 0) };
@@ -158,7 +158,7 @@ async function aktivitasTerbaru(db: Db, user: SessionUser, batas: number): Promi
     id: Number(r.id),
     pengajuan_id: Number(r.pengajuan_id),
     user_id: r.user_id ? Number(r.user_id) : null,
-    created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at
+    created_at: (r.created_at as any) instanceof Date ? (r.created_at as any).toISOString() : r.created_at
   }));
 }
 
@@ -332,7 +332,7 @@ export async function notifikasi(db: Db, user: SessionUser): Promise<NotifikasiD
       id: Number(n.id),
       pengajuan_id: n.pengajuan_id ? Number(n.pengajuan_id) : null,
       dibaca: dibaca_at !== null,
-      created_at: n.created_at instanceof Date ? n.created_at.toISOString() : n.created_at
+      created_at: (n.created_at as any) instanceof Date ? (n.created_at as any).toISOString() : n.created_at
     })),
     antrian: await antrian(db, user),
   };

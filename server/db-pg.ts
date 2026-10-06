@@ -6,7 +6,7 @@
  * Semua query menggunakan $1, $2... (konversi otomatis dari ?)
  */
 
-import { Pool, type PoolClient } from 'pg';
+import { Pool, type PoolClient, type QueryResultRow } from 'pg';
 
 let _pool: Pool | null = null;
 
@@ -61,10 +61,9 @@ function withReturning(sql: string): string {
 /** Baris hasil query */
 type Row = Record<string, unknown>;
 
-/** Interface yang digunakan oleh routes & services */
 export interface IDb {
-  all<T = Row>(sql: string, ...params: SqlParam[]): Promise<T[]>;
-  get<T = Row>(sql: string, ...params: SqlParam[]): Promise<T | undefined>;
+  all<T extends QueryResultRow = Row>(sql: string, ...params: SqlParam[]): Promise<T[]>;
+  get<T extends QueryResultRow = Row>(sql: string, ...params: SqlParam[]): Promise<T | undefined>;
   run(sql: string, ...params: SqlParam[]): Promise<{ changes: number; lastInsertRowid: number }>;
   exec(sql: string): Promise<void>;
   tx<T>(fn: (db: IDb) => Promise<T>): Promise<T>;
@@ -78,13 +77,13 @@ export class DbPg implements IDb {
     this.pool = getPool();
   }
 
-  async all<T = Row>(sql: string, ...params: SqlParam[]): Promise<T[]> {
+  async all<T extends QueryResultRow = Row>(sql: string, ...params: SqlParam[]): Promise<T[]> {
     const pgSql = toPgQuery(sql);
     const result = await this.pool.query<T>(pgSql, params as unknown[]);
     return result.rows;
   }
 
-  async get<T = Row>(sql: string, ...params: SqlParam[]): Promise<T | undefined> {
+  async get<T extends QueryResultRow = Row>(sql: string, ...params: SqlParam[]): Promise<T | undefined> {
     const rows = await this.all<T>(sql, ...params);
     return rows[0];
   }
@@ -124,15 +123,18 @@ export class DbPg implements IDb {
 
 /** Implementasi menggunakan PoolClient (dalam transaksi) */
 class DbPgClient implements IDb {
-  constructor(private client: PoolClient) {}
+  private client: PoolClient;
+  constructor(client: PoolClient) {
+    this.client = client;
+  }
 
-  async all<T = Row>(sql: string, ...params: SqlParam[]): Promise<T[]> {
+  async all<T extends QueryResultRow = Row>(sql: string, ...params: SqlParam[]): Promise<T[]> {
     const pgSql = toPgQuery(sql);
     const result = await this.client.query<T>(pgSql, params as unknown[]);
     return result.rows;
   }
 
-  async get<T = Row>(sql: string, ...params: SqlParam[]): Promise<T | undefined> {
+  async get<T extends QueryResultRow = Row>(sql: string, ...params: SqlParam[]): Promise<T | undefined> {
     const rows = await this.all<T>(sql, ...params);
     return rows[0];
   }
