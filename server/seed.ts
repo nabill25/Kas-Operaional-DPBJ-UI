@@ -119,7 +119,7 @@ interface RencanaBerkas {
 }
 
 export async function seedDemo(db: Db, uploadDir: string, sekarang: Date = new Date()): Promise<void> {
-  fs.mkdirSync(uploadDir, { recursive: true });
+  try { fs.mkdirSync(uploadDir, { recursive: true }); } catch (e) {}
   const rnd = mulberry32(20261006);
   const pilih = <T>(arr: readonly T[]): T => arr[Math.floor(rnd() * arr.length)];
   const antara = (a: number, b: number) => a + Math.floor(rnd() * (b - a + 1));

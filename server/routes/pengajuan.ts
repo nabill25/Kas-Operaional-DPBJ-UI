@@ -95,7 +95,11 @@ function filterDariQuery(query: Request['query']): FilterPengajuan {
 
 export function pengajuanRoutes(db: Db, cfg: AppConfig): Router {
   const r = Router();
-  fs.mkdirSync(cfg.uploadDir, { recursive: true });
+  try {
+    fs.mkdirSync(cfg.uploadDir, { recursive: true });
+  } catch (e) {
+    // Abaikan jika read-only file system (misal di Vercel, pastikan KAS_UPLOAD_DIR diarahkan ke /tmp)
+  }
 
   const upload = multer({
     storage: multer.diskStorage({

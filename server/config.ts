@@ -19,7 +19,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: Number(env.PORT ?? 5211),
     dbPath: env.KAS_DB_PATH ? path.resolve(env.KAS_DB_PATH) : path.join(dataDir, 'kas-dpbj.db'),
-    uploadDir: env.KAS_UPLOAD_DIR ? path.resolve(env.KAS_UPLOAD_DIR) : path.join(dataDir, 'uploads'),
+    uploadDir: env.KAS_UPLOAD_DIR ? path.resolve(env.KAS_UPLOAD_DIR) : (env.VERCEL ? '/tmp/uploads' : path.join(dataDir, 'uploads')),
     distDir: path.join(ROOT, 'dist'),
     cookieSecure: env.COOKIE_SECURE === 'true',
     sessionDays: 7,
