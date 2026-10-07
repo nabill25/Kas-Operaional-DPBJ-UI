@@ -288,6 +288,35 @@ export function validateUser(raw: unknown, mode: 'buat' | 'ubah'): Hasil<UserBer
   };
 }
 
+export interface DaftarBersih {
+  nama: string;
+  username: string;
+  password: string;
+}
+
+/** Pendaftaran mandiri. Peran TIDAK dipilih pendaftar — ditentukan admin saat menyetujui. */
+export function validateDaftar(raw: unknown): Hasil<DaftarBersih> {
+  const r = objek(raw);
+  const e: FieldErrors = {};
+  const nama = teks(r.nama);
+  if (!nama) e.nama = 'Nama wajib diisi';
+  else if (nama.length < 2) e.nama = 'Nama minimal 2 karakter';
+  else if (nama.length > 120) e.nama = 'Nama maksimal 120 karakter';
+
+  const username = teks(r.username).toLowerCase();
+  if (!username) e.username = 'Email wajib diisi';
+  else if (username.length > 254 || !EMAIL_RE.test(username))
+    e.username = 'Format email tidak valid (contoh: nama@instansi.go.id)';
+
+  const password = typeof r.password === 'string' ? r.password : '';
+  if (!password) e.password = 'Password wajib diisi';
+  else if (password.length < 6) e.password = 'Password minimal 6 karakter';
+  else if (password.length > 100) e.password = 'Password maksimal 100 karakter';
+
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { nama, username, password } };
+}
+
 export interface InvoiceBersih {
   no_invoice_mdk: string;
   tanggal_invoice_mdk: string;

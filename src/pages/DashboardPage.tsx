@@ -15,7 +15,7 @@ import { Link } from 'react-router';
 import { formatAngka, formatRupiah, formatRupiahRingkas } from '../../shared/format';
 import { KpiTile } from '../components/dashboard/KpiTile';
 import { Komposisi } from '../components/dashboard/Komposisi';
-import { PALET } from '../components/dashboard/palet';
+import { usePaletChart } from '../components/dashboard/palet';
 import { PerluTindakan } from '../components/dashboard/PerluTindakan';
 import { Sparkline } from '../components/dashboard/Sparkline';
 import { TopPegawai } from '../components/dashboard/TopPegawai';
@@ -29,12 +29,11 @@ import { Kosong } from '../components/ui/Kosong';
 import { MuatHalaman } from '../components/ui/MuatHalaman';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useAuth } from '../context/AuthContext';
-import { useTema } from '../context/ThemeContext';
 import { useDashboard } from '../lib/queries';
 
 export default function DashboardPage() {
   const { user, punyaPeran } = useAuth();
-  const { tema } = useTema();
+  const w = usePaletChart();
   const tahunIni = new Date().getFullYear();
   const [tahun, setTahun] = useState(tahunIni);
   const { data: d, isLoading, isError, error, refetch, isFetching, isPlaceholderData } = useDashboard(tahun);
@@ -60,7 +59,6 @@ export default function DashboardPage() {
   const perBulanTotal = d.perBulan.map((b) => b.konsumsi + b.rumah_tangga + b.perjadin);
   const bulanIni = tahun === tahunIni ? new Date().getMonth() : null;
   const persenSelesai = k.total.nilai > 0 ? Math.round((k.selesai.nilai / k.total.nilai) * 100) : 0;
-  const w = PALET[tema];
 
   return (
     <div>

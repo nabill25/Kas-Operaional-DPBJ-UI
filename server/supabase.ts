@@ -7,6 +7,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { bacaEnv, payloadJwt } from './env';
 import { AuthGagal, type AuthProvider, type StorageProvider } from './providers';
 
 export interface KonfigSupabase {
@@ -17,16 +18,24 @@ export interface KonfigSupabase {
 }
 
 export function konfigSupabaseDariEnv(env: NodeJS.ProcessEnv = process.env, bucket = 'berkas'): KonfigSupabase {
-  const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
-  const anonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY;
-  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = bacaEnv(env, 'SUPABASE_URL', 'VITE_SUPABASE_URL');
+  const anonKey = bacaEnv(env, 'SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
+  const serviceKey = bacaEnv(env, 'SUPABASE_SERVICE_ROLE_KEY');
   const kurang = [
     !url && 'SUPABASE_URL',
     !anonKey && 'SUPABASE_ANON_KEY',
     !serviceKey && 'SUPABASE_SERVICE_ROLE_KEY',
   ].filter(Boolean);
   if (kurang.length > 0) {
-    throw new Error(`Variabel lingkungan Supabase belum diisi: ${kurang.join(', ')}`);
+    throw new Error(
+      `Variabel lingkungan Supabase belum diisi: ${kurang.join(', ')}. ` +
+        'Isi di Vercel → Settings → Environment Variables (centang Production), lalu Redeploy.',
+    );
+  }
+  // Kunci lama berbentuk JWT: pastikan kolom service role tidak berisi anon key (sering tertukar).
+  const peran = payloadJwt(serviceKey!)?.role;
+  if (peran !== undefined && peran !== 'service_role') {
+    throw new Error(`SUPABASE_SERVICE_ROLE_KEY berisi kunci "${String(peran)}", bukan service_role. Salin "service_role secret" dari Supabase → Project Settings → API.`);
   }
   return { url: url!, anonKey: anonKey!, serviceKey: serviceKey!, bucket };
 }

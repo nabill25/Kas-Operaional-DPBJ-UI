@@ -5,15 +5,13 @@ import { Link } from 'react-router';
 import { KATEGORI_INFO, KATEGORI_LIST } from '../../../shared/constants';
 import { formatRupiah, formatRupiahRingkas } from '../../../shared/format';
 import type { DashboardData } from '../../../shared/types';
-import { useTema } from '../../context/ThemeContext';
 import { Avatar } from '../ui/Avatar';
 import { GlassCard, JudulKartu } from '../ui/GlassCard';
-import { PALET } from './palet';
+import { usePaletChart } from './palet';
 
 /** Peringkat pegawai menurut total nilai yang diterima — batang bertumpuk per kategori. */
 export function TopPegawai({ data, tahun, redup }: { data: DashboardData['topPegawai']; tahun: number; redup?: boolean }) {
-  const { tema } = useTema();
-  const w = PALET[tema];
+  const w = usePaletChart();
   const maks = Math.max(1, ...data.map((d) => d.total));
 
   return (

@@ -1,4 +1,4 @@
-import { KeyRound, LogOut, Menu as IkonMenu, Moon, Search, Sun } from 'lucide-react';
+import { KeyRound, LogOut, Menu as IkonMenu, Moon, Search, Settings, Sun } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
@@ -123,6 +123,9 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
               </p>
             </MenuLabel>
             <MenuPemisah />
+            <MenuItem ikon={<Settings />} onSelect={() => navigate('/pengaturan')}>
+              Pengaturan
+            </MenuItem>
             <MenuItem ikon={<KeyRound />} onSelect={() => setModalPassword(true)}>
               Ganti password
             </MenuItem>

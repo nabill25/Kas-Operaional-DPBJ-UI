@@ -308,10 +308,15 @@ async function antrian(db: Db, user: SessionUser): Promise<NotifikasiData['antri
   const hitung = async (s: Status) => (await db.get<{ c: number }>('SELECT COUNT(*)::int AS c FROM pengajuan WHERE status = ?', s))?.c ?? 0;
   const pum = user.role === 'pum' || user.role === 'admin';
   const pengaju = user.role === 'operator' || user.role === 'admin';
+  const pendaftar =
+    user.role === 'admin'
+      ? ((await db.get<{ c: number }>('SELECT COUNT(*)::int AS c FROM users WHERE menunggu_persetujuan = true'))?.c ?? 0)
+      : 0;
   return {
     diajukan_pum: pum ? await hitung('diajukan_pum') : 0,
     diajukan_mdk: pum ? await hitung('diajukan_mdk') : 0,
     dikembalikan: pengaju ? await hitung('dikembalikan') : 0,
+    pendaftar,
   };
 }
 

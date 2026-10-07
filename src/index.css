@@ -111,7 +111,8 @@
   --color-netral-track: var(--netral-track);
 }
 
-:root {
+:root,
+[data-warna='dpbj'] {
   color-scheme: light;
   --bg: #eef2fa;
   --fg: #0a1a3f;
@@ -134,7 +135,7 @@
   --rim-1: rgb(255 255 255 / 1);
   --rim-2: rgb(255 255 255 / 0.55);
   --rim-3: rgb(255 255 255 / 0.7);
-  --spot: rgb(255 214 31 / 0.16);
+  --spot: color-mix(in oklab, var(--color-kuning-400) 16%, transparent);
 
   /* Seri chart (tervalidasi: lihat CLAUDE.md §10) */
   --seri-konsumsi: #eda100;
@@ -145,12 +146,13 @@
   --grid: rgb(10 26 63 / 0.08);
   --axis: #6b7590;
 
-  --blob-a: rgb(255 209 0 / 0.38);
+  --blob-a: color-mix(in oklab, var(--color-kuning-500) 38%, transparent);
   --blob-b: rgb(42 120 214 / 0.26);
   --blob-c: rgb(10 26 63 / 0.14);
 }
 
-.dark {
+.dark,
+.dark [data-warna='dpbj'] {
   color-scheme: dark;
   --bg: #050d24;
   --fg: #e8edf9;
@@ -170,8 +172,8 @@
   --glass-top: rgb(255 255 255 / 0.04);
   --rim-1: rgb(255 255 255 / 0.32);
   --rim-2: rgb(255 255 255 / 0.1);
-  --rim-3: rgb(255 214 31 / 0.18);
-  --spot: rgb(255 214 31 / 0.1);
+  --rim-3: color-mix(in oklab, var(--color-kuning-400) 18%, transparent);
+  --spot: color-mix(in oklab, var(--color-kuning-400) 10%, transparent);
 
   --seri-konsumsi: #c98500;
   --seri-rt: #3987e5;
@@ -181,9 +183,110 @@
   --grid: rgb(255 255 255 / 0.07);
   --axis: #8a93ab;
 
-  --blob-a: rgb(255 209 0 / 0.16);
+  --blob-a: color-mix(in oklab, var(--color-kuning-500) 16%, transparent);
   --blob-b: rgb(57 135 229 / 0.24);
   --blob-c: rgb(26 47 99 / 0.7);
+}
+
+/* ── Tema warna (Pengaturan → Tema warna) ───────────────────────────────────
+ * "dpbj" (bawaan): biru dongker + kuning. "ui": kuning resmi Universitas Indonesia
+ * (#F6DB00 · Pantone 109 C, pedoman logo UI) dipadukan hitam arang.
+ * data-warna dipasang di <html>, dan juga bisa di elemen mana pun (pratinjau di halaman
+ * Pengaturan) karena palet & token ditimpa lewat variabel CSS.
+ * PENTING: setiap variabel di blok terang sebuah tema wajib diulang di blok gelapnya,
+ * agar mode gelap tetap menang (spesifisitas .dark[data-warna] > [data-warna]). */
+[data-warna='dpbj'] {
+  --color-navy-50: #eef2fb;
+  --color-navy-100: #d9e1f4;
+  --color-navy-200: #b3c2e6;
+  --color-navy-300: #8299cf;
+  --color-navy-400: #5470b5;
+  --color-navy-500: #34519a;
+  --color-navy-600: #233c7c;
+  --color-navy-700: #1a2f63;
+  --color-navy-800: #12234c;
+  --color-navy-900: #0a1a3f;
+  --color-navy-950: #050d24;
+  --color-kuning-50: #fffbe6;
+  --color-kuning-100: #fff3b8;
+  --color-kuning-200: #ffe880;
+  --color-kuning-300: #ffdd47;
+  --color-kuning-400: #ffd61f;
+  --color-kuning-500: #ffd100;
+  --color-kuning-600: #e6bc00;
+  --color-kuning-700: #b38f00;
+  --color-kuning-800: #806600;
+  --color-kuning-900: #4d3d00;
+}
+
+[data-warna='ui'] {
+  /* Hitam arang (menggantikan biru dongker) */
+  --color-navy-50: #f7f7f5;
+  --color-navy-100: #ebeae6;
+  --color-navy-200: #d6d4cd;
+  --color-navy-300: #b4b1a8;
+  --color-navy-400: #8c897f;
+  --color-navy-500: #6a675e;
+  --color-navy-600: #504e47;
+  --color-navy-700: #3b3a35;
+  --color-navy-800: #2a2926;
+  --color-navy-900: #1c1b19;
+  --color-navy-950: #0f0f0e;
+  /* Kuning resmi UI: 500 = #F6DB00 */
+  --color-kuning-50: #fffde5;
+  --color-kuning-100: #fef9c2;
+  --color-kuning-200: #fcf28a;
+  --color-kuning-300: #f9e94a;
+  --color-kuning-400: #f7e11f;
+  --color-kuning-500: #f6db00;
+  --color-kuning-600: #d2b900;
+  --color-kuning-700: #9e8b00;
+  --color-kuning-800: #6f6200;
+  --color-kuning-900: #433b00;
+
+  color-scheme: light;
+  --bg: #f4f3ed;
+  --fg: #171612;
+  --fg-muted: #5d5a50;
+  --fg-subtle: #8b887d;
+  --line: rgb(23 22 18 / 0.09);
+  --field-line: rgb(23 22 18 / 0.15);
+  --surface: #faf9f4;
+  --glass-strong-bg: rgb(255 255 255 / 0.9);
+  --glass-shadow: 0 1px 1px rgb(23 22 18 / 0.04), 0 10px 30px -12px rgb(23 22 18 / 0.18),
+    inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --rim-3: rgb(255 255 255 / 0.7);
+  --spot: color-mix(in oklab, var(--color-kuning-400) 18%, transparent);
+  --netral: #6f6c63;
+  --netral-track: #e6e4dc;
+  --grid: rgb(23 22 18 / 0.08);
+  --axis: #6f6c63;
+  --blob-a: color-mix(in oklab, var(--color-kuning-500) 44%, transparent);
+  --blob-b: rgb(255 176 0 / 0.2);
+  --blob-c: rgb(23 22 18 / 0.1);
+}
+.dark[data-warna='ui'],
+.dark [data-warna='ui'] {
+  color-scheme: dark;
+  --bg: #0c0c0b;
+  --fg: #f1f0ea;
+  --fg-muted: #a8a59a;
+  --fg-subtle: #79766c;
+  --line: rgb(255 255 255 / 0.09);
+  --field-line: rgb(255 255 255 / 0.14);
+  --surface: #1a1917;
+  --glass-strong-bg: rgb(27 26 23 / 0.94);
+  --glass-shadow: 0 1px 1px rgb(0 0 0 / 0.2), 0 18px 40px -16px rgb(0 0 0 / 0.6),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
+  --rim-3: color-mix(in oklab, var(--color-kuning-400) 18%, transparent);
+  --spot: color-mix(in oklab, var(--color-kuning-400) 10%, transparent);
+  --netral: #8e8b81;
+  --netral-track: #2a2926;
+  --grid: rgb(255 255 255 / 0.07);
+  --axis: #8e8b81;
+  --blob-a: color-mix(in oklab, var(--color-kuning-500) 15%, transparent);
+  --blob-b: rgb(255 170 0 / 0.08);
+  --blob-c: rgb(42 41 37 / 0.7);
 }
 
 @layer base {
@@ -197,8 +300,8 @@
     font-feature-settings: 'ss01' on;
   }
   ::selection {
-    background: rgb(255 209 0 / 0.45);
-    color: #0a1a3f;
+    background: color-mix(in oklab, var(--color-kuning-500) 45%, transparent);
+    color: var(--color-navy-900);
   }
   :focus-visible {
     outline: 2px solid var(--color-kuning-500);
@@ -292,7 +395,7 @@
   .kontrol:focus-visible {
     outline: none;
     border-color: var(--color-kuning-500);
-    box-shadow: 0 0 0 4px rgb(255 209 0 / 0.22);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-kuning-500) 22%, transparent);
   }
   .kontrol[aria-invalid='true'] {
     border-color: rgb(220 38 38 / 0.7);

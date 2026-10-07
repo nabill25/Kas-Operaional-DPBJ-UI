@@ -1,4 +1,4 @@
-import { PencilLine, ShieldCheck, UserCog, UserPlus } from 'lucide-react';
+import { PencilLine, ShieldCheck, UserCheck, UserCog, UserPlus, UserX } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
@@ -14,9 +14,10 @@ import { Skeleton } from '../components/ui/Kosong';
 import { Modal } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useUser } from '../context/AuthContext';
+import { useKonfirmasi } from '../context/KonfirmasiContext';
 import { ApiError } from '../lib/api';
 import { cn } from '../lib/cn';
-import { useSimpanUser, useUsers } from '../lib/queries';
+import { useSetujuiPendaftaran, useSimpanUser, useTolakPendaftaran, useUsers } from '../lib/queries';
 
 const GAYA_PERAN: Record<Role, string> = {
   operator: 'bg-blue-500/12 text-blue-700 ring-1 ring-blue-500/20 dark:text-blue-300',
@@ -29,6 +30,31 @@ export default function PenggunaPage() {
   const saya = useUser();
   const { data = [], isLoading } = useUsers();
   const [form, setForm] = useState<{ open: boolean; user: User | null }>({ open: false, user: null });
+  const [disetujui, setDisetujui] = useState<User | null>(null);
+  const tolakMut = useTolakPendaftaran();
+  const konfirmasi = useKonfirmasi();
+  const menunggu = data.filter((u) => u.menunggu_persetujuan);
+  const akun = data.filter((u) => !u.menunggu_persetujuan);
+
+  const tolak = async (u: User) => {
+    const ok = await konfirmasi({
+      judul: 'Tolak pendaftaran?',
+      pesan: (
+        <>
+          Pendaftaran <b className="text-fg">{u.nama}</b> ({u.username}) akan dihapus, termasuk akun loginnya.
+        </>
+      ),
+      teksYa: 'Tolak & hapus',
+      varian: 'bahaya',
+    });
+    if (!ok) return;
+    try {
+      await tolakMut.mutateAsync(u.id);
+      toast.success(`Pendaftaran ${u.nama} ditolak`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Gagal menolak pendaftaran');
+    }
+  };
 
   return (
     <div>
@@ -52,6 +78,45 @@ export default function PenggunaPage() {
         ))}
       </div>
 
+      {menunggu.length > 0 && (
+        <GlassCard className="mb-5 overflow-hidden" data-bagian="menunggu-persetujuan">
+          <div className="flex items-start gap-3 border-b border-line px-5 py-4">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-sky-500/12 text-sky-700 ring-1 ring-sky-500/20 dark:text-sky-300">
+              <UserPlus className="size-4.5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-bold text-fg">
+                Menunggu persetujuan <span className="text-fg-muted">({menunggu.length})</span>
+              </h2>
+              <p className="mt-0.5 text-xs text-fg-muted">Pendaftaran mandiri. Pilih peran lalu setujui, atau tolak bila tidak dikenal.</p>
+            </div>
+          </div>
+          <ul className="divide-y divide-line">
+            {menunggu.map((u) => (
+              <li key={u.id} data-pendaftar={u.username} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                  <Avatar nama={u.nama} className="size-10" />
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-fg">{u.nama}</p>
+                    <p className="truncate text-xs text-fg-muted">
+                      {u.username} · mendaftar {formatTanggal(u.created_at, 'pendek')}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                  <Button varian="kedua" ukuran="sm" ikon={<UserX className="size-4" />} onClick={() => void tolak(u)} disabled={tolakMut.isPending}>
+                    Tolak
+                  </Button>
+                  <Button varian="sukses" ukuran="sm" ikon={<UserCheck className="size-4" />} onClick={() => setDisetujui(u)}>
+                    Setujui
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      )}
+
       <GlassCard className="overflow-hidden">
         {isLoading ? (
           <div className="space-y-2 p-5">
@@ -61,7 +126,7 @@ export default function PenggunaPage() {
           </div>
         ) : (
           <ul className="divide-y divide-line">
-            {data.map((u, i) => (
+            {akun.map((u, i) => (
               <motion.li
                 key={u.id}
                 initial={{ opacity: 0, x: -8 }}
@@ -107,7 +172,107 @@ export default function PenggunaPage() {
         diriSendiri={form.user?.id === saya.id}
         onOpenChange={(o) => setForm((f) => ({ ...f, open: o }))}
       />
+      <SetujuiModal user={disetujui} onTutup={() => setDisetujui(null)} />
     </div>
+  );
+}
+
+/** Pilihan peran (radio) — dipakai form pengguna & dialog persetujuan pendaftaran. */
+function PilihPeran({
+  nama,
+  nilai,
+  onUbah,
+  terkunci = false,
+}: {
+  nama: string;
+  nilai: Role;
+  onUbah: (r: Role) => void;
+  terkunci?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Peran">
+      {ROLE_LIST.map((r) => (
+        <label
+          key={r}
+          className={cn(
+            'flex gap-2.5 rounded-2xl px-3 py-2.5 ring-1 transition',
+            nilai === r ? 'bg-kuning-400/15 ring-2 ring-kuning-500' : 'bg-fg/[0.03] ring-fg/10 hover:ring-fg/20',
+            terkunci ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
+          )}
+        >
+          <input
+            type="radio"
+            name={nama}
+            value={r}
+            checked={nilai === r}
+            disabled={terkunci && nilai !== r}
+            onChange={() => onUbah(r)}
+            className="mt-0.5 size-4 shrink-0 accent-kuning-500"
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-fg">{ROLE_LABEL[r]}</span>
+            <span className="block text-[11px] leading-snug text-fg-muted">{ROLE_KETERANGAN[r]}</span>
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function SetujuiModal({ user, onTutup }: { user: User | null; onTutup: () => void }) {
+  const setujui = useSetujuiPendaftaran();
+  return (
+    <Modal
+      open={!!user}
+      onOpenChange={(o) => !o && onTutup()}
+      terkunci={setujui.isPending}
+      judul="Setujui pendaftaran"
+      deskripsi={user ? `${user.nama} · ${user.username}` : undefined}
+      ikon={<UserCheck className="size-5" />}
+    >
+      {user && <IsiSetujui key={user.id} user={user} setujui={setujui} onSelesai={onTutup} />}
+    </Modal>
+  );
+}
+
+function IsiSetujui({
+  user,
+  setujui,
+  onSelesai,
+}: {
+  user: User;
+  setujui: ReturnType<typeof useSetujuiPendaftaran>;
+  onSelesai: () => void;
+}) {
+  const [role, setRole] = useState<Role>('operator');
+  const kirim = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      await setujui.mutateAsync({ id: user.id, role });
+      toast.success(`Akun ${user.nama} disetujui sebagai ${ROLE_LABEL[role]}`);
+      onSelesai();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Gagal menyetujui pendaftaran');
+    }
+  };
+  return (
+    <form onSubmit={kirim} className="space-y-4" noValidate>
+      <p className="text-sm text-fg-muted">Pilih peran untuk akun ini. Setelah disetujui, akun langsung dapat masuk.</p>
+      <fieldset>
+        <legend className="mb-1.5 text-[13px] font-semibold text-fg">
+          Peran <span className="text-red-500">*</span>
+        </legend>
+        <PilihPeran nama="s-role" nilai={role} onUbah={setRole} />
+      </fieldset>
+      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+        <Button varian="kedua" onClick={onSelesai} disabled={setujui.isPending}>
+          Batal
+        </Button>
+        <Button type="submit" varian="sukses" memuat={setujui.isPending} ikon={<UserCheck className="size-4" />}>
+          Setujui & aktifkan
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -197,32 +362,7 @@ function IsiFormPengguna({
         <legend className="mb-1.5 text-[13px] font-semibold text-fg">
           Peran <span className="text-red-500">*</span>
         </legend>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Peran">
-          {ROLE_LIST.map((r) => (
-            <label
-              key={r}
-              className={cn(
-                'flex gap-2.5 rounded-2xl px-3 py-2.5 ring-1 transition',
-                role === r ? 'bg-kuning-400/15 ring-2 ring-kuning-500' : 'bg-fg/[0.03] ring-fg/10 hover:ring-fg/20',
-                diriSendiri ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
-              )}
-            >
-              <input
-                type="radio"
-                name="u-role"
-                value={r}
-                checked={role === r}
-                disabled={diriSendiri && role !== r}
-                onChange={() => setRole(r)}
-                className="mt-0.5 size-4 shrink-0 accent-kuning-500"
-              />
-              <span className="min-w-0">
-                <span className="block text-sm font-bold text-fg">{ROLE_LABEL[r]}</span>
-                <span className="block text-[11px] leading-snug text-fg-muted">{ROLE_KETERANGAN[r]}</span>
-              </span>
-            </label>
-          ))}
-        </div>
+        <PilihPeran nama="u-role" nilai={role} onUbah={setRole} terkunci={diriSendiri} />
         {diriSendiri && <p className="mt-1.5 text-xs text-fg-muted">Anda tidak dapat mengubah peran akun sendiri.</p>}
         {errors.role && (
           <p role="alert" className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">

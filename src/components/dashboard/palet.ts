@@ -1,9 +1,10 @@
 import type { Kategori } from '../../../shared/constants';
-import type { Tema } from '../../context/ThemeContext';
+import { useTema, type Tema, type Warna } from '../../context/ThemeContext';
 
 /**
- * Warna chart per tema (nilai sama dengan token CSS di index.css).
- * Palet kategori tervalidasi skrip dataviz (CVD & normal-vision, all-pairs) — lihat CLAUDE.md §10.
+ * Warna chart per mode (nilai sama dengan token CSS di index.css).
+ * Palet kategori tervalidasi skrip dataviz (CVD & normal-vision, all-pairs) — lihat CLAUDE.md §10 —
+ * dan SENGAJA sama di semua tema warna agar arti warna data tidak berubah.
  * Dipakai di atribut SVG (Recharts), karena var() CSS tidak andal di atribut presentasi SVG.
  */
 export const PALET = {
@@ -30,6 +31,38 @@ export const PALET = {
     kursor: 'rgba(255, 255, 255, 0.05)',
   },
 } as const satisfies Record<Tema, Record<string, string>>;
+
+type Palet = { readonly [K in keyof (typeof PALET)['terang']]: string };
+
+/** Tema "Kuning UI": netral hangat (hitam arang) & aksen kuning resmi; warna kategori tidak berubah. */
+const NETRAL_UI: Record<Tema, Partial<Palet>> = {
+  terang: {
+    netral: '#6f6c63',
+    jalur: '#e6e4dc',
+    grid: 'rgba(23, 22, 18, 0.08)',
+    sumbu: '#6f6c63',
+    aksen: '#c2a600',
+    kursor: 'rgba(23, 22, 18, 0.05)',
+  },
+  gelap: {
+    netral: '#8e8b81',
+    jalur: '#2a2926',
+    grid: 'rgba(255, 255, 255, 0.07)',
+    sumbu: '#8e8b81',
+    aksen: '#f6db00',
+    kursor: 'rgba(255, 255, 255, 0.05)',
+  },
+};
+
+export function paletChart(tema: Tema, warna: Warna): Palet {
+  return warna === 'ui' ? { ...PALET[tema], ...NETRAL_UI[tema] } : PALET[tema];
+}
+
+/** Palet chart untuk mode & tema warna yang sedang aktif. */
+export function usePaletChart(): Palet {
+  const { tema, warna } = useTema();
+  return paletChart(tema, warna);
+}
 
 export function warnaKategori(tema: Tema, k: Kategori): string {
   return PALET[tema][k];

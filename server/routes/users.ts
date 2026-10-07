@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { ROLE_LIST } from '../../shared/constants';
 import { validateUser } from '../../shared/validation';
 import { deleteUserSessions, requireRole, userOf } from '../auth';
 import { nowIso, type Db } from '../db-pg';
@@ -11,7 +12,7 @@ export function usersRoutes(db: Db, auth: AuthProvider): Router {
   r.use(requireRole('admin'));
 
   r.get('/', async (_req, res) => {
-    const rows = await db.all<UserRow>('SELECT * FROM users ORDER BY aktif DESC, role ASC, nama ASC');
+    const rows = await db.all<UserRow>('SELECT * FROM users ORDER BY menunggu_persetujuan DESC, aktif DESC, role ASC, nama ASC');
     res.json(rows.map(keUser));
   });
 
@@ -89,11 +90,14 @@ export function usersRoutes(db: Db, auth: AuthProvider): Router {
       if (data.username !== lama.username) await auth.ubahEmail(authId, data.username);
       if (data.password) await auth.ubahPassword(authId, data.password);
       await txDb.run(
-        'UPDATE users SET auth_id = ?, username = ?, nama = ?, role = ?, aktif = ?, updated_at = ? WHERE id = ?',
+        // Mengaktifkan akun yang menunggu persetujuan sekaligus menyetujuinya.
+        `UPDATE users SET auth_id = ?, username = ?, nama = ?, role = ?, aktif = ?,
+           menunggu_persetujuan = (menunggu_persetujuan AND NOT ?), updated_at = ? WHERE id = ?`,
         authId,
         data.username,
         data.nama,
         data.role,
+        data.aktif,
         data.aktif,
         nowIso(),
         id,
@@ -103,6 +107,39 @@ export function usersRoutes(db: Db, auth: AuthProvider): Router {
       }
     });
     res.json(keUser((await db.get<UserRow>('SELECT * FROM users WHERE id = ?', id))!));
+  });
+
+  // Pendaftaran mandiri: setujui (pilih peran → akun aktif) atau tolak (profil & akun login dihapus).
+  r.post('/:id/setujui', async (req, res) => {
+    const id = parseId(req.params.id, 'Pengguna');
+    const role = (req.body ?? {}).role as unknown;
+    if (typeof role !== 'string' || !(ROLE_LIST as readonly string[]).includes(role)) {
+      throw badRequest('Pilih peran untuk akun ini', { role: 'Pilih peran pengguna' });
+    }
+    const row = await db.get<UserRow>('SELECT * FROM users WHERE id = ?', id);
+    if (!row) throw notFound('Pengguna tidak ditemukan');
+    if (!row.menunggu_persetujuan) throw conflict('Akun ini tidak sedang menunggu persetujuan');
+    await db.run(
+      'UPDATE users SET role = ?, aktif = true, menunggu_persetujuan = false, updated_at = ? WHERE id = ?',
+      role,
+      nowIso(),
+      id,
+    );
+    res.json(keUser((await db.get<UserRow>('SELECT * FROM users WHERE id = ?', id))!));
+  });
+
+  r.delete('/:id', async (req, res) => {
+    const id = parseId(req.params.id, 'Pengguna');
+    const row = await db.get<UserRow>('SELECT * FROM users WHERE id = ?', id);
+    if (!row) throw notFound('Pengguna tidak ditemukan');
+    if (!row.menunggu_persetujuan) {
+      throw conflict('Hanya pendaftaran yang menunggu persetujuan yang dapat ditolak. Nonaktifkan akun bila tidak dipakai lagi.');
+    }
+    await db.run('DELETE FROM users WHERE id = ?', id);
+    if (row.auth_id) {
+      await auth.hapus(row.auth_id).catch((e: Error) => console.error('[users] hapus akun login gagal:', e.message));
+    }
+    res.json({ ok: true });
   });
 
   return r;

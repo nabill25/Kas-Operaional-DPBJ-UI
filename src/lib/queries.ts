@@ -20,7 +20,7 @@ import type {
   SaranPum,
   User,
 } from '../../shared/types';
-import type { StatusCek } from '../../shared/constants';
+import type { Role, StatusCek } from '../../shared/constants';
 import { api, keQuery } from './api';
 
 export interface FilterDaftar {
@@ -273,5 +273,29 @@ export function useSimpanUser() {
     mutationFn: ({ id, data }: { id?: number; data: Record<string, unknown> }) =>
       id ? api<User>(`/users/${id}`, { method: 'PUT', body: data }) : api<User>('/users', { method: 'POST', body: data }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.users }),
+  });
+}
+
+/** Pendaftaran mandiri: setujui dengan peran tertentu (akun langsung aktif). */
+export function useSetujuiPendaftaran() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, role }: { id: number; role: Role }) => api<User>(`/users/${id}/setujui`, { body: { role } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.users });
+      void qc.invalidateQueries({ queryKey: qk.notifikasi });
+    },
+  });
+}
+
+/** Pendaftaran mandiri: tolak (profil & akun login dihapus). */
+export function useTolakPendaftaran() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<{ ok: true }>(`/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.users });
+      void qc.invalidateQueries({ queryKey: qk.notifikasi });
+    },
   });
 }

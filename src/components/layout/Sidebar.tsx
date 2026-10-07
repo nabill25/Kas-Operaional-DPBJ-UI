@@ -4,6 +4,7 @@ import {
   FilePlus,
   FileText,
   LayoutDashboard,
+  Settings,
   UserCog,
   Users,
   type LucideIcon,
@@ -15,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/cn';
 import { useNotifikasi } from '../../lib/queries';
 import { Avatar } from '../ui/Avatar';
+import { Logo } from '../ui/Logo';
 
 interface ItemNav {
   ke: string;
@@ -23,7 +25,7 @@ interface ItemNav {
   peran: Role[];
   aktif: (path: string) => boolean;
   /** Badge jumlah antrian (dari /notifikasi → antrian) sesuai peran. */
-  badge?: 'diajukan_pum' | 'dikembalikan';
+  badge?: 'diajukan_pum' | 'dikembalikan' | 'pendaftar';
 }
 
 const SEMUA: Role[] = ['operator', 'pum', 'pimpinan', 'admin'];
@@ -68,15 +70,26 @@ export const GRUP_NAV: { judul: string; item: ItemNav[] }[] = [
     judul: 'Master Data',
     item: [
       { ke: '/pegawai', label: 'Pegawai', ikon: Users, peran: SEMUA, aktif: (p) => p.startsWith('/pegawai') },
-      { ke: '/pengguna', label: 'Pengguna', ikon: UserCog, peran: ['admin'], aktif: (p) => p.startsWith('/pengguna') },
+      {
+        ke: '/pengguna',
+        label: 'Pengguna',
+        ikon: UserCog,
+        peran: ['admin'],
+        aktif: (p) => p.startsWith('/pengguna'),
+        badge: 'pendaftar',
+      },
     ],
+  },
+  {
+    judul: 'Akun',
+    item: [{ ke: '/pengaturan', label: 'Pengaturan', ikon: Settings, peran: SEMUA, aktif: (p) => p.startsWith('/pengaturan') }],
   },
 ];
 
 export function Merek({ ringkas = false }: { ringkas?: boolean }) {
   return (
     <Link to="/" className="flex items-center gap-3 rounded-2xl outline-offset-4">
-      <img src="/logo.svg" alt="" className="size-10 rounded-xl shadow-lg shadow-navy-900/20" />
+      <Logo className="size-10 rounded-xl shadow-lg shadow-navy-900/20" />
       {!ringkas && (
         <div className="leading-tight">
           <p className="text-[15px] font-extrabold tracking-[-0.02em] text-fg">Kas Operasional</p>

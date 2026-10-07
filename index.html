@@ -8,12 +8,15 @@
     <meta name="description" content="Sistem Kas Operasional DPBJ Universitas Indonesia — pencatatan dan pelacakan pengajuan Konsumsi & Transport." />
     <title>Kas Operasional DPBJ UI</title>
     <script>
-      // Terapkan tema sebelum render agar tidak berkedip.
+      // Terapkan mode & tema warna sebelum render agar tidak berkedip.
       (function () {
+        var root = document.documentElement;
+        root.setAttribute('data-warna', 'dpbj');
         try {
           var t = localStorage.getItem('kas-tema');
           var gelap = t === 'gelap' || (t !== 'terang' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (gelap) document.documentElement.classList.add('dark');
+          if (gelap) root.classList.add('dark');
+          if (localStorage.getItem('kas-warna') === 'ui') root.setAttribute('data-warna', 'ui');
         } catch (e) {}
       })();
     </script>

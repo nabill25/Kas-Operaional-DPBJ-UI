@@ -19,6 +19,8 @@ export interface User {
   nama: string;
   role: Role;
   aktif: boolean;
+  /** Mendaftar sendiri lewat halaman Daftar dan belum disetujui admin (belum bisa masuk). */
+  menunggu_persetujuan: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -296,6 +298,8 @@ export interface NotifikasiData {
     diajukan_pum: number;
     diajukan_mdk: number;
     dikembalikan: number;
+    /** Pendaftaran akun yang menunggu persetujuan (hanya untuk admin). */
+    pendaftar: number;
   };
 }
 

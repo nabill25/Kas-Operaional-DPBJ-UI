@@ -43412,6 +43412,27 @@ var Result = import_lib.default.Result;
 var TypeOverrides = import_lib.default.TypeOverrides;
 var defaults = import_lib.default.defaults;
 
+// server/env.ts
+function bacaEnv(env2, ...nama) {
+  for (const n of nama) {
+    const kunci = n in env2 ? n : Object.keys(env2).find((k) => k.toUpperCase() === n.toUpperCase());
+    const nilai = kunci === void 0 ? void 0 : env2[kunci];
+    const bersih = nilai?.trim().replace(/^(["'])([\s\S]*)\1$/, "$2").trim();
+    if (bersih) return bersih;
+  }
+  return void 0;
+}
+function payloadJwt(token) {
+  const bagian = token.split(".");
+  if (bagian.length !== 3) return null;
+  try {
+    const isi = JSON.parse(Buffer.from(bagian[1], "base64url").toString("utf8"));
+    return isi && typeof isi === "object" ? isi : null;
+  } catch {
+    return null;
+  }
+}
+
 // server/db-pg.ts
 types.setTypeParser(20, (v) => Number(v));
 types.setTypeParser(1700, (v) => Number(v));
@@ -43523,16 +43544,33 @@ var DbPgClient = class {
 function buatDb(connectionString, ssl = true) {
   return new DbPgPool(buatPool(connectionString, ssl));
 }
+var POOLER_BAWAAN = "aws-0-ap-southeast-2.pooler.supabase.com";
+function urlLewatPooler(url, poolerHost = POOLER_BAWAAN) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return url;
+  }
+  const m = /^db\.([a-z0-9]+)\.supabase\.co$/i.exec(u.hostname);
+  if (!m) return url;
+  if (u.username === "postgres") u.username = `postgres.${m[1]}`;
+  u.hostname = poolerHost;
+  u.port = "6543";
+  return u.toString();
+}
 var _db = null;
 function getDb() {
   if (!_db) {
-    const url = process.env.DATABASE_URL;
-    if (!url) {
+    const mentah = bacaEnv(process.env, "DATABASE_URL");
+    if (!mentah) {
       throw new Error(
-        'DATABASE_URL belum diisi. Pakai connection string "Transaction pooler" dari Supabase (Project Settings \u2192 Database \u2192 Connection string), bukan host db.<ref>.supabase.co.'
+        'DATABASE_URL belum diisi. Pakai connection string "Transaction pooler" dari Supabase (Connect \u2192 Connection string \u2192 Transaction pooler), lalu Redeploy.'
       );
     }
-    _db = buatDb(url, process.env.DATABASE_SSL !== "false");
+    const url = urlLewatPooler(mentah, bacaEnv(process.env, "SUPABASE_POOLER_HOST"));
+    if (url !== mentah) console.warn("[db] DATABASE_URL memakai host direct Supabase (IPv6) \u2014 dialihkan ke Transaction pooler (IPv4).");
+    _db = buatDb(url, bacaEnv(process.env, "DATABASE_SSL") !== "false");
   }
   return _db;
 }
@@ -43966,6 +44004,24 @@ function validateUser(raw, mode) {
     data: { username, nama, role: r.role, password: password || null, aktif }
   };
 }
+function validateDaftar(raw) {
+  const r = objek(raw);
+  const e = {};
+  const nama = teks(r.nama);
+  if (!nama) e.nama = "Nama wajib diisi";
+  else if (nama.length < 2) e.nama = "Nama minimal 2 karakter";
+  else if (nama.length > 120) e.nama = "Nama maksimal 120 karakter";
+  const username = teks(r.username).toLowerCase();
+  if (!username) e.username = "Email wajib diisi";
+  else if (username.length > 254 || !EMAIL_RE.test(username))
+    e.username = "Format email tidak valid (contoh: nama@instansi.go.id)";
+  const password = typeof r.password === "string" ? r.password : "";
+  if (!password) e.password = "Password wajib diisi";
+  else if (password.length < 6) e.password = "Password minimal 6 karakter";
+  else if (password.length > 100) e.password = "Password maksimal 100 karakter";
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { nama, username, password } };
+}
 function validateInvoice(raw) {
   const r = objek(raw);
   const e = {};
@@ -44051,112 +44107,6 @@ var AuthGagal = class extends Error {
     this.kode = kode;
   }
 };
-
-// server/routes/auth.ts
-function keUser(row) {
-  return {
-    id: row.id,
-    username: row.username,
-    nama: row.nama,
-    role: row.role,
-    aktif: row.aktif === true,
-    created_at: row.created_at,
-    updated_at: row.updated_at
-  };
-}
-function ubahGagalAuth(err) {
-  if (err instanceof AuthGagal) {
-    if (err.kode === "belum_dikonfirmasi") {
-      return new HttpError(403, "Email belum dikonfirmasi. Konfirmasi akun di Supabase Authentication, lalu coba lagi.");
-    }
-    if (err.kode === "terbatas") {
-      return new HttpError(429, "Terlalu banyak percobaan. Coba lagi beberapa menit lagi.");
-    }
-  }
-  return err;
-}
-function authRoutes(db, cfg, auth) {
-  const r = (0, import_express.Router)();
-  const limiter = new LoginLimiter();
-  r.post("/login", async (req, res) => {
-    const body = req.body ?? {};
-    const email = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
-    const password = typeof body.password === "string" ? body.password : "";
-    const errors = {};
-    if (!email) errors.username = "Email wajib diisi";
-    else if (!EMAIL_RE.test(email)) errors.username = "Format email tidak valid";
-    if (!password) errors.password = "Password wajib diisi";
-    if (Object.keys(errors).length > 0) throw badRequest("Email dan password wajib diisi", errors);
-    const key = `${req.ip ?? "-"}|${email}`;
-    const sisa = limiter.sisaBlokirMenit(key);
-    if (sisa > 0) throw new HttpError(429, `Terlalu banyak percobaan masuk. Coba lagi dalam ${sisa} menit.`);
-    let akun;
-    try {
-      akun = await auth.masuk(email, password);
-    } catch (err) {
-      throw ubahGagalAuth(err);
-    }
-    if (!akun) {
-      limiter.catatGagal(key);
-      throw new HttpError(401, "Email atau password salah");
-    }
-    let row = await db.get("SELECT * FROM users WHERE auth_id = ?", akun.id);
-    if (!row) {
-      row = await db.get(
-        "UPDATE users SET auth_id = ?, updated_at = ? WHERE username = ? AND auth_id IS NULL RETURNING *",
-        akun.id,
-        nowIso(),
-        email
-      );
-    }
-    if (!row) {
-      throw new HttpError(403, "Akun ini belum terdaftar di aplikasi. Minta administrator menambahkannya di menu Pengguna.");
-    }
-    if (!row.aktif) throw new HttpError(403, "Akun Anda nonaktif. Hubungi administrator.");
-    limiter.reset(key);
-    const { token, expiresAt } = await createSession(db, row.id, cfg.sessionDays);
-    purgeExpiredSessions(db).catch((err) => console.error("[auth] purge sesi gagal:", err.message));
-    res.cookie(SESSION_COOKIE, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: cfg.cookieSecure,
-      expires: expiresAt,
-      path: "/"
-    });
-    res.json({ user: keUser(row) });
-  });
-  r.post("/logout", async (req, res) => {
-    const token = readCookie(req, SESSION_COOKIE);
-    if (token) await deleteSession(db, token);
-    res.clearCookie(SESSION_COOKIE, { path: "/" });
-    res.json({ ok: true });
-  });
-  r.get("/me", async (req, res) => {
-    const row = req.user ? await db.get("SELECT * FROM users WHERE id = ?", req.user.id) : void 0;
-    res.json({ user: row ? keUser(row) : null });
-  });
-  r.post("/password", requireAuth, async (req, res) => {
-    const user = userOf(req);
-    const data = assertValid(validateGantiPassword(req.body));
-    const row = await db.get("SELECT * FROM users WHERE id = ?", user.id);
-    if (!row?.auth_id) throw conflict("Akun ini belum terhubung ke sistem login. Minta administrator memperbaikinya.");
-    let cocok;
-    try {
-      cocok = await auth.masuk(row.username, data.password_lama);
-    } catch (err) {
-      throw ubahGagalAuth(err);
-    }
-    if (!cocok) throw badRequest("Password lama salah", { password_lama: "Password lama salah" });
-    await auth.ubahPassword(row.auth_id, data.password_baru);
-    await db.run("UPDATE users SET updated_at = ? WHERE id = ?", nowIso(), user.id);
-    await deleteUserSessions(db, user.id, readCookie(req, SESSION_COOKIE) ?? void 0);
-    res.json({ ok: true });
-  });
-  return r;
-}
-
-// server/routes/laporan.ts
-var import_express2 = __toESM(require_express2(), 1);
 
 // shared/kelengkapan.ts
 function hitungKelengkapan(kategori, berkas, berkasNa, cek = []) {
@@ -45054,6 +45004,180 @@ async function hapusObjekAman(storage, keys) {
   }
 }
 
+// server/routes/auth.ts
+function keUser(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    nama: row.nama,
+    role: row.role,
+    aktif: row.aktif === true,
+    menunggu_persetujuan: row.menunggu_persetujuan === true,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+function ubahGagalAuth(err) {
+  if (err instanceof AuthGagal) {
+    if (err.kode === "belum_dikonfirmasi") {
+      return new HttpError(403, "Email belum dikonfirmasi. Konfirmasi akun di Supabase Authentication, lalu coba lagi.");
+    }
+    if (err.kode === "terbatas") {
+      return new HttpError(429, "Terlalu banyak percobaan. Coba lagi beberapa menit lagi.");
+    }
+  }
+  return err;
+}
+function authRoutes(db, cfg, auth) {
+  const r = (0, import_express.Router)();
+  const limiter = new LoginLimiter();
+  const limiterDaftar = new LoginLimiter(10, 60 * 6e4);
+  r.post("/login", async (req, res) => {
+    const body = req.body ?? {};
+    const email = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const errors = {};
+    if (!email) errors.username = "Email wajib diisi";
+    else if (!EMAIL_RE.test(email)) errors.username = "Format email tidak valid";
+    if (!password) errors.password = "Password wajib diisi";
+    if (Object.keys(errors).length > 0) throw badRequest("Email dan password wajib diisi", errors);
+    const key = `${req.ip ?? "-"}|${email}`;
+    const sisa = limiter.sisaBlokirMenit(key);
+    if (sisa > 0) throw new HttpError(429, `Terlalu banyak percobaan masuk. Coba lagi dalam ${sisa} menit.`);
+    let akun;
+    try {
+      akun = await auth.masuk(email, password);
+    } catch (err) {
+      throw ubahGagalAuth(err);
+    }
+    if (!akun) {
+      limiter.catatGagal(key);
+      throw new HttpError(401, "Email atau password salah");
+    }
+    let row = await db.get("SELECT * FROM users WHERE auth_id = ?", akun.id);
+    if (!row) {
+      row = await db.get(
+        "UPDATE users SET auth_id = ?, updated_at = ? WHERE username = ? AND auth_id IS NULL RETURNING *",
+        akun.id,
+        nowIso(),
+        email
+      );
+    }
+    if (!row) {
+      throw new HttpError(403, "Akun ini belum terdaftar di aplikasi. Minta administrator menambahkannya di menu Pengguna.");
+    }
+    if (row.menunggu_persetujuan) {
+      throw new HttpError(403, "Pendaftaran Anda masih menunggu persetujuan administrator. Coba lagi setelah akun disetujui.");
+    }
+    if (!row.aktif) throw new HttpError(403, "Akun Anda nonaktif. Hubungi administrator.");
+    limiter.reset(key);
+    const { token, expiresAt } = await createSession(db, row.id, cfg.sessionDays);
+    purgeExpiredSessions(db).catch((err) => console.error("[auth] purge sesi gagal:", err.message));
+    res.cookie(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: cfg.cookieSecure,
+      expires: expiresAt,
+      path: "/"
+    });
+    res.json({ user: keUser(row) });
+  });
+  r.post("/daftar", async (req, res) => {
+    const kunci = `daftar|${req.ip ?? "-"}`;
+    const sisa = limiterDaftar.sisaBlokirMenit(kunci);
+    if (sisa > 0) throw new HttpError(429, `Terlalu banyak pendaftaran dari jaringan ini. Coba lagi dalam ${sisa} menit.`);
+    const data = assertValid(validateDaftar(req.body));
+    limiterDaftar.catatGagal(kunci);
+    if (await db.get("SELECT id FROM users WHERE username = ?", data.username)) {
+      throw badRequest("Email sudah terdaftar", {
+        username: "Email ini sudah terdaftar. Silakan masuk, atau tunggu persetujuan administrator."
+      });
+    }
+    let akun;
+    let akunBaru = true;
+    try {
+      akun = await auth.buat(data.username, data.password);
+    } catch (err) {
+      if (!(err instanceof AuthGagal && err.kode === "email_sudah_ada")) throw err;
+      let cocok;
+      try {
+        cocok = await auth.masuk(data.username, data.password);
+      } catch (e) {
+        throw ubahGagalAuth(e);
+      }
+      if (!cocok) {
+        throw badRequest("Email sudah memiliki akun login", {
+          password: "Email ini sudah memiliki akun login. Masukkan password akun tersebut, atau hubungi administrator."
+        });
+      }
+      akun = cocok;
+      akunBaru = false;
+    }
+    const waktu = nowIso();
+    try {
+      await db.tx(async (txDb) => {
+        await txDb.run(
+          `INSERT INTO users (auth_id, username, nama, role, aktif, menunggu_persetujuan, created_at, updated_at)
+           VALUES (?, ?, ?, 'operator', false, true, ?, ?)`,
+          akun.id,
+          data.username,
+          data.nama,
+          waktu,
+          waktu
+        );
+        await kirimNotifikasi(
+          txDb,
+          await idPenggunaAktif(txDb, ["admin"]),
+          null,
+          {
+            pengajuan_id: null,
+            kode: "AKUN BARU",
+            jenis: "registrasi",
+            judul: "Pendaftaran akun baru",
+            pesan: `${data.nama} (${data.username}) menunggu persetujuan`
+          },
+          waktu
+        );
+      });
+    } catch (err) {
+      if (akunBaru) await auth.hapus(akun.id).catch((e) => console.error("[auth] rollback akun daftar gagal:", e.message));
+      throw err;
+    }
+    res.status(201).json({ ok: true });
+  });
+  r.post("/logout", async (req, res) => {
+    const token = readCookie(req, SESSION_COOKIE);
+    if (token) await deleteSession(db, token);
+    res.clearCookie(SESSION_COOKIE, { path: "/" });
+    res.json({ ok: true });
+  });
+  r.get("/me", async (req, res) => {
+    const row = req.user ? await db.get("SELECT * FROM users WHERE id = ?", req.user.id) : void 0;
+    res.json({ user: row ? keUser(row) : null });
+  });
+  r.post("/password", requireAuth, async (req, res) => {
+    const user = userOf(req);
+    const data = assertValid(validateGantiPassword(req.body));
+    const row = await db.get("SELECT * FROM users WHERE id = ?", user.id);
+    if (!row?.auth_id) throw conflict("Akun ini belum terhubung ke sistem login. Minta administrator memperbaikinya.");
+    let cocok;
+    try {
+      cocok = await auth.masuk(row.username, data.password_lama);
+    } catch (err) {
+      throw ubahGagalAuth(err);
+    }
+    if (!cocok) throw badRequest("Password lama salah", { password_lama: "Password lama salah" });
+    await auth.ubahPassword(row.auth_id, data.password_baru);
+    await db.run("UPDATE users SET updated_at = ? WHERE id = ?", nowIso(), user.id);
+    await deleteUserSessions(db, user.id, readCookie(req, SESSION_COOKIE) ?? void 0);
+    res.json({ ok: true });
+  });
+  return r;
+}
+
+// server/routes/laporan.ts
+var import_express2 = __toESM(require_express2(), 1);
+
 // server/services/rekap.ts
 var kosong = () => ({ jumlah: 0, nilai: 0 });
 function lihatDraft(user) {
@@ -45303,10 +45427,12 @@ async function antrian(db, user) {
   const hitung = async (s) => (await db.get("SELECT COUNT(*)::int AS c FROM pengajuan WHERE status = ?", s))?.c ?? 0;
   const pum = user.role === "pum" || user.role === "admin";
   const pengaju = user.role === "operator" || user.role === "admin";
+  const pendaftar = user.role === "admin" ? (await db.get("SELECT COUNT(*)::int AS c FROM users WHERE menunggu_persetujuan = true"))?.c ?? 0 : 0;
   return {
     diajukan_pum: pum ? await hitung("diajukan_pum") : 0,
     diajukan_mdk: pum ? await hitung("diajukan_mdk") : 0,
-    dikembalikan: pengaju ? await hitung("dikembalikan") : 0
+    dikembalikan: pengaju ? await hitung("dikembalikan") : 0,
+    pendaftar
   };
 }
 async function notifikasi(db, user) {
@@ -45716,7 +45842,7 @@ function usersRoutes(db, auth) {
   const r = (0, import_express5.Router)();
   r.use(requireRole("admin"));
   r.get("/", async (_req, res) => {
-    const rows = await db.all("SELECT * FROM users ORDER BY aktif DESC, role ASC, nama ASC");
+    const rows = await db.all("SELECT * FROM users ORDER BY menunggu_persetujuan DESC, aktif DESC, role ASC, nama ASC");
     res.json(rows.map(keUser));
   });
   r.post("/", async (req, res) => {
@@ -45785,11 +45911,14 @@ function usersRoutes(db, auth) {
       if (data.username !== lama.username) await auth.ubahEmail(authId, data.username);
       if (data.password) await auth.ubahPassword(authId, data.password);
       await txDb.run(
-        "UPDATE users SET auth_id = ?, username = ?, nama = ?, role = ?, aktif = ?, updated_at = ? WHERE id = ?",
+        // Mengaktifkan akun yang menunggu persetujuan sekaligus menyetujuinya.
+        `UPDATE users SET auth_id = ?, username = ?, nama = ?, role = ?, aktif = ?,
+           menunggu_persetujuan = (menunggu_persetujuan AND NOT ?), updated_at = ? WHERE id = ?`,
         authId,
         data.username,
         data.nama,
         data.role,
+        data.aktif,
         data.aktif,
         nowIso(),
         id
@@ -45799,6 +45928,36 @@ function usersRoutes(db, auth) {
       }
     });
     res.json(keUser(await db.get("SELECT * FROM users WHERE id = ?", id)));
+  });
+  r.post("/:id/setujui", async (req, res) => {
+    const id = parseId(req.params.id, "Pengguna");
+    const role = (req.body ?? {}).role;
+    if (typeof role !== "string" || !ROLE_LIST.includes(role)) {
+      throw badRequest("Pilih peran untuk akun ini", { role: "Pilih peran pengguna" });
+    }
+    const row = await db.get("SELECT * FROM users WHERE id = ?", id);
+    if (!row) throw notFound("Pengguna tidak ditemukan");
+    if (!row.menunggu_persetujuan) throw conflict("Akun ini tidak sedang menunggu persetujuan");
+    await db.run(
+      "UPDATE users SET role = ?, aktif = true, menunggu_persetujuan = false, updated_at = ? WHERE id = ?",
+      role,
+      nowIso(),
+      id
+    );
+    res.json(keUser(await db.get("SELECT * FROM users WHERE id = ?", id)));
+  });
+  r.delete("/:id", async (req, res) => {
+    const id = parseId(req.params.id, "Pengguna");
+    const row = await db.get("SELECT * FROM users WHERE id = ?", id);
+    if (!row) throw notFound("Pengguna tidak ditemukan");
+    if (!row.menunggu_persetujuan) {
+      throw conflict("Hanya pendaftaran yang menunggu persetujuan yang dapat ditolak. Nonaktifkan akun bila tidak dipakai lagi.");
+    }
+    await db.run("DELETE FROM users WHERE id = ?", id);
+    if (row.auth_id) {
+      await auth.hapus(row.auth_id).catch((e) => console.error("[users] hapus akun login gagal:", e.message));
+    }
+    res.json({ ok: true });
   });
   return r;
 }
@@ -54079,16 +54238,22 @@ if (shouldShowDeprecationWarning()) console.warn("\u26A0\uFE0F  Node.js 20 and b
 
 // server/supabase.ts
 function konfigSupabaseDariEnv(env2 = process.env, bucket = "berkas") {
-  const url = env2.SUPABASE_URL || env2.VITE_SUPABASE_URL;
-  const anonKey = env2.SUPABASE_ANON_KEY || env2.VITE_SUPABASE_ANON_KEY;
-  const serviceKey = env2.SUPABASE_SERVICE_ROLE_KEY;
+  const url = bacaEnv(env2, "SUPABASE_URL", "VITE_SUPABASE_URL");
+  const anonKey = bacaEnv(env2, "SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY");
+  const serviceKey = bacaEnv(env2, "SUPABASE_SERVICE_ROLE_KEY");
   const kurang = [
     !url && "SUPABASE_URL",
     !anonKey && "SUPABASE_ANON_KEY",
     !serviceKey && "SUPABASE_SERVICE_ROLE_KEY"
   ].filter(Boolean);
   if (kurang.length > 0) {
-    throw new Error(`Variabel lingkungan Supabase belum diisi: ${kurang.join(", ")}`);
+    throw new Error(
+      `Variabel lingkungan Supabase belum diisi: ${kurang.join(", ")}. Isi di Vercel \u2192 Settings \u2192 Environment Variables (centang Production), lalu Redeploy.`
+    );
+  }
+  const peran = payloadJwt(serviceKey)?.role;
+  if (peran !== void 0 && peran !== "service_role") {
+    throw new Error(`SUPABASE_SERVICE_ROLE_KEY berisi kunci "${String(peran)}", bukan service_role. Salin "service_role secret" dari Supabase \u2192 Project Settings \u2192 API.`);
   }
   return { url, anonKey, serviceKey, bucket };
 }

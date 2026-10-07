@@ -1,12 +1,13 @@
 import { ArrowRight, BadgeCheck, Car, Coffee, Eye, EyeOff, FilePlus, Hourglass, LockKeyhole, Plane, Send, User } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Latar } from '../components/layout/Latar';
 import { TombolTema } from '../components/layout/Topbar';
 import { Button } from '../components/ui/Button';
 import { Field, Input } from '../components/ui/Field';
+import { Logo } from '../components/ui/Logo';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../lib/api';
 
@@ -73,7 +74,7 @@ export function LoginPage() {
           className="hidden lg:block"
         >
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="" className="size-12 rounded-2xl shadow-xl shadow-navy-900/25" />
+            <Logo className="size-12 rounded-2xl shadow-xl shadow-navy-900/25" />
             <div>
               <p className="text-sm font-bold tracking-wide text-fg-muted">DPBJ · UNIVERSITAS INDONESIA</p>
             </div>
@@ -141,7 +142,7 @@ export function LoginPage() {
           className="mx-auto w-full max-w-md"
         >
           <div className="mb-6 flex items-center gap-3 lg:hidden">
-            <img src="/logo.svg" alt="" className="size-11 rounded-2xl shadow-lg" />
+            <Logo className="size-11 rounded-2xl shadow-lg" />
             <div className="leading-tight">
               <p className="text-lg font-extrabold tracking-[-0.02em] text-fg">Kas Operasional DPBJ</p>
               <p className="text-xs font-semibold text-fg-muted">Universitas Indonesia</p>
@@ -150,7 +151,7 @@ export function LoginPage() {
 
           <div className="glass rounded-[32px] p-7 sm:p-9">
             <h2 className="text-2xl font-extrabold tracking-[-0.025em] text-fg">Masuk</h2>
-            <p className="mt-1 text-sm text-fg-muted">Gunakan akun yang diberikan administrator.</p>
+            <p className="mt-1 text-sm text-fg-muted">Masuk dengan email dan password akun Anda.</p>
 
             <form onSubmit={kirim} className="mt-7 space-y-4" noValidate>
               <Field label="Email" htmlFor="username" error={errors.username}>
@@ -210,9 +211,14 @@ export function LoginPage() {
                 {!memuat && <ArrowRight className="size-4" />}
               </Button>
             </form>
-
           </div>
-          <p className="mt-6 text-center text-xs text-fg-subtle">
+          <p className="mt-6 text-center text-sm text-fg-muted">
+            Belum punya akun?{' '}
+            <Link to="/daftar" className="font-bold text-fg underline decoration-kuning-500 decoration-2 underline-offset-4">
+              Daftar di sini
+            </Link>
+          </p>
+          <p className="mt-4 text-center text-xs text-fg-subtle">
             © {new Date().getFullYear()} DPBJ Universitas Indonesia · Kas Operasional
           </p>
         </motion.section>

@@ -7,6 +7,7 @@
  */
 
 import { Pool, types, type PoolClient, type QueryResult, type QueryResultRow } from 'pg';
+import { bacaEnv } from './env';
 
 // bigint (int8) dan numeric dikembalikan sebagai number. Nilai rupiah maks. 1e12 aman di bawah 2^53.
 types.setTypeParser(20, (v: string) => Number(v));
@@ -159,19 +160,43 @@ export function buatDb(connectionString: string, ssl = true): Db & { tutup(): Pr
   return new DbPgPool(buatPool(connectionString, ssl));
 }
 
+/** Transaction pooler (IPv4) project Supabase DPBJ — region ap-southeast-2 (Sydney). Bisa ditimpa SUPABASE_POOLER_HOST. */
+const POOLER_BAWAAN = 'aws-0-ap-southeast-2.pooler.supabase.com';
+
+/**
+ * Host direct db.<ref>.supabase.co hanya punya alamat IPv6 sehingga tidak terjangkau dari Vercel.
+ * URL seperti itu dialihkan ke Transaction pooler (IPv4, port 6543, user postgres.<ref>); URL lain tidak diubah.
+ */
+export function urlLewatPooler(url: string, poolerHost: string = POOLER_BAWAAN): string {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return url;
+  }
+  const m = /^db\.([a-z0-9]+)\.supabase\.co$/i.exec(u.hostname);
+  if (!m) return url;
+  if (u.username === 'postgres') u.username = `postgres.${m[1]}`;
+  u.hostname = poolerHost;
+  u.port = '6543';
+  return u.toString();
+}
+
 let _db: (Db & { tutup(): Promise<void> }) | null = null;
 
 /** Singleton untuk server (DATABASE_URL dari environment). */
 export function getDb(): Db & { tutup(): Promise<void> } {
   if (!_db) {
-    const url = process.env.DATABASE_URL;
-    if (!url) {
+    const mentah = bacaEnv(process.env, 'DATABASE_URL');
+    if (!mentah) {
       throw new Error(
         'DATABASE_URL belum diisi. Pakai connection string "Transaction pooler" dari Supabase ' +
-          '(Project Settings → Database → Connection string), bukan host db.<ref>.supabase.co.',
+          '(Connect → Connection string → Transaction pooler), lalu Redeploy.',
       );
     }
-    _db = buatDb(url, process.env.DATABASE_SSL !== 'false');
+    const url = urlLewatPooler(mentah, bacaEnv(process.env, 'SUPABASE_POOLER_HOST'));
+    if (url !== mentah) console.warn('[db] DATABASE_URL memakai host direct Supabase (IPv6) — dialihkan ke Transaction pooler (IPv4).');
+    _db = buatDb(url, bacaEnv(process.env, 'DATABASE_SSL') !== 'false');
   }
   return _db;
 }

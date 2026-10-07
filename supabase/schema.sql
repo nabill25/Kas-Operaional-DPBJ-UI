@@ -49,7 +49,7 @@ create type aksi_riwayat_enum as enum (
   'diajukan', 'ditarik', 'berkas_dicek', 'berkas_revisi', 'berkas_cek_batal',
   'dikembalikan', 'diteruskan_mdk', 'data_pum_diubah', 'selesai', 'invoice_diubah', 'selesai_dibatalkan'
 );
-create type jenis_notifikasi_enum as enum ('diajukan', 'dikembalikan', 'diteruskan_mdk', 'selesai', 'selesai_dibatalkan');
+create type jenis_notifikasi_enum as enum ('diajukan', 'dikembalikan', 'diteruskan_mdk', 'selesai', 'selesai_dibatalkan', 'registrasi');
 
 -- ─── 3. Tabel ─────────────────────────────────────────────────
 
@@ -62,6 +62,8 @@ create table users (
   nama        text not null,
   role        role_enum not null,
   aktif       boolean not null default true,
+  -- Mendaftar sendiri (halaman Daftar) & belum disetujui admin: aktif = false sampai disetujui.
+  menunggu_persetujuan boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );

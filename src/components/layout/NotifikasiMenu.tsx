@@ -1,4 +1,4 @@
-import { Ban, BadgeCheck, Bell, BellOff, CheckCheck, Hourglass, Send, Undo2, type LucideIcon } from 'lucide-react';
+import { Ban, BadgeCheck, Bell, BellOff, CheckCheck, Hourglass, Send, Undo2, UserPlus, type LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Popover } from 'radix-ui';
 import { useEffect, useRef, useState } from 'react';
@@ -18,7 +18,15 @@ const GAYA_JENIS: Record<JenisNotifikasi, { ikon: LucideIcon; warna: string }> =
   diteruskan_mdk: { ikon: Hourglass, warna: 'bg-violet-500/12 text-violet-700 dark:text-violet-300' },
   selesai: { ikon: BadgeCheck, warna: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300' },
   selesai_dibatalkan: { ikon: Ban, warna: 'bg-red-500/10 text-red-700 dark:text-red-300' },
+  registrasi: { ikon: UserPlus, warna: 'bg-sky-500/12 text-sky-700 dark:text-sky-300' },
 };
+
+/** Halaman tujuan notifikasi: detail pengajuan, atau halaman Pengguna untuk pendaftaran akun. */
+function tautanNotifikasi(n: Notifikasi): string | null {
+  if (n.pengajuan_id) return `/pengajuan/${n.pengajuan_id}`;
+  if (n.jenis === 'registrasi') return '/pengguna';
+  return null;
+}
 
 /** Penanda ringkasan "n notifikasi belum dibaca" sudah ditampilkan untuk user ini di tab ini. */
 export const KUNCI_RINGKAS_NOTIF = 'kas-notif-ringkas';
@@ -63,13 +71,12 @@ function usePantauNotifikasi(
     const baru = data.items.filter((n) => n.id > batas && !n.dibaca);
     terakhir.current = Math.max(batas, maks);
     for (const n of baru.slice(0, 3).reverse()) {
+      const ke = tautanNotifikasi(n);
       toast.info(n.judul, {
         id: `notif-${n.id}`,
         description: `${n.kode} · ${n.pesan}`,
         duration: 8000,
-        action: n.pengajuan_id
-          ? { label: 'Buka', onClick: () => navigate(`/pengajuan/${n.pengajuan_id}`) }
-          : undefined,
+        action: ke ? { label: 'Buka', onClick: () => navigate(ke) } : undefined,
       });
     }
     if (baru.length > 3) {
@@ -104,8 +111,9 @@ function ItemNotifikasi({ n, onPilih }: { n: Notifikasi; onPilih: (n: Notifikasi
     'flex w-full gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-fg/[0.05]',
     !n.dibaca && 'bg-kuning-400/[0.09] dark:bg-kuning-400/[0.06]',
   );
-  return n.pengajuan_id ? (
-    <Link to={`/pengajuan/${n.pengajuan_id}`} onClick={() => onPilih(n)} className={kelas}>
+  const ke = tautanNotifikasi(n);
+  return ke ? (
+    <Link to={ke} onClick={() => onPilih(n)} className={kelas}>
       {isi}
     </Link>
   ) : (

@@ -61,7 +61,7 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     let nPum = await notif(pum);
     expect(nPum.belumDibaca).toBe(1);
     expect(nPum.items[0]).toMatchObject({ pengajuan_id: id, jenis: 'diajukan', dibaca: false });
-    expect(nPum.antrian).toEqual({ diajukan_pum: 1, diajukan_mdk: 0, dikembalikan: 0 });
+    expect(nPum.antrian).toEqual({ diajukan_pum: 1, diajukan_mdk: 0, dikembalikan: 0, pendaftar: 0 });
     // Operator tidak menerima notifikasi atas aksinya sendiri
     expect((await notif(op)).belumDibaca).toBe(0);
 

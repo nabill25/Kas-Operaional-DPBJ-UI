@@ -189,5 +189,13 @@ export const AKSI_RIWAYAT_LABEL: Record<AksiRiwayat, string> = {
   selesai_dibatalkan: 'Status selesai dibatalkan',
 };
 
-export const JENIS_NOTIFIKASI_LIST = ['diajukan', 'dikembalikan', 'diteruskan_mdk', 'selesai', 'selesai_dibatalkan'] as const;
+export const JENIS_NOTIFIKASI_LIST = [
+  'diajukan',
+  'dikembalikan',
+  'diteruskan_mdk',
+  'selesai',
+  'selesai_dibatalkan',
+  /** Pendaftaran akun mandiri menunggu persetujuan (ke admin). */
+  'registrasi',
+] as const;
 export type JenisNotifikasi = (typeof JENIS_NOTIFIKASI_LIST)[number];

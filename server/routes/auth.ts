@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Role } from '../../shared/constants';
 import type { User } from '../../shared/types';
-import { EMAIL_RE, validateGantiPassword } from '../../shared/validation';
+import { EMAIL_RE, validateDaftar, validateGantiPassword } from '../../shared/validation';
 import {
   LoginLimiter,
   SESSION_COOKIE,
@@ -16,7 +16,8 @@ import {
 import type { AppConfig } from '../config';
 import { nowIso, type Db } from '../db-pg';
 import { HttpError, assertValid, badRequest, conflict } from '../http';
-import { AuthGagal, type AuthProvider } from '../providers';
+import { AuthGagal, type AuthProvider, type AuthUser } from '../providers';
+import { idPenggunaAktif, kirimNotifikasi } from '../services/pengajuan';
 
 export interface UserRow {
   id: number;
@@ -25,6 +26,7 @@ export interface UserRow {
   nama: string;
   role: Role;
   aktif: boolean;
+  menunggu_persetujuan: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +38,7 @@ export function keUser(row: UserRow): User {
     nama: row.nama,
     role: row.role,
     aktif: row.aktif === true,
+    menunggu_persetujuan: row.menunggu_persetujuan === true,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -57,6 +60,8 @@ function ubahGagalAuth(err: unknown): unknown {
 export function authRoutes(db: Db, cfg: AppConfig, auth: AuthProvider): Router {
   const r = Router();
   const limiter = new LoginLimiter();
+  // Pendaftaran: maks. 10 percobaan per jam per alamat IP (satu kantor bisa berbagi satu IP publik).
+  const limiterDaftar = new LoginLimiter(10, 60 * 60_000);
 
   r.post('/login', async (req, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
@@ -97,6 +102,9 @@ export function authRoutes(db: Db, cfg: AppConfig, auth: AuthProvider): Router {
     if (!row) {
       throw new HttpError(403, 'Akun ini belum terdaftar di aplikasi. Minta administrator menambahkannya di menu Pengguna.');
     }
+    if (row.menunggu_persetujuan) {
+      throw new HttpError(403, 'Pendaftaran Anda masih menunggu persetujuan administrator. Coba lagi setelah akun disetujui.');
+    }
     if (!row.aktif) throw new HttpError(403, 'Akun Anda nonaktif. Hubungi administrator.');
     limiter.reset(key);
 
@@ -110,6 +118,77 @@ export function authRoutes(db: Db, cfg: AppConfig, auth: AuthProvider): Router {
       path: '/',
     });
     res.json({ user: keUser(row) });
+  });
+
+  // Pendaftaran mandiri: akun dibuat menunggu persetujuan admin (belum bisa masuk), admin dinotifikasi.
+  r.post('/daftar', async (req, res) => {
+    const kunci = `daftar|${req.ip ?? '-'}`;
+    const sisa = limiterDaftar.sisaBlokirMenit(kunci);
+    if (sisa > 0) throw new HttpError(429, `Terlalu banyak pendaftaran dari jaringan ini. Coba lagi dalam ${sisa} menit.`);
+    const data = assertValid(validateDaftar(req.body));
+    limiterDaftar.catatGagal(kunci);
+
+    if (await db.get('SELECT id FROM users WHERE username = ?', data.username)) {
+      throw badRequest('Email sudah terdaftar', {
+        username: 'Email ini sudah terdaftar. Silakan masuk, atau tunggu persetujuan administrator.',
+      });
+    }
+
+    let akun: AuthUser;
+    let akunBaru = true;
+    try {
+      akun = await auth.buat(data.username, data.password);
+    } catch (err) {
+      if (!(err instanceof AuthGagal && err.kode === 'email_sudah_ada')) throw err;
+      // Akun login untuk email ini sudah ada (mis. dibuat manual di Supabase): hanya pemiliknya
+      // (yang tahu password-nya) yang boleh menautkannya ke pendaftaran ini.
+      let cocok: AuthUser | null;
+      try {
+        cocok = await auth.masuk(data.username, data.password);
+      } catch (e) {
+        throw ubahGagalAuth(e);
+      }
+      if (!cocok) {
+        throw badRequest('Email sudah memiliki akun login', {
+          password: 'Email ini sudah memiliki akun login. Masukkan password akun tersebut, atau hubungi administrator.',
+        });
+      }
+      akun = cocok;
+      akunBaru = false;
+    }
+
+    const waktu = nowIso();
+    try {
+      await db.tx(async (txDb) => {
+        await txDb.run(
+          `INSERT INTO users (auth_id, username, nama, role, aktif, menunggu_persetujuan, created_at, updated_at)
+           VALUES (?, ?, ?, 'operator', false, true, ?, ?)`,
+          akun.id,
+          data.username,
+          data.nama,
+          waktu,
+          waktu,
+        );
+        await kirimNotifikasi(
+          txDb,
+          await idPenggunaAktif(txDb, ['admin']),
+          null,
+          {
+            pengajuan_id: null,
+            kode: 'AKUN BARU',
+            jenis: 'registrasi',
+            judul: 'Pendaftaran akun baru',
+            pesan: `${data.nama} (${data.username}) menunggu persetujuan`,
+          },
+          waktu,
+        );
+      });
+    } catch (err) {
+      // Profil gagal disimpan: batalkan akun login yang baru dibuat agar tidak menggantung.
+      if (akunBaru) await auth.hapus(akun.id).catch((e: Error) => console.error('[auth] rollback akun daftar gagal:', e.message));
+      throw err;
+    }
+    res.status(201).json({ ok: true });
   });
 
   r.post('/logout', async (req, res) => {

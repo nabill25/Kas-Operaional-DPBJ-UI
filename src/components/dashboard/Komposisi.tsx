@@ -3,10 +3,9 @@ import { motion } from 'motion/react';
 import { KATEGORI_INFO } from '../../../shared/constants';
 import { formatAngka, formatRupiah } from '../../../shared/format';
 import type { DashboardData } from '../../../shared/types';
-import { useTema } from '../../context/ThemeContext';
 import { IKON_KATEGORI } from '../ui/Badge';
 import { GlassCard, JudulKartu } from '../ui/GlassCard';
-import { PALET } from './palet';
+import { usePaletChart } from './palet';
 
 function persen(n: number, total: number): number {
   return total > 0 ? (n / total) * 100 : 0;
@@ -27,8 +26,7 @@ export function Komposisi({
   perMekanisme: DashboardData['perMekanisme'];
   redup?: boolean;
 }) {
-  const { tema } = useTema();
-  const w = PALET[tema];
+  const w = usePaletChart();
   const total = perKategori.reduce((s, k) => s + k.nilai, 0);
   const totalMek = perMekanisme.reduce((s, m) => s + m.nilai, 0);
 

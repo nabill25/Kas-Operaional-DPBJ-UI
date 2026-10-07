@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Server uji terpisah (port 5212) dengan database & folder upload khusus E2E yang direset setiap run.
+// Server uji terpisah (port 5212): PostgreSQL lokal (TEST_DATABASE_URL) berisi data demo yang dibuat ulang setiap run,
+// plus Supabase Auth & Storage tiruan (tests/e2e/server.ts). Jalankan `npm run build` dulu (frontend dari dist/).
 const PORT = 5212;
 
 export default defineConfig({
@@ -32,14 +33,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run db:seed && npm start',
+    command: 'npx tsx tests/e2e/server.ts',
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: {
-      PORT: String(PORT),
-      KAS_DB_PATH: 'data/e2e/kas-e2e.db',
-      KAS_UPLOAD_DIR: 'data/e2e/uploads',
-    },
+    env: { PORT: String(PORT) },
   },
 });

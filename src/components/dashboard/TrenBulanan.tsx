@@ -15,10 +15,9 @@ import {
 import { KATEGORI_INFO, KATEGORI_LIST, type Kategori } from '../../../shared/constants';
 import { NAMA_BULAN, NAMA_BULAN_PENDEK, formatAngka, formatRupiah, formatRupiahRingkas } from '../../../shared/format';
 import type { DashboardData } from '../../../shared/types';
-import { useTema } from '../../context/ThemeContext';
 import { cn } from '../../lib/cn';
 import { GlassCard, JudulKartu } from '../ui/GlassCard';
-import { PALET } from './palet';
+import { usePaletChart } from './palet';
 
 type Baris = DashboardData['perBulan'][number] & { label: string };
 
@@ -72,8 +71,7 @@ function Tip({ active, payload, label }: TooltipContentProps) {
 }
 
 export function TrenBulanan({ data, tahun, redup }: { data: DashboardData['perBulan']; tahun: number; redup?: boolean }) {
-  const { tema } = useTema();
-  const w = PALET[tema];
+  const w = usePaletChart();
   const [tabel, setTabel] = useState(false);
   const baris: Baris[] = data.map((b) => ({ ...b, label: NAMA_BULAN_PENDEK[b.bulan - 1] }));
   const kosong = baris.every((b) => b.jumlah === 0);
