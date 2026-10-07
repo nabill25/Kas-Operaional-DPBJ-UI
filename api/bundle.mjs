@@ -45963,7 +45963,7 @@ function usersRoutes(db, auth) {
 }
 
 // server/app.ts
-function createApp({ db, cfg, auth, storage }) {
+function createApp({ db, cfg, auth, storage, peringatan = [] }) {
   const app = (0, import_express6.default)();
   app.disable("x-powered-by");
   app.set("trust proxy", true);
@@ -45978,7 +45978,7 @@ function createApp({ db, cfg, auth, storage }) {
     const waktu = (/* @__PURE__ */ new Date()).toISOString();
     try {
       await db.get("SELECT 1 AS ok");
-      res.json({ ok: true, aplikasi: "Kas Operasional DPBJ UI", database: "terhubung", waktu });
+      res.json({ ok: true, aplikasi: "Kas Operasional DPBJ UI", database: "terhubung", waktu, ...peringatan.length ? { peringatan } : {} });
     } catch (err) {
       console.error("[health] database tidak terhubung:", err.message);
       res.status(503).json({ ok: false, aplikasi: "Kas Operasional DPBJ UI", database: "tidak terhubung", waktu });
@@ -54237,25 +54237,29 @@ function shouldShowDeprecationWarning() {
 if (shouldShowDeprecationWarning()) console.warn("\u26A0\uFE0F  Node.js 20 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 22 or later. For more information, visit: https://github.com/orgs/supabase/discussions/45715");
 
 // server/supabase.ts
+var PESAN_TANPA_SERVICE_KEY = "Fitur ini belum aktif: SUPABASE_SERVICE_ROLE_KEY belum diisi di Vercel (Settings \u2192 Environment Variables, centang Production), lalu Redeploy.";
 function konfigSupabaseDariEnv(env2 = process.env, bucket = "berkas") {
   const url = bacaEnv(env2, "SUPABASE_URL", "VITE_SUPABASE_URL");
   const anonKey = bacaEnv(env2, "SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY");
   const serviceKey = bacaEnv(env2, "SUPABASE_SERVICE_ROLE_KEY");
-  const kurang = [
-    !url && "SUPABASE_URL",
-    !anonKey && "SUPABASE_ANON_KEY",
-    !serviceKey && "SUPABASE_SERVICE_ROLE_KEY"
-  ].filter(Boolean);
+  const kurang = [!url && "SUPABASE_URL", !anonKey && "SUPABASE_ANON_KEY"].filter(Boolean);
   if (kurang.length > 0) {
     throw new Error(
       `Variabel lingkungan Supabase belum diisi: ${kurang.join(", ")}. Isi di Vercel \u2192 Settings \u2192 Environment Variables (centang Production), lalu Redeploy.`
     );
   }
-  const peran = payloadJwt(serviceKey)?.role;
-  if (peran !== void 0 && peran !== "service_role") {
-    throw new Error(`SUPABASE_SERVICE_ROLE_KEY berisi kunci "${String(peran)}", bukan service_role. Salin "service_role secret" dari Supabase \u2192 Project Settings \u2192 API.`);
+  const peringatan = [];
+  let kunciLayanan = serviceKey ?? null;
+  if (!kunciLayanan) {
+    peringatan.push("SUPABASE_SERVICE_ROLE_KEY belum diisi: unggah/lihat berkas, daftar akun, dan kelola pengguna belum aktif.");
+  } else {
+    const peran = payloadJwt(kunciLayanan)?.role;
+    if (peran !== void 0 && peran !== "service_role") {
+      peringatan.push(`SUPABASE_SERVICE_ROLE_KEY berisi kunci "${String(peran)}", bukan service_role \u2014 salin "service_role secret" dari Supabase \u2192 Project Settings \u2192 API.`);
+      kunciLayanan = null;
+    }
   }
-  return { url, anonKey, serviceKey, bucket };
+  return { url, anonKey, serviceKey: kunciLayanan, bucket, peringatan };
 }
 var SESI_NONAKTIF = { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false };
 function adalahTidakDitemukan(err) {
@@ -54269,7 +54273,11 @@ function adalahEmailSudahAda(err) {
 }
 function buatSupabase(k) {
   const anon = createClient(k.url, k.anonKey, { auth: SESI_NONAKTIF });
-  const admin = createClient(k.url, k.serviceKey, { auth: SESI_NONAKTIF });
+  const admin = k.serviceKey ? createClient(k.url, k.serviceKey, { auth: SESI_NONAKTIF }) : null;
+  const perluAdmin = () => {
+    if (!admin) throw new HttpError(503, PESAN_TANPA_SERVICE_KEY);
+    return admin;
+  };
   const auth = {
     async masuk(email, password) {
       const { data, error } = await anon.auth.signInWithPassword({ email, password });
@@ -54282,7 +54290,7 @@ function buatSupabase(k) {
       return data.user ? { id: data.user.id, email: data.user.email ?? email } : null;
     },
     async buat(email, password) {
-      const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+      const { data, error } = await perluAdmin().auth.admin.createUser({ email, password, email_confirm: true });
       if (error) {
         if (adalahEmailSudahAda(error)) throw new AuthGagal("email_sudah_ada", error.message);
         throw error;
@@ -54292,7 +54300,7 @@ function buatSupabase(k) {
     async cariByEmail(email) {
       const perHalaman = 1e3;
       for (let halaman = 1; halaman <= 50; halaman++) {
-        const { data, error } = await admin.auth.admin.listUsers({ page: halaman, perPage: perHalaman });
+        const { data, error } = await perluAdmin().auth.admin.listUsers({ page: halaman, perPage: perHalaman });
         if (error) throw error;
         const ketemu = data.users.find((u) => (u.email ?? "").toLowerCase() === email);
         if (ketemu) return { id: ketemu.id, email: ketemu.email ?? email };
@@ -54301,26 +54309,26 @@ function buatSupabase(k) {
       return null;
     },
     async ubahPassword(id, password) {
-      const { error } = await admin.auth.admin.updateUserById(id, { password });
+      const { error } = await perluAdmin().auth.admin.updateUserById(id, { password });
       if (error) throw error;
     },
     async ubahEmail(id, email) {
-      const { error } = await admin.auth.admin.updateUserById(id, { email, email_confirm: true });
+      const { error } = await perluAdmin().auth.admin.updateUserById(id, { email, email_confirm: true });
       if (error) throw error;
     },
     async hapus(id) {
-      const { error } = await admin.auth.admin.deleteUser(id);
+      const { error } = await perluAdmin().auth.admin.deleteUser(id);
       if (error) throw error;
     }
   };
   const storage = {
     async buatUrlUnggah(key) {
-      const { data, error } = await admin.storage.from(k.bucket).createSignedUploadUrl(key);
+      const { data, error } = await perluAdmin().storage.from(k.bucket).createSignedUploadUrl(key);
       if (error) throw error;
       return data.signedUrl;
     },
     async baca(key) {
-      const { data, error } = await admin.storage.from(k.bucket).download(key);
+      const { data, error } = await perluAdmin().storage.from(k.bucket).download(key);
       if (error) {
         if (adalahTidakDitemukan(error)) return null;
         throw error;
@@ -54328,7 +54336,7 @@ function buatSupabase(k) {
       return Buffer.from(await data.arrayBuffer());
     },
     async urlUnduh(key, namaUnduh, detik) {
-      const { data, error } = await admin.storage.from(k.bucket).createSignedUrl(key, detik);
+      const { data, error } = await perluAdmin().storage.from(k.bucket).createSignedUrl(key, detik);
       if (error) {
         if (adalahTidakDitemukan(error)) return null;
         throw error;
@@ -54337,7 +54345,7 @@ function buatSupabase(k) {
     },
     async hapus(keys) {
       if (keys.length === 0) return;
-      const { error } = await admin.storage.from(k.bucket).remove(keys);
+      const { error } = await perluAdmin().storage.from(k.bucket).remove(keys);
       if (error) throw error;
     }
   };
@@ -54349,8 +54357,10 @@ var handler;
 try {
   const cfg = loadConfig();
   const db = getDb();
-  const { auth, storage } = buatSupabase(konfigSupabaseDariEnv(process.env, cfg.storageBucket));
-  handler = createApp({ db, cfg, auth, storage });
+  const konfig = konfigSupabaseDariEnv(process.env, cfg.storageBucket);
+  for (const p of konfig.peringatan) console.warn("[api] Peringatan konfigurasi:", p);
+  const { auth, storage } = buatSupabase(konfig);
+  handler = createApp({ db, cfg, auth, storage, peringatan: konfig.peringatan });
 } catch (error) {
   console.error("[api] Inisialisasi gagal:", error);
   const pesan = error instanceof Error ? error.message : String(error);

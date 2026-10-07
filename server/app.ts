@@ -18,9 +18,11 @@ export interface Dependensi {
   cfg: AppConfig;
   auth: AuthProvider;
   storage: StorageProvider;
+  /** Masalah konfigurasi yang tidak menghentikan server — dilaporkan di /api/health. */
+  peringatan?: string[];
 }
 
-export function createApp({ db, cfg, auth, storage }: Dependensi) {
+export function createApp({ db, cfg, auth, storage, peringatan = [] }: Dependensi) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', true);
@@ -38,7 +40,7 @@ export function createApp({ db, cfg, auth, storage }: Dependensi) {
     const waktu = new Date().toISOString();
     try {
       await db.get('SELECT 1 AS ok');
-      res.json({ ok: true, aplikasi: 'Kas Operasional DPBJ UI', database: 'terhubung', waktu });
+      res.json({ ok: true, aplikasi: 'Kas Operasional DPBJ UI', database: 'terhubung', waktu, ...(peringatan.length ? { peringatan } : {}) });
     } catch (err) {
       console.error('[health] database tidak terhubung:', (err as Error).message);
       res.status(503).json({ ok: false, aplikasi: 'Kas Operasional DPBJ UI', database: 'tidak terhubung', waktu });

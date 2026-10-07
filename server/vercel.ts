@@ -10,8 +10,10 @@ let handler: (req: IncomingMessage, res: ServerResponse) => void;
 try {
   const cfg = loadConfig();
   const db = getDb();
-  const { auth, storage } = buatSupabase(konfigSupabaseDariEnv(process.env, cfg.storageBucket));
-  handler = createApp({ db, cfg, auth, storage });
+  const konfig = konfigSupabaseDariEnv(process.env, cfg.storageBucket);
+  for (const p of konfig.peringatan) console.warn('[api] Peringatan konfigurasi:', p);
+  const { auth, storage } = buatSupabase(konfig);
+  handler = createApp({ db, cfg, auth, storage, peringatan: konfig.peringatan });
 } catch (error) {
   // Biasanya environment variable belum diisi di Vercel. Pesan hanya menyebut NAMA variabel, bukan nilainya.
   console.error('[api] Inisialisasi gagal:', error);

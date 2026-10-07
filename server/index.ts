@@ -10,12 +10,14 @@ import { buatSupabase, konfigSupabaseDariEnv } from './supabase';
 async function main() {
   const cfg = loadConfig();
   const db = getDb();
-  const { auth, storage } = buatSupabase(konfigSupabaseDariEnv(process.env, cfg.storageBucket));
+  const konfig = konfigSupabaseDariEnv(process.env, cfg.storageBucket);
+  for (const p of konfig.peringatan) console.warn('⚠ ', p);
+  const { auth, storage } = buatSupabase(konfig);
 
   await purgeExpiredSessions(db);
   setInterval(() => purgeExpiredSessions(db).catch(() => undefined), 60 * 60_000).unref();
 
-  const app = createApp({ db, cfg, auth, storage });
+  const app = createApp({ db, cfg, auth, storage, peringatan: konfig.peringatan });
   const server = app.listen(cfg.port, () => {
     console.log(`✓ API Kas Operasional DPBJ berjalan di http://localhost:${cfg.port}/api`);
     if (fs.existsSync(path.join(cfg.distDir, 'index.html'))) {
