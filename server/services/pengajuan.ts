@@ -4,6 +4,7 @@
 import {
   BERKAS_WAJIB,
   JENIS_BERKAS_LABEL,
+  JENIS_KONSUMSI_LABEL,
   KATEGORI_INFO,
   KATEGORI_LIST,
   MEKANISME_LIST,
@@ -14,6 +15,7 @@ import {
   type AksiRiwayat,
   type JenisBerkas,
   type JenisNotifikasi,
+  type JenisKonsumsi,
   type Kategori,
   type Mekanisme,
   type Role,
@@ -74,6 +76,7 @@ export interface PengajuanRow {
   mekanisme: Mekanisme;
   jenis_uang: PengajuanRingkas['jenis_uang'];
   jenis_transport: PengajuanRingkas['jenis_transport'];
+  jenis_konsumsi: PengajuanRingkas['jenis_konsumsi'];
   uang_siapa_id: number | null;
   uang_siapa_nama: string | null;
   total: number;
@@ -143,6 +146,7 @@ function keRingkas(row: PengajuanRow, pesertaNama: string[]): PengajuanRingkas {
     mekanisme: row.mekanisme,
     jenis_uang: row.jenis_uang,
     jenis_transport: row.jenis_transport,
+    jenis_konsumsi: row.jenis_konsumsi ?? null,
     uang_siapa_id: row.uang_siapa_id ? Number(row.uang_siapa_id) : null,
     uang_siapa_nama: row.uang_siapa_nama,
     penerima,
@@ -532,9 +536,9 @@ export async function buatPengajuan(db: Db, user: SessionUser, data: PengajuanBe
     const kode = await kodeBerikutnya(txDb, data.kategori, new Date().getFullYear());
     const { lastInsertRowid: id } = await txDb.run(
       `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang,
-         lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, uang_siapa_id, total, catatan,
+         lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, total, catatan,
          berkas_na, berkas_terpenuhi, berkas_wajib, status, created_by, updated_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
       kode,
       data.kategori,
       data.nama_kegiatan,
@@ -545,6 +549,7 @@ export async function buatPengajuan(db: Db, user: SessionUser, data: PengajuanBe
       data.mekanisme,
       data.jenis_uang,
       data.jenis_transport,
+      data.jenis_konsumsi,
       data.uang_siapa_id,
       data.total,
       data.catatan,
@@ -593,7 +598,7 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
     const waktu = nowIso();
     await txDb.run(
       `UPDATE pengajuan SET nama_kegiatan = ?, tanggal_kegiatan = ?, tanggal_selesai = ?, jumlah_orang = ?,
-         lokasi_tujuan = ?, mekanisme = ?, jenis_uang = ?, jenis_transport = ?, uang_siapa_id = ?, total = ?,
+         lokasi_tujuan = ?, mekanisme = ?, jenis_uang = ?, jenis_transport = ?, jenis_konsumsi = ?, uang_siapa_id = ?, total = ?,
          catatan = ?, updated_by = ?, updated_at = ?
        WHERE id = ?`,
       data.nama_kegiatan,
@@ -604,6 +609,7 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
       data.mekanisme,
       data.jenis_uang,
       data.jenis_transport,
+      data.jenis_konsumsi,
       data.uang_siapa_id,
       data.total,
       data.catatan,
@@ -612,8 +618,13 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
       id,
     );
     await simpanPeserta(txDb, id, data);
-    const ket = Number(row.total) !== data.total ? `Nilai ${formatRupiah(Number(row.total))} → ${formatRupiah(data.total)}` : null;
-    await catatRiwayat(txDb, row, user.id, 'diubah', ket, waktu);
+    const perubahan: string[] = [];
+    if (Number(row.total) !== data.total) perubahan.push(`Nilai ${formatRupiah(Number(row.total))} → ${formatRupiah(data.total)}`);
+    if (row.kategori === 'konsumsi' && (row.jenis_konsumsi ?? null) !== data.jenis_konsumsi) {
+      const label = (j: JenisKonsumsi | null) => (j ? JENIS_KONSUMSI_LABEL[j] : '-');
+      perubahan.push(`Jenis konsumsi ${label(row.jenis_konsumsi ?? null)} → ${label(data.jenis_konsumsi)}`);
+    }
+    await catatRiwayat(txDb, row, user.id, 'diubah', perubahan.join(' · ') || null, waktu);
   });
 }
 

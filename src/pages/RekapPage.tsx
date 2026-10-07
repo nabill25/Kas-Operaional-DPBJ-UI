@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { KATEGORI_INFO, KATEGORI_LIST, MEKANISME_LIST, ROLE_LIHAT_DRAFT, STATUS_INFO, STATUS_LIST } from '../../shared/constants';
-import { formatAngka, formatRentangTanggal, formatRupiah } from '../../shared/format';
+import { formatAngka, formatRentangTanggal, formatRupiah, formatRupiahRingkas } from '../../shared/format';
 import type { RekapFilter, RekapPegawaiRow } from '../../shared/types';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { Avatar } from '../components/ui/Avatar';
@@ -229,6 +229,7 @@ export default function RekapPage() {
             <p className="mb-2 text-xs font-bold tracking-wider text-fg-subtle uppercase">Periode · {rentang.label}</p>
             <Segmented
               label="Periode"
+              className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto"
               layoutId="seg-periode"
               ukuran="sm"
               value={preset}
@@ -338,8 +339,13 @@ function StatKecil({ label, nilai, sub, warna, indeks }: { label: string; nilai:
         {label}
       </p>
       <p className="mt-1 truncate text-xl font-extrabold tracking-[-0.02em] text-fg">
-        Rp <AnimatedNumber value={nilai} format={formatAngka} />
+        {/* HP: nominal ringkas + lengkap di bawahnya agar tidak terpotong */}
+        <span className="sm:hidden">Rp {formatRupiahRingkas(nilai)}</span>
+        <span className="hidden sm:inline">
+          Rp <AnimatedNumber value={nilai} format={formatAngka} />
+        </span>
       </p>
+      <p className="angka text-[11px] font-semibold text-fg-muted sm:hidden">{formatRupiah(nilai)}</p>
       <p className="text-xs text-fg-muted">{sub}</p>
     </GlassCard>
   );
@@ -351,7 +357,7 @@ function RekapPengajuanView({ q, tampilDraft }: { q: ReturnType<typeof useRekapP
   const { rows, ringkasan: r } = q.data;
   return (
     <div className={cn('space-y-5 transition-opacity', q.isFetching && 'opacity-60')}>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatKecil indeks={0} label="Total nilai" nilai={r.nilai} sub={`${formatAngka(r.jumlah)} pengajuan`} />
         {KATEGORI_LIST.map((k, i) => (
           <StatKecil
@@ -380,18 +386,58 @@ function RekapPengajuanView({ q, tampilDraft }: { q: ReturnType<typeof useRekapP
       </div>
 
       <GlassCard className="overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-line px-5 py-3.5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-5 py-3.5">
           <ListOrdered className="size-4 text-fg-muted" />
           <p className="text-sm font-bold text-fg">Rincian ({formatAngka(rows.length)})</p>
-          <p className="ml-auto text-xs text-fg-muted">
+          <p className="w-full text-xs text-fg-muted sm:ml-auto sm:w-auto">
             KO {formatRupiah(r.perMekanisme.KO.nilai)} · LS {formatRupiah(r.perMekanisme.LS.nilai)}
           </p>
         </div>
         {rows.length === 0 ? (
           <Kosong ikon={<ChartColumn />} judul="Tidak ada data" deskripsi="Ubah periode atau filter untuk melihat rekap." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
+          <>
+          <ul className="divide-y divide-line/70 xl:hidden" aria-label="Rincian pengajuan">
+            {rows.map((p, i) => (
+              <li key={p.id}>
+                <Link to={`/pengajuan/${p.id}`} className="flex gap-3 px-4 py-3 transition-colors active:bg-kuning-400/[0.08]">
+                  <span className="w-5 shrink-0 pt-1 text-right text-xs text-fg-subtle">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Chip>{p.kode}</Chip>
+                      <KategoriBadge kategori={p.kategori} pendek className="py-0.5" />
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-sm font-semibold text-fg">{p.nama_kegiatan}</p>
+                    <p className="mt-0.5 truncate text-xs text-fg-muted">
+                      {formatRentangTanggal(p.tanggal_kegiatan, p.tanggal_selesai)} · {p.penerima}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                      <StatusBadge status={p.status} className="py-0.5" />
+                      <span className="flex items-center gap-1.5">
+                        <MekanismeBadge mekanisme={p.mekanisme} />
+                        <span className="angka text-sm font-bold text-fg">{formatRupiah(p.total)}</span>
+                      </span>
+                    </div>
+                    {p.no_invoice_mdk && <p className="mt-1 truncate font-mono text-[11px] text-fg-muted">Invoice MDK: {p.no_invoice_mdk}</p>}
+                  </div>
+                </Link>
+              </li>
+            ))}
+            <li className="flex items-center justify-between gap-3 bg-kuning-100 px-4 py-3 text-sm font-extrabold text-navy-950 dark:bg-navy-800 dark:text-kuning-200">
+              <span>TOTAL ({formatAngka(rows.length)} pengajuan)</span>
+              <span className="angka">{formatRupiah(r.nilai)}</span>
+            </li>
+          </ul>
+          <div className="hidden overflow-x-auto xl:block">
+            <table className="w-full min-w-[860px] table-fixed text-left text-sm">
+              <colgroup>
+                <col className="w-14" />
+                <col />
+                <col className="w-32" />
+                <col className="w-40" />
+                <col className="w-[180px]" />
+                <col className="w-[170px]" />
+              </colgroup>
               <thead>
                 <tr className="text-[11px] font-bold tracking-wider text-fg-subtle uppercase">
                   <th className="py-3 pr-2 pl-5">No</th>
@@ -406,19 +452,19 @@ function RekapPengajuanView({ q, tampilDraft }: { q: ReturnType<typeof useRekapP
                 {rows.map((p, i) => (
                   <tr key={p.id} className="border-t border-line/70 transition-colors hover:bg-kuning-400/[0.07]">
                     <td className="py-2.5 pr-2 pl-5 text-xs text-fg-subtle">{i + 1}</td>
-                    <td className="max-w-[320px] px-3 py-2.5">
-                      <div className="flex items-center gap-1.5">
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <Chip>{p.kode}</Chip>
                         <KategoriBadge kategori={p.kategori} pendek className="py-0.5" />
                       </div>
-                      <Link to={`/pengajuan/${p.id}`} className="mt-1 block truncate font-semibold text-fg hover:underline">
+                      <Link to={`/pengajuan/${p.id}`} className="mt-1 line-clamp-2 font-semibold text-fg hover:underline" title={p.nama_kegiatan}>
                         {p.nama_kegiatan}
                       </Link>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-fg-muted">
                       {formatRentangTanggal(p.tanggal_kegiatan, p.tanggal_selesai)}
                     </td>
-                    <td className="max-w-[180px] truncate px-3 py-2.5 text-fg" title={p.penerima}>
+                    <td className="truncate px-3 py-2.5 text-fg" title={p.penerima}>
                       {p.penerima}
                     </td>
                     <td className="px-3 py-2.5">
@@ -448,6 +494,7 @@ function RekapPengajuanView({ q, tampilDraft }: { q: ReturnType<typeof useRekapP
               </tfoot>
             </table>
           </div>
+          </>
         )}
       </GlassCard>
     </div>
@@ -461,7 +508,7 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
   const maks = Math.max(1, ...rows.map((r) => r.total));
   return (
     <div className={cn('space-y-5 transition-opacity', q.isFetching && 'opacity-60')}>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatKecil indeks={0} label="Total seluruh pegawai" nilai={total} sub={`${rows.length} pegawai`} />
         {KATEGORI_LIST.map((k, i) => (
           <StatKecil
@@ -491,8 +538,53 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
         {rows.length === 0 ? (
           <Kosong ikon={<Users />} judul="Tidak ada data" deskripsi="Belum ada nilai yang tercatat untuk pegawai pada filter ini." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
+          <>
+          <ul className="divide-y divide-line/70 xl:hidden" aria-label="Rekap per pegawai">
+            {rows.map((r, i) => (
+              <li key={r.pegawai_id}>
+                <button type="button" onClick={() => onPilih(r)} className="block w-full px-4 py-3 text-left transition-colors active:bg-kuning-400/[0.08]">
+                  <span className="flex items-center gap-3">
+                    <span className="w-5 shrink-0 text-right text-xs font-bold text-fg-subtle">{i + 1}</span>
+                    <Avatar nama={r.nama} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold text-fg">{r.nama}</span>
+                      <span className="block truncate text-xs text-fg-muted">
+                        <span className="angka font-extrabold text-fg">{formatRupiah(r.total)}</span> · {r.jumlah} pengajuan
+                      </span>
+                    </span>
+                  </span>
+                  <span className="mt-2 ml-8 flex h-1.5 gap-[2px] overflow-hidden rounded-r-[3px]" aria-hidden>
+                    {KATEGORI_LIST.filter((k) => r[k] > 0).map((k) => (
+                      <span key={k} className="h-full" style={{ width: `${(r[k] / maks) * 100}%`, background: WARNA_KATEGORI[k] }} />
+                    ))}
+                  </span>
+                  <span className="mt-1.5 ml-8 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-fg-muted">
+                    {KATEGORI_LIST.filter((k) => r[k] > 0).map((k) => (
+                      <span key={k} className="flex items-center gap-1">
+                        <span className="size-2 rounded-[2px]" style={{ background: WARNA_KATEGORI[k] }} aria-hidden />
+                        {KATEGORI_INFO[k].labelPendek} Rp {formatRupiahRingkas(r[k])}
+                      </span>
+                    ))}
+                  </span>
+                </button>
+              </li>
+            ))}
+            <li className="flex items-center justify-between gap-3 bg-kuning-100 px-4 py-3 text-sm font-extrabold text-navy-950 dark:bg-navy-800 dark:text-kuning-200">
+              <span>TOTAL ({rows.length} pegawai)</span>
+              <span className="angka">{formatRupiah(total)}</span>
+            </li>
+          </ul>
+          <div className="hidden overflow-x-auto xl:block">
+            <table className="w-full min-w-[860px] table-fixed text-left text-sm">
+              <colgroup>
+                <col className="w-14" />
+                <col />
+                <col className="w-16" />
+                <col className="w-[120px]" />
+                <col className="w-[130px]" />
+                <col className="w-[120px]" />
+                <col className="w-[150px]" />
+              </colgroup>
               <thead>
                 <tr className="text-[11px] font-bold tracking-wider text-fg-subtle uppercase">
                   <th className="py-3 pr-2 pl-5">#</th>
@@ -516,7 +608,7 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
                   >
                     <td className="py-3 pr-2 pl-5 text-xs font-bold text-fg-subtle">{i + 1}</td>
                     <td className="px-3 py-3">
-                      <button type="button" className="flex items-center gap-2.5 text-left" onClick={() => onPilih(r)}>
+                      <button type="button" className="flex w-full min-w-0 items-center gap-2.5 text-left" onClick={() => onPilih(r)}>
                         <Avatar nama={r.nama} />
                         <span className="min-w-0">
                           <span className="block truncate font-semibold text-fg hover:underline">{r.nama}</span>
@@ -552,6 +644,7 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
               </tfoot>
             </table>
           </div>
+          </>
         )}
       </GlassCard>
     </div>

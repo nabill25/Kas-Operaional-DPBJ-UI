@@ -2,6 +2,7 @@
 // Pesan error berbahasa Indonesia; key error = nama field (peserta: "peserta.<i>.<field>").
 import {
   JENIS_TRANSPORT_LIST,
+  JENIS_KONSUMSI_LIST,
   JENIS_UANG_LIST,
   KATEGORI_LIST,
   MAX_NILAI,
@@ -10,6 +11,7 @@ import {
   ROLE_LIST,
   STATUS_CEK_LIST,
   type JenisTransport,
+  type JenisKonsumsi,
   type JenisUang,
   type Kategori,
   type Mekanisme,
@@ -32,6 +34,7 @@ export interface PengajuanBersih {
   mekanisme: Mekanisme;
   jenis_uang: JenisUang | null;
   jenis_transport: JenisTransport | null;
+  jenis_konsumsi: JenisKonsumsi | null;
   total: number;
   uang_siapa_id: number | null;
   catatan: string | null;
@@ -115,9 +118,13 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
   let tanggal_selesai: string | null = null;
   let jenis_uang: JenisUang | null = null;
   let jenis_transport: JenisTransport | null = null;
+  let jenis_konsumsi: JenisKonsumsi | null = null;
   const peserta: PesertaInput[] = [];
 
   if (kategori === 'konsumsi') {
+    if (!termasuk(JENIS_KONSUMSI_LIST, r.jenis_konsumsi)) e.jenis_konsumsi = 'Pilih jenis konsumsi';
+    else jenis_konsumsi = r.jenis_konsumsi;
+
     const jo = keInteger(r.jumlah_orang);
     if (jo === null) e.jumlah_orang = 'Jumlah orang wajib diisi';
     else if (Number.isNaN(jo) || jo < 1) e.jumlah_orang = 'Jumlah orang minimal 1';
@@ -214,6 +221,7 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
       mekanisme: r.mekanisme as Mekanisme,
       jenis_uang,
       jenis_transport,
+      jenis_konsumsi,
       total,
       uang_siapa_id,
       catatan: catatan || null,

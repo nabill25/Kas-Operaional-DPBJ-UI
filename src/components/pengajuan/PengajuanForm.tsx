@@ -1,12 +1,15 @@
-import { CalendarRange, Info, MapPin, NotebookPen, Plus, Save, Trash, Users, Wallet } from 'lucide-react';
+import { CakeSlice, CalendarRange, Info, MapPin, NotebookPen, Plus, Save, Trash, Users, UtensilsCrossed, Wallet, type LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import {
+  JENIS_KONSUMSI_LABEL,
+  JENIS_KONSUMSI_LIST,
   JENIS_TRANSPORT_LABEL,
   JENIS_UANG_LABEL,
   KATEGORI_INFO,
   MAX_PESERTA_TRANSPORT,
+  type JenisKonsumsi,
   type JenisTransport,
   type JenisUang,
   type Kategori,
@@ -31,6 +34,13 @@ interface BarisPeserta {
   nilai: number | null;
 }
 
+/** Ikon tiap jenis konsumsi (kudapan, makan siang, atau keduanya). */
+const IKON_KONSUMSI: Record<JenisKonsumsi, LucideIcon[]> = {
+  kudapan: [CakeSlice],
+  makan_siang: [UtensilsCrossed],
+  kudapan_makan_siang: [CakeSlice, UtensilsCrossed],
+};
+
 interface StateForm {
   nama_kegiatan: string;
   tanggal_kegiatan: string;
@@ -39,6 +49,7 @@ interface StateForm {
   mekanisme: Mekanisme | '';
   jenis_uang: JenisUang | '';
   jenis_transport: JenisTransport | '';
+  jenis_konsumsi: JenisKonsumsi | '';
   jumlah_orang: string;
   total: number | null;
   uang_siapa_id: number | null;
@@ -59,6 +70,7 @@ function stateAwal(kategori: Kategori, d?: PengajuanDetail): StateForm {
       mekanisme: d.mekanisme,
       jenis_uang: d.jenis_uang ?? '',
       jenis_transport: d.jenis_transport ?? '',
+      jenis_konsumsi: d.jenis_konsumsi ?? '',
       jumlah_orang: d.kategori === 'konsumsi' ? String(d.jumlah_orang) : '',
       total: d.kategori === 'konsumsi' ? d.total : null,
       uang_siapa_id: d.uang_siapa_id,
@@ -77,6 +89,7 @@ function stateAwal(kategori: Kategori, d?: PengajuanDetail): StateForm {
     mekanisme: '',
     jenis_uang: '',
     jenis_transport: '',
+    jenis_konsumsi: '',
     jumlah_orang: '',
     total: null,
     uang_siapa_id: null,
@@ -96,6 +109,7 @@ function keInput(kategori: Kategori, s: StateForm): PengajuanInput {
   if (kategori === 'konsumsi') {
     return {
       ...dasar,
+      jenis_konsumsi: (s.jenis_konsumsi || null) as JenisKonsumsi | null,
       jumlah_orang: s.jumlah_orang === '' ? null : Number(s.jumlah_orang),
       total: s.total,
       uang_siapa_id: s.uang_siapa_id,
@@ -342,6 +356,58 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
         <GlassCard className="p-5 sm:p-6" {...kartu(1)}>
           <JudulKartu ikon={<Wallet className="size-4.5" />} judul="Rincian konsumsi" deskripsi="Peserta rapat dan uang yang digunakan" />
           <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <fieldset className="sm:col-span-2">
+              <legend className="mb-1.5 text-[13px] font-semibold text-fg">
+                Jenis konsumsi <span className="text-red-500">*</span>
+              </legend>
+              <div
+                id="jenis_konsumsi"
+                tabIndex={-1}
+                role="radiogroup"
+                aria-label="Jenis konsumsi"
+                aria-invalid={!!errors.jenis_konsumsi || undefined}
+                className="grid grid-cols-3 gap-2 outline-none"
+              >
+                {JENIS_KONSUMSI_LIST.map((j) => {
+                  const aktif = s.jenis_konsumsi === j;
+                  return (
+                    <label
+                      key={j}
+                      data-jenis-konsumsi={j}
+                      className={cn(
+                        'flex min-h-[76px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-center ring-1 transition',
+                        'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
+                        aktif
+                          ? 'bg-kuning-400/15 ring-2 ring-kuning-500'
+                          : errors.jenis_konsumsi
+                            ? 'bg-red-500/[0.04] ring-red-500/50 hover:ring-red-500/70'
+                            : 'bg-fg/[0.03] ring-fg/10 hover:ring-fg/25',
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="jenis_konsumsi"
+                        value={j}
+                        checked={aktif}
+                        onChange={() => ubah('jenis_konsumsi', j)}
+                        className="sr-only"
+                      />
+                      <span className={cn('flex items-center gap-0.5', aktif ? 'text-kuning-800 dark:text-kuning-300' : 'text-fg-muted')} aria-hidden>
+                        {IKON_KONSUMSI[j].map((Ikon, i) => (
+                          <Ikon key={i} className="size-[18px]" />
+                        ))}
+                      </span>
+                      <span className="text-[12.5px] leading-tight font-semibold text-fg sm:text-[13px]">{JENIS_KONSUMSI_LABEL[j]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              {errors.jenis_konsumsi && (
+                <p role="alert" className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+                  {errors.jenis_konsumsi}
+                </p>
+              )}
+            </fieldset>
             <Field label="Jumlah orang" htmlFor="jumlah_orang" error={errors.jumlah_orang} wajib>
               <div className="relative">
                 <Users className="pointer-events-none absolute top-1/2 z-10 left-3.5 size-4 -translate-y-1/2 text-fg-muted" />

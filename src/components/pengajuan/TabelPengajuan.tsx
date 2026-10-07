@@ -1,6 +1,7 @@
-import { ChevronRight, MapPin } from 'lucide-react';
+import { ChevronRight, Coffee, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router';
+import { JENIS_KONSUMSI_LABEL } from '../../../shared/constants';
 import { formatRentangTanggal, formatRupiah } from '../../../shared/format';
 import type { PengajuanRingkas } from '../../../shared/types';
 import { cn } from '../../lib/cn';
@@ -11,9 +12,17 @@ export function TabelPengajuan({ data, redup = false }: { data: PengajuanRingkas
   const navigate = useNavigate();
   return (
     <div className={cn('transition-opacity duration-300', redup && 'opacity-55')}>
-      {/* Desktop */}
-      <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-[920px] text-left text-sm">
+      {/* Desktop lebar (≥1280 px; tabel butuh ±920 px) */}
+      <div className="hidden overflow-x-auto xl:block">
+        <table className="w-full min-w-[880px] table-fixed text-left text-sm">
+          <colgroup>
+            <col />
+            <col className="w-32" />
+            <col className="w-[150px]" />
+            <col className="w-[140px]" />
+            <col className="w-[72px]" />
+            <col className="w-[200px]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-line text-[11px] font-bold tracking-wider text-fg-subtle uppercase">
               <th className="py-3 pr-3 pl-5 font-bold">Pengajuan</th>
@@ -35,27 +44,33 @@ export function TabelPengajuan({ data, redup = false }: { data: PengajuanRingkas
                 className="group cursor-pointer border-b border-line/70 transition-colors last:border-0 hover:bg-kuning-400/[0.08]"
               >
                 <td className="py-3.5 pr-3 pl-5 align-top">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <Chip>{p.kode}</Chip>
                     <KategoriBadge kategori={p.kategori} pendek className="py-0.5" />
                   </div>
                   <Link
                     to={`/pengajuan/${p.id}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="mt-1.5 block max-w-[340px] truncate font-semibold text-fg group-hover:underline"
+                    className="mt-1.5 line-clamp-2 font-semibold text-fg group-hover:underline"
+                    title={p.nama_kegiatan}
                   >
                     {p.nama_kegiatan}
                   </Link>
+                  {p.jenis_konsumsi && (
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-fg-muted">
+                      <Coffee className="size-3 shrink-0" /> <span className="truncate">{JENIS_KONSUMSI_LABEL[p.jenis_konsumsi]}</span>
+                    </p>
+                  )}
                   {p.lokasi_tujuan && (
-                    <p className="mt-0.5 flex max-w-[340px] items-center gap-1 truncate text-xs text-fg-muted">
-                      <MapPin className="size-3 shrink-0" /> {p.lokasi_tujuan}
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-fg-muted">
+                      <MapPin className="size-3 shrink-0" /> <span className="truncate">{p.lokasi_tujuan}</span>
                     </p>
                   )}
                 </td>
                 <td className="px-3 py-3.5 align-top whitespace-nowrap text-fg-muted">
                   {formatRentangTanggal(p.tanggal_kegiatan, p.tanggal_selesai)}
                 </td>
-                <td className="max-w-[220px] px-3 py-3.5 align-top">
+                <td className="px-3 py-3.5 align-top">
                   <p className="truncate font-medium text-fg">{p.penerima}</p>
                   <p className="text-xs text-fg-muted">{p.jumlah_orang} orang</p>
                 </td>
@@ -97,8 +112,8 @@ export function TabelPengajuan({ data, redup = false }: { data: PengajuanRingkas
         </table>
       </div>
 
-      {/* Mobile & tablet */}
-      <ul className="space-y-2.5 p-3 lg:hidden">
+      {/* HP, tablet & laptop kecil */}
+      <ul className="space-y-2.5 p-3 xl:hidden">
         {data.map((p, i) => (
           <motion.li
             key={p.id}

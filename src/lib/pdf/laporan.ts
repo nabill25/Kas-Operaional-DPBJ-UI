@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import { autoTable, type RowInput, type UserOptions } from 'jspdf-autotable';
 import {
   JENIS_BERKAS_LABEL,
+  JENIS_KONSUMSI_LABEL,
   JENIS_TRANSPORT_LABEL,
   JENIS_UANG_LABEL,
   KATEGORI_INFO,
@@ -436,6 +437,7 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
     info.push(['Jenis transport', p.jenis_transport ? JENIS_TRANSPORT_LABEL[p.jenis_transport] : '-']);
   }
   if (p.kategori === 'konsumsi') {
+    info.push(['Jenis konsumsi', p.jenis_konsumsi ? JENIS_KONSUMSI_LABEL[p.jenis_konsumsi] : '-']);
     info.push(['Uang siapa', b(p.uang_siapa_nama)]);
     info.push(['Rata-rata per orang', formatRupiah(Math.round(p.total / Math.max(1, p.jumlah_orang)))]);
   }

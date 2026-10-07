@@ -68,6 +68,15 @@ export const JENIS_TRANSPORT_LABEL: Record<JenisTransport, string> = {
   luar_kota: 'Luar Kota',
 };
 
+/** Jenis konsumsi (wajib untuk kategori Konsumsi). */
+export const JENIS_KONSUMSI_LIST = ['kudapan', 'makan_siang', 'kudapan_makan_siang'] as const;
+export type JenisKonsumsi = (typeof JENIS_KONSUMSI_LIST)[number];
+export const JENIS_KONSUMSI_LABEL: Record<JenisKonsumsi, string> = {
+  kudapan: 'Kudapan',
+  makan_siang: 'Makan Siang',
+  kudapan_makan_siang: 'Kudapan + Makan Siang',
+};
+
 export const JENIS_BERKAS_LIST = [
   'notulen',
   'undangan',

@@ -33,7 +33,7 @@ end $$;
 drop table if exists notifikasi, cek_berkas, riwayat, berkas, pengajuan_peserta,
   pengajuan, kode_counter, pegawai, sessions, users cascade;
 drop type if exists aksi_riwayat_enum, jenis_notifikasi_enum, status_cek_enum,
-  jenis_transport_enum, jenis_uang_enum, status_enum, mekanisme_enum, kategori_enum, role_enum cascade;
+  jenis_konsumsi_enum, jenis_transport_enum, jenis_uang_enum, status_enum, mekanisme_enum, kategori_enum, role_enum cascade;
 
 -- ─── 2. Tipe enum (sumber: shared/constants.ts) ───────────────
 create type role_enum as enum ('operator', 'pum', 'pimpinan', 'admin');
@@ -42,6 +42,7 @@ create type mekanisme_enum as enum ('KO', 'LS');
 create type status_enum as enum ('draft', 'diajukan_pum', 'dikembalikan', 'diajukan_mdk', 'selesai');
 create type jenis_uang_enum as enum ('uang_harian', 'uang_transport');
 create type jenis_transport_enum as enum ('dalam_kota', 'luar_kota');
+create type jenis_konsumsi_enum as enum ('kudapan', 'makan_siang', 'kudapan_makan_siang');
 create type status_cek_enum as enum ('sesuai', 'revisi');
 create type aksi_riwayat_enum as enum (
   'dibuat', 'diubah', 'dihapus',
@@ -106,6 +107,7 @@ create table pengajuan (
   mekanisme           mekanisme_enum not null,
   jenis_uang          jenis_uang_enum,
   jenis_transport     jenis_transport_enum,
+  jenis_konsumsi      jenis_konsumsi_enum,      -- hanya kategori konsumsi
   uang_siapa_id       bigint references pegawai (id),
   total               bigint not null default 0 check (total >= 0),
   catatan             text,

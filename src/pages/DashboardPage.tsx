@@ -234,7 +234,7 @@ export default function DashboardPage() {
             ))}
           </div>
           {d.aktivitas.length === 0 && <p className="py-6 text-center text-sm text-fg-muted">Belum ada aktivitas.</p>}
-          <p className="mt-3 text-right text-xs text-fg-subtle">
+          <p className="mt-3 text-center text-xs text-fg-subtle sm:text-right">
             Klik pengajuan di <Link to="/pengajuan" className="font-semibold underline">Daftar Pengajuan</Link> untuk riwayat lengkap.
           </p>
         </GlassCard>

@@ -4,6 +4,7 @@ import type {
   JenisBerkas,
   JenisBerkasWajib,
   JenisNotifikasi,
+  JenisKonsumsi,
   JenisTransport,
   JenisUang,
   Kategori,
@@ -122,6 +123,7 @@ export interface PengajuanRingkas {
   mekanisme: Mekanisme;
   jenis_uang: JenisUang | null;
   jenis_transport: JenisTransport | null;
+  jenis_konsumsi: JenisKonsumsi | null;
   uang_siapa_id: number | null;
   uang_siapa_nama: string | null;
   /** Nama penerima: "uang siapa" (konsumsi) atau nama peserta (transport), dipisah koma. */
@@ -170,6 +172,7 @@ export interface PengajuanInput {
   mekanisme: Mekanisme;
   jenis_uang?: JenisUang | null;
   jenis_transport?: JenisTransport | null;
+  jenis_konsumsi?: JenisKonsumsi | null;
   total?: number | null;
   uang_siapa_id?: number | null;
   catatan?: string | null;

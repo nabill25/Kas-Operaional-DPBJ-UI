@@ -68,15 +68,6 @@ export default function PenggunaPage() {
         }
       />
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {ROLE_LIST.map((r, i) => (
-          <GlassCard key={r} className="p-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-            <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-bold', GAYA_PERAN[r])}>{ROLE_LABEL[r]}</span>
-            <p className="mt-2 text-xs text-fg-muted">{ROLE_KETERANGAN[r]}</p>
-            <p className="mt-1 text-sm font-bold text-fg">{data.filter((u) => u.role === r && u.aktif).length} akun aktif</p>
-          </GlassCard>
-        ))}
-      </div>
 
       {menunggu.length > 0 && (
         <GlassCard className="mb-5 overflow-hidden" data-bagian="menunggu-persetujuan">
@@ -98,9 +89,8 @@ export default function PenggunaPage() {
                   <Avatar nama={u.nama} className="size-10" />
                   <div className="min-w-0">
                     <p className="truncate font-bold text-fg">{u.nama}</p>
-                    <p className="truncate text-xs text-fg-muted">
-                      {u.username} · mendaftar {formatTanggal(u.created_at, 'pendek')}
-                    </p>
+                    <p className="truncate text-xs text-fg-muted">{u.username}</p>
+                    <p className="text-[11px] text-fg-subtle">Mendaftar {formatTanggal(u.created_at, 'pendek')}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
@@ -116,6 +106,22 @@ export default function PenggunaPage() {
           </ul>
         </GlassCard>
       )}
+
+      <div className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">
+        {ROLE_LIST.map((r, i) => (
+          <GlassCard
+            key={r}
+            className="flex items-center justify-between gap-3 px-4 py-3 sm:block sm:p-4"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+          >
+            <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap', GAYA_PERAN[r])}>{ROLE_LABEL[r]}</span>
+            <p className="mt-2 hidden text-xs text-fg-muted sm:block">{ROLE_KETERANGAN[r]}</p>
+            <p className="shrink-0 text-sm font-bold text-fg sm:mt-1">{data.filter((u) => u.role === r && u.aktif).length} akun aktif</p>
+          </GlassCard>
+        ))}
+      </div>
 
       <GlassCard className="overflow-hidden">
         {isLoading ? (
@@ -141,15 +147,27 @@ export default function PenggunaPage() {
                     {u.id === saya.id && <span className="rounded-md bg-kuning-400/25 px-1.5 py-0.5 text-[10px] font-bold text-kuning-900 dark:text-kuning-200">Anda</span>}
                   </p>
                   <p className="truncate text-xs text-fg-muted">
-                    {u.username} · dibuat {formatTanggal(u.created_at, 'pendek')}
+                    {u.username}
+                    <span className="hidden sm:inline"> · dibuat {formatTanggal(u.created_at, 'pendek')}</span>
                   </p>
+                  {/* HP: peran & status tampil di bawah email (kolomnya disembunyikan di layar sempit) */}
+                  <div className="mt-1.5 flex flex-wrap gap-1.5 sm:hidden">
+                    <span className={cn('inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap', GAYA_PERAN[u.role])}>
+                      {ROLE_LABEL[u.role]}
+                    </span>
+                    {!u.aktif && (
+                      <span className="inline-flex rounded-full bg-slate-500/10 px-2 py-0.5 text-[11px] font-bold text-slate-600 ring-1 ring-slate-500/20 ring-inset dark:text-slate-300">
+                        Nonaktif
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <span className={cn('hidden rounded-full px-2.5 py-1 text-xs font-bold sm:inline-flex', GAYA_PERAN[u.role])}>
                   {ROLE_LABEL[u.role]}
                 </span>
                 <span
                   className={cn(
-                    'hidden rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset md:inline-flex',
+                    'hidden rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset sm:inline-flex',
                     u.aktif
                       ? 'bg-emerald-500/12 text-emerald-700 ring-emerald-500/20 dark:text-emerald-300'
                       : 'bg-slate-500/10 text-slate-600 ring-slate-500/20 dark:text-slate-300',

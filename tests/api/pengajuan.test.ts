@@ -34,6 +34,7 @@ describe('Pengajuan Konsumsi', () => {
       total: 1_250_000,
       jumlah_orang: 12,
       mekanisme: 'KO',
+      jenis_konsumsi: 'kudapan_makan_siang',
       uang_siapa_id: ctx.pegawai[2],
       uang_siapa_nama: 'Nurul Hidayah',
       penerima: 'Nurul Hidayah',
@@ -50,11 +51,39 @@ describe('Pengajuan Konsumsi', () => {
     expect(res.body.riwayat[0]).toMatchObject({ aksi: 'dibuat', user_nama: 'Operator DPBJ' });
   });
 
+  it('jenis konsumsi: wajib & valid untuk konsumsi, diabaikan untuk transport, perubahan tercatat', async () => {
+    let res = await op.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0], { jenis_konsumsi: undefined }));
+    expect(res.status).toBe(400);
+    expect(res.body.errors.jenis_konsumsi).toBe('Pilih jenis konsumsi');
+    res = await op.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0], { jenis_konsumsi: 'sarapan' }));
+    expect(res.status).toBe(400);
+    expect(res.body.errors.jenis_konsumsi).toBeTruthy();
+
+    res = await op.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0], { jenis_konsumsi: 'kudapan' }));
+    expect(res.status).toBe(201);
+    expect(res.body.jenis_konsumsi).toBe('kudapan');
+    const id = res.body.id as number;
+
+    res = await op.put(`/api/pengajuan/${id}`).send(dataKonsumsi(ctx.pegawai[0], { jenis_konsumsi: 'makan_siang' }));
+    expect(res.status).toBe(200);
+    expect(res.body.jenis_konsumsi).toBe('makan_siang');
+    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'diubah', keterangan: 'Jenis konsumsi Kudapan → Makan Siang' });
+    const daftar = await op.get('/api/pengajuan');
+    expect(daftar.body.data.find((p: { id: number }) => p.id === id).jenis_konsumsi).toBe('makan_siang');
+
+    // Transport: nilai jenis konsumsi diabaikan (selalu null)
+    res = await op
+      .post('/api/pengajuan')
+      .send(dataRumahTangga([{ pegawai_id: ctx.pegawai[1], nilai: 100_000 }], { jenis_konsumsi: 'kudapan' }));
+    expect(res.status).toBe(201);
+    expect(res.body.jenis_konsumsi).toBeNull();
+  });
+
   it('menolak data tidak lengkap dengan error per field', async () => {
     const res = await op.post('/api/pengajuan').send({ kategori: 'konsumsi' });
     expect(res.status).toBe(400);
     expect(Object.keys(res.body.errors).sort()).toEqual(
-      ['jumlah_orang', 'mekanisme', 'nama_kegiatan', 'tanggal_kegiatan', 'total', 'uang_siapa_id'].sort(),
+      ['jenis_konsumsi', 'jumlah_orang', 'mekanisme', 'nama_kegiatan', 'tanggal_kegiatan', 'total', 'uang_siapa_id'].sort(),
     );
   });
 

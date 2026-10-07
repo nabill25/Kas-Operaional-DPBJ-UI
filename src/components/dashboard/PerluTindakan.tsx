@@ -84,7 +84,7 @@ export function PerluTindakan({ data }: { data: PengajuanRingkas[] }) {
                 >
                   <ProgressRing nilai={p.berkas_terpenuhi} total={p.berkas_wajib} ukuran={34} tebal={3.5} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                       <Chip>{p.kode}</Chip>
                       <StatusBadge status={p.status} className="min-w-0 py-0.5" />
                     </div>

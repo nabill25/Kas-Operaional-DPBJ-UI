@@ -43747,6 +43747,12 @@ var STATUS_LIST = ["draft", "diajukan_pum", "dikembalikan", "diajukan_mdk", "sel
 var MEKANISME_LIST = ["KO", "LS"];
 var JENIS_UANG_LIST = ["uang_harian", "uang_transport"];
 var JENIS_TRANSPORT_LIST = ["dalam_kota", "luar_kota"];
+var JENIS_KONSUMSI_LIST = ["kudapan", "makan_siang", "kudapan_makan_siang"];
+var JENIS_KONSUMSI_LABEL = {
+  kudapan: "Kudapan",
+  makan_siang: "Makan Siang",
+  kudapan_makan_siang: "Kudapan + Makan Siang"
+};
 var JENIS_BERKAS_LABEL = {
   // Kunci internal tetap `notulen` (sudah tersimpan di DB & dipakai API); label resmi yang tampil: "Notula".
   notulen: "Notula",
@@ -43867,8 +43873,11 @@ function validatePengajuan(raw) {
   let tanggal_selesai = null;
   let jenis_uang = null;
   let jenis_transport = null;
+  let jenis_konsumsi = null;
   const peserta = [];
   if (kategori === "konsumsi") {
+    if (!termasuk(JENIS_KONSUMSI_LIST, r.jenis_konsumsi)) e.jenis_konsumsi = "Pilih jenis konsumsi";
+    else jenis_konsumsi = r.jenis_konsumsi;
     const jo = keInteger(r.jumlah_orang);
     if (jo === null) e.jumlah_orang = "Jumlah orang wajib diisi";
     else if (Number.isNaN(jo) || jo < 1) e.jumlah_orang = "Jumlah orang minimal 1";
@@ -43957,6 +43966,7 @@ function validatePengajuan(raw) {
       mekanisme: r.mekanisme,
       jenis_uang,
       jenis_transport,
+      jenis_konsumsi,
       total,
       uang_siapa_id,
       catatan: catatan || null,
@@ -44196,6 +44206,7 @@ function keRingkas(row, pesertaNama) {
     mekanisme: row.mekanisme,
     jenis_uang: row.jenis_uang,
     jenis_transport: row.jenis_transport,
+    jenis_konsumsi: row.jenis_konsumsi ?? null,
     uang_siapa_id: row.uang_siapa_id ? Number(row.uang_siapa_id) : null,
     uang_siapa_nama: row.uang_siapa_nama,
     penerima,
@@ -44513,9 +44524,9 @@ async function buatPengajuan(db, user, data) {
     const kode = await kodeBerikutnya(txDb, data.kategori, (/* @__PURE__ */ new Date()).getFullYear());
     const { lastInsertRowid: id } = await txDb.run(
       `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang,
-         lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, uang_siapa_id, total, catatan,
+         lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, total, catatan,
          berkas_na, berkas_terpenuhi, berkas_wajib, status, created_by, updated_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
       kode,
       data.kategori,
       data.nama_kegiatan,
@@ -44526,6 +44537,7 @@ async function buatPengajuan(db, user, data) {
       data.mekanisme,
       data.jenis_uang,
       data.jenis_transport,
+      data.jenis_konsumsi,
       data.uang_siapa_id,
       data.total,
       data.catatan,
@@ -44567,7 +44579,7 @@ async function ubahPengajuan(db, user, id, data) {
     const waktu = nowIso();
     await txDb.run(
       `UPDATE pengajuan SET nama_kegiatan = ?, tanggal_kegiatan = ?, tanggal_selesai = ?, jumlah_orang = ?,
-         lokasi_tujuan = ?, mekanisme = ?, jenis_uang = ?, jenis_transport = ?, uang_siapa_id = ?, total = ?,
+         lokasi_tujuan = ?, mekanisme = ?, jenis_uang = ?, jenis_transport = ?, jenis_konsumsi = ?, uang_siapa_id = ?, total = ?,
          catatan = ?, updated_by = ?, updated_at = ?
        WHERE id = ?`,
       data.nama_kegiatan,
@@ -44578,6 +44590,7 @@ async function ubahPengajuan(db, user, id, data) {
       data.mekanisme,
       data.jenis_uang,
       data.jenis_transport,
+      data.jenis_konsumsi,
       data.uang_siapa_id,
       data.total,
       data.catatan,
@@ -44586,8 +44599,13 @@ async function ubahPengajuan(db, user, id, data) {
       id
     );
     await simpanPeserta(txDb, id, data);
-    const ket = Number(row.total) !== data.total ? `Nilai ${formatRupiah(Number(row.total))} \u2192 ${formatRupiah(data.total)}` : null;
-    await catatRiwayat(txDb, row, user.id, "diubah", ket, waktu);
+    const perubahan = [];
+    if (Number(row.total) !== data.total) perubahan.push(`Nilai ${formatRupiah(Number(row.total))} \u2192 ${formatRupiah(data.total)}`);
+    if (row.kategori === "konsumsi" && (row.jenis_konsumsi ?? null) !== data.jenis_konsumsi) {
+      const label = (j) => j ? JENIS_KONSUMSI_LABEL[j] : "-";
+      perubahan.push(`Jenis konsumsi ${label(row.jenis_konsumsi ?? null)} \u2192 ${label(data.jenis_konsumsi)}`);
+    }
+    await catatRiwayat(txDb, row, user.id, "diubah", perubahan.join(" \xB7 ") || null, waktu);
   });
 }
 async function hapusPengajuan(db, user, id) {

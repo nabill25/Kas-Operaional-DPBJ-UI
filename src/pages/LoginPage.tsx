@@ -65,7 +65,7 @@ export function LoginPage() {
         <TombolTema />
       </div>
 
-      <div className="mx-auto grid grid-cols-1 min-h-dvh max-w-6xl items-center gap-10 px-5 py-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
+      <div className="mx-auto grid grid-cols-1 min-h-dvh max-w-6xl items-center gap-10 px-5 pt-20 pb-10 sm:py-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
         {/* Panel hero */}
         <motion.section
           initial={{ opacity: 0, x: -24 }}

@@ -289,6 +289,18 @@
   --blob-c: rgb(42 41 37 / 0.7);
 }
 
+/* Toast (sonner): target sentuh lebih besar di layar sentuh */
+@media (pointer: coarse) {
+  html [data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+    width: 28px;
+    height: 28px;
+  }
+  html [data-sonner-toaster] [data-sonner-toast] [data-button] {
+    height: 32px;
+    padding-inline: 12px;
+  }
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;

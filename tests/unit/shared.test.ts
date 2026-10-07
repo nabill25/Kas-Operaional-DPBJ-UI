@@ -98,6 +98,7 @@ describe('validasi', () => {
       total: '750000',
       uang_siapa_id: '3',
       mekanisme: 'LS',
+      jenis_konsumsi: 'makan_siang',
       catatan: '   ',
       peserta: [{ pegawai_id: 1, nilai: 1 }],
     });
@@ -108,6 +109,7 @@ describe('validasi', () => {
       jumlah_orang: 15,
       total: 750000,
       uang_siapa_id: 3,
+      jenis_konsumsi: 'makan_siang',
       catatan: null,
       peserta: [],
       lokasi_tujuan: null,
@@ -127,7 +129,7 @@ describe('validasi', () => {
     });
     expect(h.ok).toBe(false);
     if (h.ok) return;
-    expect(Object.keys(h.errors).sort()).toEqual(['jumlah_orang', 'total', 'uang_siapa_id']);
+    expect(Object.keys(h.errors).sort()).toEqual(['jenis_konsumsi', 'jumlah_orang', 'total', 'uang_siapa_id']);
   });
 
   it('transport: total dari peserta, data konsumsi diabaikan', () => {

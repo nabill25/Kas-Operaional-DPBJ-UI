@@ -130,6 +130,7 @@ export function dataKonsumsi(uangSiapaId: number, ubah: Record<string, unknown> 
     total: 1_250_000,
     uang_siapa_id: uangSiapaId,
     mekanisme: 'KO',
+    jenis_konsumsi: 'kudapan_makan_siang',
     catatan: 'Snack dan makan siang',
     ...ubah,
   };

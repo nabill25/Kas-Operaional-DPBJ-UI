@@ -16,6 +16,7 @@ import { Pagination } from '../components/ui/Pagination';
 import { Segmented } from '../components/ui/Segmented';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { cn } from '../lib/cn';
 import { usePengajuanDaftar, type FilterDaftar } from '../lib/queries';
 
@@ -27,6 +28,7 @@ export default function PengajuanListPage() {
   const [params, setParams] = useSearchParams();
   const [cari, setCari] = useState(params.get('q') ?? '');
   const cariTunda = useDebounce(cari, 350);
+  const lebar = useMediaQuery('(min-width: 640px)');
   const [panel, setPanel] = useState(() => KUNCI_FILTER.some((k) => k !== 'q' && k !== 'kategori' && params.get(k)));
 
   const set = (kunci: string, nilai: string) => {
@@ -101,6 +103,7 @@ export default function PengajuanListPage() {
       <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center">
         <Segmented
           label="Kategori"
+          className="grid w-full grid-cols-2 sm:inline-flex sm:w-auto"
           layoutId="seg-daftar-kategori"
           value={kategori}
           onChange={(v) => set('kategori', v)}
@@ -119,7 +122,8 @@ export default function PengajuanListPage() {
             <Input
               value={cari}
               onChange={(e) => setCari(e.target.value)}
-              placeholder="Cari kode, kegiatan, lokasi, nama pegawai, no. invoice, project/task…"
+              placeholder={lebar ? 'Cari kode, kegiatan, lokasi, nama pegawai, no. invoice, project/task…' : 'Cari kode, kegiatan, nama…'}
+              title="Cari kode, kegiatan, lokasi, nama pegawai, no. invoice, project/task"
               className="pl-10"
             />
           </label>

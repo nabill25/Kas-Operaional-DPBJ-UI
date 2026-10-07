@@ -17,6 +17,7 @@ import { NAMA_BULAN, NAMA_BULAN_PENDEK, formatAngka, formatRupiah, formatRupiahR
 import type { DashboardData } from '../../../shared/types';
 import { cn } from '../../lib/cn';
 import { GlassCard, JudulKartu } from '../ui/GlassCard';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { usePaletChart } from './palet';
 
 type Baris = DashboardData['perBulan'][number] & { label: string };
@@ -72,6 +73,7 @@ function Tip({ active, payload, label }: TooltipContentProps) {
 
 export function TrenBulanan({ data, tahun, redup }: { data: DashboardData['perBulan']; tahun: number; redup?: boolean }) {
   const w = usePaletChart();
+  const lebar = useMediaQuery('(min-width: 520px)');
   const [tabel, setTabel] = useState(false);
   const baris: Baris[] = data.map((b) => ({ ...b, label: NAMA_BULAN_PENDEK[b.bulan - 1] }));
   const kosong = baris.every((b) => b.jumlah === 0);
@@ -152,7 +154,7 @@ export function TrenBulanan({ data, tahun, redup }: { data: DashboardData['perBu
                   tickLine={false}
                   axisLine={{ stroke: w.grid }}
                   tick={{ fill: w.sumbu, fontSize: 11, fontWeight: 600 }}
-                  interval={0}
+                  interval={lebar ? 0 : 1}
                   tickMargin={8}
                 />
                 <YAxis

@@ -26,7 +26,7 @@ import { motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { JENIS_TRANSPORT_LABEL, JENIS_UANG_LABEL, KATEGORI_INFO } from '../../shared/constants';
+import { JENIS_KONSUMSI_LABEL, JENIS_TRANSPORT_LABEL, JENIS_UANG_LABEL, KATEGORI_INFO } from '../../shared/constants';
 import { formatAngka, formatRentangTanggal, formatRupiah, formatTanggal, formatWaktu, lamaHari, selisihHari } from '../../shared/format';
 import type { PengajuanDetail } from '../../shared/types';
 import { CatatanModal, DataPumModal, InvoiceModal, TeruskanModal } from '../components/pengajuan/AksiModal';
@@ -430,6 +430,9 @@ function Detail({ p }: { p: PengajuanDetail }) {
                   <Info2 label="Jenis uang">{p.jenis_uang ? JENIS_UANG_LABEL[p.jenis_uang] : '-'}</Info2>
                   <Info2 label="Jenis transport">{p.jenis_transport ? JENIS_TRANSPORT_LABEL[p.jenis_transport] : '-'}</Info2>
                 </>
+              )}
+              {p.kategori === 'konsumsi' && (
+                <Info2 label="Jenis konsumsi">{p.jenis_konsumsi ? JENIS_KONSUMSI_LABEL[p.jenis_konsumsi] : '-'}</Info2>
               )}
               {p.kategori === 'konsumsi' && (
                 <Info2 label="Uang siapa">

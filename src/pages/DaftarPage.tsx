@@ -60,7 +60,7 @@ export function DaftarPage() {
         <TombolTema />
       </div>
 
-      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
+      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 pt-20 pb-10 sm:py-10">
         <motion.section
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -110,7 +110,7 @@ export function DaftarPage() {
                         invalid={!!errors.nama}
                         onChange={(e) => setNama(e.target.value)}
                         className="h-12 pl-10"
-                        placeholder="Nama sesuai data kepegawaian"
+                        placeholder="Contoh: Budi Santoso"
                       />
                     </IkonInput>
                   </Field>

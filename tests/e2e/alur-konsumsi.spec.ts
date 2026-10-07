@@ -17,11 +17,17 @@ test('alur lengkap Konsumsi: ajukan ke PUM → PUM centang berkas → teruskan k
   await pilihPegawai(page, 'uang_siapa_id', 'Nurul Hidayah');
   await page.getByRole('radio', { name: 'KO' }).click();
   await expect(page.getByText('Rp 125.000')).toBeVisible(); // rata-rata per orang
+  // Jenis konsumsi wajib dipilih: simpan tanpa memilih → ditandai, lalu pilih
+  await page.getByRole('button', { name: 'Simpan draft' }).click();
+  await expect(page.getByText('Pilih jenis konsumsi')).toBeVisible();
+  await page.locator('[data-jenis-konsumsi="kudapan_makan_siang"]').click();
+  await expect(page.getByRole('radio', { name: 'Kudapan + Makan Siang' })).toBeChecked();
   await page.getByRole('button', { name: 'Simpan draft' }).click();
 
   await expect(page).toHaveURL(/\/pengajuan\/\d+$/);
   const id = Number(page.url().split('/').pop());
   await expect(page.getByRole('heading', { name: nama })).toBeVisible();
+  await expect(page.getByText('Kudapan + Makan Siang')).toBeVisible(); // jenis konsumsi di Informasi kegiatan
   await expect(page.getByText('Draft tersimpan! Langkah berikutnya:')).toBeVisible();
   const kode = (await page.getByText(/^KSM-\d{4}-\d{4}$/).first().textContent())!.trim();
 

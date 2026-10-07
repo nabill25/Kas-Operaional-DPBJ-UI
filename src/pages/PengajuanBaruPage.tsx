@@ -27,7 +27,8 @@ function Langkah({ aktif }: { aktif: number }) {
           <li key={l.judul} className="flex shrink-0 items-center gap-2">
             <span
               className={cn(
-                'flex items-center gap-2 rounded-full py-1.5 pr-3.5 pl-1.5 text-xs font-bold transition-colors',
+                'flex items-center gap-2 rounded-full py-1.5 pl-1.5 text-xs font-bold transition-colors',
+                sekarang ? 'pr-3.5' : 'pr-1.5 sm:pr-3.5',
                 sekarang && 'glass text-fg',
                 selesai && 'text-emerald-700 dark:text-emerald-300',
                 !sekarang && !selesai && 'text-fg-subtle',
@@ -43,9 +44,9 @@ function Langkah({ aktif }: { aktif: number }) {
               >
                 {selesai ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}
               </span>
-              {l.judul}
+              <span className={cn(!sekarang && 'sr-only sm:not-sr-only')}>{l.judul}</span>
             </span>
-            {i < LANGKAH.length - 1 && <span className="h-px w-6 bg-line sm:w-10" aria-hidden />}
+            {i < LANGKAH.length - 1 && <span className="h-px w-5 bg-line sm:w-10" aria-hidden />}
           </li>
         );
       })}

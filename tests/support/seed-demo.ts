@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import {
   BERKAS_WAJIB,
   JENIS_BERKAS_LABEL,
+  JENIS_KONSUMSI_LIST,
   KATEGORI_INFO,
   type JenisBerkas,
   type JenisNotifikasi,
@@ -360,10 +361,10 @@ export async function seedDemo(
 
       const { lastInsertRowid: id } = await txDb.run(
         `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang, lokasi_tujuan,
-           mekanisme, jenis_uang, jenis_transport, uang_siapa_id, total, catatan, berkas_na, status,
+           mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, total, catatan, berkas_na, status,
            no_invoice_mdk, tanggal_invoice_mdk, catatan_pum, project_hosting, task_name,
            created_by, updated_by, diajukan_at, diteruskan_by, diteruskan_at, diproses_by, diproses_at, created_at, updated_at, berkas_terpenuhi, berkas_wajib)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
         kode,
         x.kategori,
         nama,
@@ -374,6 +375,8 @@ export async function seedDemo(
         mekanisme,
         jenisUang,
         jenisTransport,
+        // Deterministik dari nomor kode (tanpa rnd) agar data demo lain tidak bergeser.
+        x.kategori === 'konsumsi' ? JENIS_KONSUMSI_LIST[Number(kode.slice(-4)) % JENIS_KONSUMSI_LIST.length] : null,
         uangSiapa,
         total,
         catatan,

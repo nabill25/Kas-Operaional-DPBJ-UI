@@ -52,7 +52,7 @@ export function KpiTile({
         <AnimatedNumber value={nilai} format={format} />
         {akhiran && <span className="ml-1 text-base font-bold text-fg-muted">{akhiran}</span>}
       </p>
-      {sub && <p className="mt-0.5 truncate text-xs text-fg-muted">{sub}</p>}
+      {sub && <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">{sub}</p>}
     </>
   );
   return (
