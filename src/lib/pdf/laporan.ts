@@ -570,7 +570,7 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
     proses.push(['Diteruskan ke MDK', `${b(p.diteruskan_by_nama)} - ${formatWaktu(p.diteruskan_at)}`]);
   }
   if (lewatPum || p.project_hosting || p.task_name) {
-    proses.push(['Project hosting', b(p.project_hosting)]);
+    proses.push(['Project costing', b(p.project_hosting)]);
     proses.push(['Task name', b(p.task_name)]);
   }
   if (p.status === 'selesai') {

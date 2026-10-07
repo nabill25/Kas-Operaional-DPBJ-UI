@@ -72,15 +72,15 @@ test('alur lengkap Konsumsi: rekening → ajukan ke PUM → centang berkas → t
   await expect(page.getByTestId('kartu-pum')).toContainText('Semua berkas sesuai');
   await expect(page.getByTestId('aksi-pum')).toContainText('Semua berkas wajib sesuai.');
 
-  // 6. Teruskan ke MDK dengan project hosting & task name
+  // 6. Teruskan ke MDK dengan project costing & task name
   await teruskanHeader.click();
   const dialog = page.getByRole('dialog', { name: 'Setujui & teruskan ke MDK' });
   await expect(dialog).toContainText('Semua berkas wajib sudah dicentang sesuai (4/4)');
   // Project dipilih lewat kotak cari (master Kasubdit); task Konsumsi project itu terisi otomatis
-  await dialog.getByRole('combobox', { name: 'Project Hosting' }).click();
+  await dialog.getByRole('combobox', { name: 'Project Costing' }).click();
   await page.getByLabel('Cari project').fill('tata kelola');
   await page.getByRole('option', { name: /D0030\.09\.01\.6\.002/ }).click();
-  await expect(dialog.getByRole('combobox', { name: 'Project Hosting' })).toContainText('Koordinasi Tata Kelola Pengadaan');
+  await expect(dialog.getByRole('combobox', { name: 'Project Costing' })).toContainText('Koordinasi Tata Kelola Pengadaan');
   await expect(dialog.getByRole('combobox', { name: 'Task Name' })).toContainText('Beban Konsumsi');
   await expect(dialog.getByText('Terisi otomatis: task Konsumsi untuk project ini')).toBeVisible();
   // Daftar task dibatasi pada task project terpilih

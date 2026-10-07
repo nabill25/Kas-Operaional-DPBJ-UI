@@ -44126,7 +44126,7 @@ function validateDataPum(raw) {
   const e = {};
   const project = teks(r.project_hosting);
   const task = teks(r.task_name);
-  if (project.length > 150) e.project_hosting = "Project hosting maksimal 150 karakter";
+  if (project.length > 150) e.project_hosting = "Project costing maksimal 150 karakter";
   if (task.length > 150) e.task_name = "Task name maksimal 150 karakter";
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return { ok: true, data: { project_hosting: project || null, task_name: task || null } };

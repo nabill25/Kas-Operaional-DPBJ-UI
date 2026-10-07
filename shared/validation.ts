@@ -432,13 +432,13 @@ export interface DataPumBersih {
   task_name: string | null;
 }
 
-/** Project hosting & task name (diisi PUM) — keduanya opsional, maks. 150 karakter. */
+/** Project costing (kolom project_hosting) & task name (diisi PUM) — keduanya opsional, maks. 150 karakter. */
 export function validateDataPum(raw: unknown): Hasil<DataPumBersih> {
   const r = objek(raw);
   const e: FieldErrors = {};
   const project = teks(r.project_hosting);
   const task = teks(r.task_name);
-  if (project.length > 150) e.project_hosting = 'Project hosting maksimal 150 karakter';
+  if (project.length > 150) e.project_hosting = 'Project costing maksimal 150 karakter';
   if (task.length > 150) e.task_name = 'Task name maksimal 150 karakter';
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return { ok: true, data: { project_hosting: project || null, task_name: task || null } };
@@ -448,7 +448,7 @@ export interface TeruskanBersih extends DataPumBersih {
   catatan: string | null;
 }
 
-/** Teruskan ke MDK: project hosting, task name, catatan (semua opsional). */
+/** Teruskan ke MDK: project costing, task name, catatan (semua opsional). */
 export function validateTeruskan(raw: unknown): Hasil<TeruskanBersih> {
   const r = objek(raw);
   const pum = validateDataPum(raw);

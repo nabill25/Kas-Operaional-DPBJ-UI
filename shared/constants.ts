@@ -226,7 +226,7 @@ export const AKSI_RIWAYAT_LABEL: Record<AksiRiwayat, string> = {
   berkas_cek_batal: 'Centang berkas dibatalkan',
   dikembalikan: 'Dikembalikan oleh PUM',
   diteruskan_mdk: 'Diteruskan ke MDK',
-  data_pum_diubah: 'Project hosting / task name diperbarui',
+  data_pum_diubah: 'Project costing / task name diperbarui',
   selesai: 'Invoice MDK diinput — selesai (paid)',
   invoice_diubah: 'Data invoice MDK diubah',
   selesai_dibatalkan: 'Status selesai dibatalkan',

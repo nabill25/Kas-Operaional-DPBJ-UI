@@ -117,7 +117,7 @@ export default function RekapPage() {
               { header: 'Jumlah Orang', lebar: 8, tipe: 'angka' },
               { header: 'Mekanisme', lebar: 10, tipe: 'teks' },
               { header: 'Status', lebar: 16, tipe: 'teks' },
-              { header: 'Project Hosting', lebar: 20, tipe: 'teks' },
+              { header: 'Project Costing', lebar: 20, tipe: 'teks' },
               { header: 'Task Name', lebar: 24, tipe: 'teks' },
               { header: 'No. Invoice MDK', lebar: 22, tipe: 'teks' },
               { header: 'Tgl Invoice', lebar: 12, tipe: 'teks' },

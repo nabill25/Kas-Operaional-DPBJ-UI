@@ -20,7 +20,7 @@ diinput (**paid**), notifikasi otomatis, dashboard, rekap per pengajuan/per oran
 - **Alur status**: Draft → **Diajukan ke PUM** → (Dikembalikan → Diajukan ulang) → **Diajukan ke MDK** → **Selesai (Paid)**.
   Riwayat (audit trail) lengkap.
 - **Verifikasi PUM**: centang tiap berkas wajib (*Sesuai* / *Revisi* + catatan), kembalikan dengan alasan, teruskan ke MDK
-  (hanya bila semua berkas sesuai) sambil memilih **Project Hosting** & **Task Name** dari kotak cari (master Kasubdit),
+  (hanya bila semua berkas sesuai) sambil memilih **Project Costing** & **Task Name** dari kotak cari (master Kasubdit),
   lalu input No. Invoice MDK.
 - **Notifikasi otomatis** di aplikasi (lonceng + toast).
 - **Peran**: Operator/Pengaju, PUM, Pimpinan (hanya memantau), Administrator. Pendaftaran akun mandiri dengan persetujuan admin.

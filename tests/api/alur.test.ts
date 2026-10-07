@@ -80,7 +80,7 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     expect(detail.berkas_sesuai).toBe(4);
     expect(detail.kelengkapan.items[0].cek).toMatchObject({ status: 'sesuai', diperiksa_by_nama: 'Petugas PUM' });
 
-    // Teruskan ke MDK dengan project hosting & task name
+    // Teruskan ke MDK dengan project costing & task name
     res = await pum.post(`/api/pengajuan/${id}/teruskan`).send({ project_hosting: ' DPBJ-OPS-2026 ', task_name: 'Konsumsi Rapat' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({

@@ -46,7 +46,7 @@ interface PropsModal {
 type MutasiAksi = ReturnType<typeof useAksiPengajuan>;
 
 /**
- * Project hosting & task name: kotak cari dari master Kasubdit (shared/project-task.ts) + nilai yang pernah dipakai.
+ * Project costing & task name: kotak cari dari master Kasubdit (shared/project-task.ts) + nilai yang pernah dipakai.
  * Memilih project otomatis mengisi task bila project itu hanya punya satu task yang sesuai kategori.
  */
 function IsianPum({
@@ -110,7 +110,7 @@ function IsianPum({
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <Field label="Project Hosting" htmlFor={`${id}-project`} error={errors.project_hosting} hint="Cari kode atau nama project">
+      <Field label="Project Costing" htmlFor={`${id}-project`} error={errors.project_hosting} hint="Cari kode atau nama project">
         <PilihCari
           id={`${id}-project`}
           value={project}
@@ -212,7 +212,7 @@ function IsiTeruskan({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'op
         <IsianPum kategori={p.kategori} project={project} task={task} setProject={setProject} setTask={setTask} errors={errors} />
         {!project.trim() && !task.trim() && (
           <p className="flex items-start gap-2 text-xs text-fg-muted">
-            <Info className="mt-px size-3.5 shrink-0" /> Project hosting & task name boleh dilengkapi nanti dari halaman detail.
+            <Info className="mt-px size-3.5 shrink-0" /> Project costing & task name boleh dilengkapi nanti dari halaman detail.
           </p>
         )}
         <Field label="Catatan untuk pengaju (opsional)" htmlFor="catatan_teruskan" error={errors.catatan}>
@@ -247,7 +247,7 @@ export function DataPumModal(props: PropsModal) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       terkunci={aksi.isPending}
-      judul="Project hosting & task name"
+      judul="Project costing & task name"
       deskripsi="Data pencatatan PUM untuk proses di MDK."
       ikon={<FolderKanban className="size-5" />}
       lebar="sm"

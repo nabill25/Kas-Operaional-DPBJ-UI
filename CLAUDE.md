@@ -28,7 +28,7 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 | MDK | Pihak **di luar sistem** yang menerbitkan invoice. Tidak punya akun & tidak ada tampilan input untuk MDK |
 | Pimpinan | Pemantau (hanya lihat): dashboard, daftar, detail, rekap & laporan |
 | Centang berkas | Hasil pemeriksaan PUM per berkas wajib: `sesuai` atau `revisi` (+ catatan) — tabel `cek_berkas` |
-| Project Hosting / Task Name | Dua isian (opsional, maks. 150) yang diisi PUM saat/setelah meneruskan ke MDK. Dipilih lewat kotak cari dari **master Kasubdit** (`shared/project-task.ts`): project `<kode>:<nama>`, task `<kode>_<nama>`; teks lain tetap diterima |
+| Project Costing / Task Name | Dua isian (opsional, maks. 150; kolom/API tetap `project_hosting` & `task_name`) yang diisi PUM saat/setelah meneruskan ke MDK. Dipilih lewat kotak cari dari **master Kasubdit** (`shared/project-task.ts`): project `<kode>:<nama>`, task `<kode>_<nama>`; teks lain tetap diterima |
 | Rekening | Bank & No. Rekening milik "uang siapa" (konsumsi, opsional) — tujuan pembayaran oleh PUM |
 | Sudah dibayarkan | Tanda PUM bahwa uang konsumsi sudah dibayarkan ke pemilik uang (`dibayar_at`/`dibayar_by`) |
 | Pegawai | Master data orang (punya `id` sendiri) → dipakai untuk "Uang siapa" & peserta transport, agar bisa **direkap per orang** |
@@ -84,7 +84,7 @@ Berkas wajib: **Surat Tugas, Laporan Kegiatan, Invoice Hotel, Invoice Tiket**.
    PUM: centang tiap berkas wajib  [Sesuai] / [Perlu revisi + catatan]             │
    PUM: Kembalikan (alasan wajib) ──► DIKEMBALIKAN ──(operator perbaiki)──► Ajukan ulang ke PUM
    PUM: Teruskan ke MDK (hanya bila SEMUA berkas wajib dicentang sesuai;
-        isi Project Hosting & Task Name — opsional) ──► DIAJUKAN KE MDK   (MDK di luar sistem)
+        isi Project Costing & Task Name — opsional) ──► DIAJUKAN KE MDK   (MDK di luar sistem)
    PUM: Input No. Invoice dari MDK + tanggal ──► SELESAI (PAID)
    PUM: Ubah data invoice (tetap SELESAI) · Batalkan selesai (alasan wajib) ──► DIAJUKAN KE MDK
    PUM: dari DIAJUKAN KE MDK masih boleh Kembalikan ke pengaju (mis. ditolak MDK)
@@ -130,7 +130,7 @@ otomatis menandai notifikasi pengajuan itu dibaca. Pimpinan tidak menerima notif
 | Unggah / hapus berkas, tandai N/A (draft & dikembalikan) | ✓ | ✗ | ✗ | ✓ |
 | Ajukan / ajukan ulang ke PUM / tarik kembali | ✓ | ✗ | ✗ | ✓ |
 | Halaman **Verifikasi PUM**, centang berkas, kembalikan, teruskan ke MDK | ✗ | ✓ | ✗ | ✓ |
-| Isi/ubah Project Hosting & Task Name (diajukan_pum, diajukan_mdk, selesai) | ✗ | ✓ | ✗ | ✓ |
+| Isi/ubah Project Costing & Task Name (diajukan_pum, diajukan_mdk, selesai) | ✗ | ✓ | ✗ | ✓ |
 | Input / ubah No. Invoice MDK, batalkan selesai | ✗ | ✓ | ✗ | ✓ |
 | Tandai uang konsumsi "sudah dibayarkan" / batalkan | ✗ | ✓ | ✗ | ✓ |
 | Master Pegawai: lihat | ✓ | ✓ | ✓ | ✓ |
@@ -254,7 +254,7 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
   (nama, rekening, tombol "Sudah dibayarkan"), `data-peserta` (rincian per orang di detail),
   id stabil pada input form (mis. `#peserta-0-nilai`, `#peserta-0-uang_harian`, `#peserta-0-uang_transport`,
   `#uang_siapa_id`, `#rekening_bank`, `#rekening_nomor`, `#jenis_konsumsi`). Kotak cari Project/Task:
-  combobox berlabel "Project Hosting"/"Task Name", kotak pencarian "Cari project"/"Cari task".
+  combobox berlabel "Project Costing"/"Task Name", kotak pencarian "Cari project"/"Cari task".
 - Playwright `getByLabel(..., { exact: true })` ikut menghitung tanda `*` wajib → pakai `getByRole('textbox', { name })` atau id.
 
 ## 10. Desain UI
@@ -324,10 +324,10 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 4. Format resmi **No. Invoice MDK** (saat ini teks bebas, maks. 100 karakter, unik tidak diwajibkan).
 5. Apakah pengajuan wajib berkas lengkap sebelum diajukan (saat ini: boleh dengan peringatan).
 6. Logo resmi: ganti `public/logo.svg` dengan logo UI/DPBJ resmi bila diizinkan.
-7. **Project Hosting & Task Name**: kini dipilih dari master Kasubdit (38 pasangan project–task, Okt 2026) lewat kotak cari;
+7. **Project Costing & Task Name**: kini dipilih dari master Kasubdit (38 pasangan project–task, Okt 2026) lewat kotak cari;
    task terisi otomatis bila project hanya punya satu task sesuai kategori (Konsumsi → Beban Konsumsi, Rumah Tangga →
-   Beban Transportasi Rumah Tangga; Perjadin dipilih manual). Tetap opsional & teks lain diterima. Label resmi
-   "Project Hosting" atau "Project **Costing**"? Perlu wajib diisi?
+   Beban Transportasi Rumah Tangga; Perjadin dipilih manual). Tetap opsional & teks lain diterima. Label tampil **"Project Costing"** (dikonfirmasi Okt 2026;
+   sebelumnya "Project Hosting" — kolom DB/API tetap `project_hosting`). Perlu wajib diisi?
 12. **Sudah dibayarkan** diasumsikan boleh ditandai PUM sejak status Diajukan ke PUM sampai Selesai. Perlu dibatasi
     (mis. hanya setelah Selesai)? Perlu kolom pembayaran di Excel/rekap?
 8. **Teruskan ke MDK** diasumsikan hanya boleh bila **semua berkas wajib dicentang sesuai**. Benar?

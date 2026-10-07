@@ -1,6 +1,6 @@
-// Master Project Hosting (Project Costing) & Task Name dari Kasubdit — sumber field cari PUM.
+// Master Project Costing & Task Name dari Kasubdit — sumber field cari PUM.
 // Format baris asli: <kode project>:<nama project>_<kode task>_<nama task>.
-// Nilai yang disimpan: project_hosting = "<kode project>:<nama project>", task_name = "<kode task>_<nama task>".
+// Nilai yang disimpan (nama kolom tetap): project_hosting = "<kode project>:<nama project>", task_name = "<kode task>_<nama task>".
 // Memperbarui daftar: ganti isi DATA_MENTAH (satu baris per pasangan project–task) lalu deploy.
 // Nilai lama yang sudah tersimpan tetap sah walaupun tidak ada lagi di daftar ini.
 import type { Kategori } from './constants.js';
@@ -47,7 +47,7 @@ D0030.06.01.6.003:Perancangan dan Persiapan SCM_722201_Beban Jasa Konsultan
 `;
 
 export interface ProjectTask {
-  /** Nilai Project Hosting yang disimpan: "<kode>:<nama>" */
+  /** Nilai Project Costing yang disimpan (kolom project_hosting): "<kode>:<nama>" */
   project: string;
   projectKode: string;
   projectNama: string;

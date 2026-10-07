@@ -248,7 +248,7 @@ export default function VerifikasiPage() {
                             <b className="text-fg">{p.project_hosting ?? '-'}</b> · {p.task_name ?? '-'}
                           </span>
                         ) : (
-                          'Project hosting / task name belum diisi'
+                          'Project costing / task name belum diisi'
                         )}
                       </p>
                     </div>

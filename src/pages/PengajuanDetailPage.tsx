@@ -408,7 +408,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                   }
                 >
                   <MenuItem ikon={<FolderKanban />} onSelect={() => setModal('data-pum')}>
-                    Ubah project hosting / task name
+                    Ubah project costing / task name
                   </MenuItem>
                   <MenuItem ikon={<Undo2 />} onSelect={() => setModal('kembalikan')}>
                     Kembalikan ke pengaju
@@ -431,7 +431,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                   Ubah data invoice
                 </MenuItem>
                 <MenuItem ikon={<FolderKanban />} onSelect={() => setModal('data-pum')}>
-                  Ubah project hosting / task name
+                  Ubah project costing / task name
                 </MenuItem>
                 <MenuItem ikon={<Ban />} bahaya onSelect={() => setModal('batal-selesai')}>
                   Batalkan status selesai
@@ -814,7 +814,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
   );
 }
 
-/** Ringkasan verifikasi PUM: progres centang berkas, project hosting & task name (aksi utama ada di header/panel berkas). */
+/** Ringkasan verifikasi PUM: progres centang berkas, project costing & task name (aksi utama ada di header/panel berkas). */
 function KartuPum({ p, bisaDataPum, onUbahData }: { p: PengajuanDetail; bisaDataPum: boolean; onUbahData: () => void }) {
   const k = p.kelengkapan;
   return (
@@ -850,7 +850,7 @@ function KartuPum({ p, bisaDataPum, onUbahData }: { p: PengajuanDetail; bisaData
 
       <dl className="mt-4 space-y-3 border-t border-line pt-4">
         <div className="flex items-start justify-between gap-3">
-          <dt className="text-xs text-fg-muted">Project hosting</dt>
+          <dt className="text-xs text-fg-muted">Project costing</dt>
           <dd className="min-w-0 text-right text-sm font-semibold break-words text-fg">
             {p.project_hosting ?? <span className="font-normal text-fg-subtle">Belum diisi</span>}
           </dd>
@@ -874,7 +874,7 @@ function KartuPum({ p, bisaDataPum, onUbahData }: { p: PengajuanDetail; bisaData
 
       {bisaDataPum && (
         <Button varian="kedua" ukuran="sm" className="mt-4 w-full" ikon={<FolderKanban className="size-4" />} onClick={onUbahData}>
-          {p.project_hosting || p.task_name ? 'Ubah project hosting / task name' : 'Isi project hosting / task name'}
+          {p.project_hosting || p.task_name ? 'Ubah project costing / task name' : 'Isi project costing / task name'}
         </Button>
       )}
     </GlassCard>

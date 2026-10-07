@@ -257,7 +257,7 @@ describe('validasi', () => {
     expect(h.errors.tanggal_selesai).toContain('366');
   });
 
-  it('master project hosting & task name dari Kasubdit', () => {
+  it('master project costing & task name dari Kasubdit', () => {
     expect(DAFTAR_PROJECT_TASK).toHaveLength(38);
     expect(DAFTAR_PROJECT).toHaveLength(15);
     expect(DAFTAR_TASK).toHaveLength(18);
@@ -322,7 +322,7 @@ describe('validasi PUM', () => {
     });
   });
 
-  it('project hosting, task name, teruskan', () => {
+  it('project costing, task name, teruskan', () => {
     expect(validateDataPum({ project_hosting: '  DPBJ   OPS ', task_name: '' })).toEqual({
       ok: true,
       data: { project_hosting: 'DPBJ OPS', task_name: null },

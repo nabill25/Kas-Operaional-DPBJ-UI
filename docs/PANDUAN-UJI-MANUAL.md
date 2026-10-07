@@ -95,10 +95,10 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | E10 | ☐ Klik **Kembalikan** → kosongkan alasan → kirim | "Alasan pengembalian wajib diisi" |
 | E11 | ☐ Pilih alasan cepat / tulis alasan → **Kembalikan ke pengaju** | Dialog menampilkan daftar berkas revisi; status **Dikembalikan**; toast "Notifikasi otomatis terkirim ke pengaju" |
 | E12 | ☐ Buka pengajuan *Diajukan ke PUM* lain → centang **Sesuai** semua berkas wajib | Muncul "Semua berkas wajib sesuai"; tombol teruskan aktif |
-| E13 | ☐ **Teruskan ke MDK** → **Project Hosting**: klik, ketik "tata kelola", pilih *D0030.09.01.6.002 Koordinasi Tata Kelola Pengadaan* | **Task Name** terisi otomatis *723207 Beban Konsumsi* ("Terisi otomatis: task Konsumsi untuk project ini"); daftar task hanya berisi task project itu |
+| E13 | ☐ **Teruskan ke MDK** → **Project Costing**: klik, ketik "tata kelola", pilih *D0030.09.01.6.002 Koordinasi Tata Kelola Pengadaan* | **Task Name** terisi otomatis *723207 Beban Konsumsi* ("Terisi otomatis: task Konsumsi untuk project ini"); daftar task hanya berisi task project itu |
 | E13a | ☐ Kirim | Status **Diajukan ke MDK**; kotak ungu "Disetujui PUM & diteruskan ke MDK — menunggu invoice"; project/task tampil di kartu Verifikasi PUM |
 | E14 | ☐ Berkas setelah diteruskan | Terkunci; centang tidak bisa diubah lagi |
-| E15 | ☐ Kartu **Verifikasi PUM** → **Ubah project hosting / task name** | Bisa diubah; riwayat mencatat perubahan |
+| E15 | ☐ Kartu **Verifikasi PUM** → **Ubah project costing / task name** | Bisa diubah; riwayat mencatat perubahan |
 | E16 | ☐ Cari draft operator (mis. lewat URL detail) | PUM tidak dapat melihat draft ("tidak ditemukan") |
 
 ## F. PUM — invoice dari MDK (paid)
@@ -146,7 +146,7 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | I5 | ☐ **Rekap & Laporan** → periode *Tahun ini* | Total nilai sama dengan "Total nilai pengajuan" di dashboard (tahun sama) |
 | I6 | ☐ Ubah filter Kategori/Mekanisme/Status | Ringkasan & tabel berubah; URL ikut berubah (bisa di-bookmark) |
 | I7 | ☐ **Unduh PDF** (per pengajuan) | `Rekap_Pengajuan_….pdf`: kop DPBJ, ringkasan, tabel 5 status, rincian, total, nomor halaman |
-| I8 | ☐ **Excel** | `.xlsx` terbuka di Excel; ada kolom *Project Hosting*, *Task Name*, *Dicek PUM*; kolom Nilai berupa angka |
+| I8 | ☐ **Excel** | `.xlsx` terbuka di Excel; ada kolom *Project Costing*, *Task Name*, *Dicek PUM*; kolom Nilai berupa angka |
 | I9 | ☐ Tab **Per pegawai** → klik satu pegawai → **Unduh PDF pegawai** | Rincian per orang (peran "uang siapa"/"peserta"), total sama dengan baris tabel |
 | I10 | ☐ Detail pengajuan → tombol **PDF** | Bukti: info, peserta, berkas + kolom **Cek PUM**, bagian **Proses PUM & MDK** (project/task, invoice), riwayat, tanda tangan Pengaju & PUM |
 

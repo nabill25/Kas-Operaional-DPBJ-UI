@@ -63,7 +63,7 @@ test('pencarian dari topbar menuju daftar', async ({ page }) => {
   const teksBaris = await page.locator('tbody tr').allTextContents();
   expect(teksBaris.length).toBeGreaterThan(0);
   expect(teksBaris.some((t) => t.toLowerCase().includes('rapat'))).toBe(true);
-  // Pencarian juga mencakup project hosting (tidak tampil di tabel) → setiap hasil dicek lewat API
+  // Pencarian juga mencakup project costing (tidak tampil di tabel) → setiap hasil dicek lewat API
   const { data } = (await (await page.request.get('/api/pengajuan?q=Rapat&limit=100')).json()) as {
     data: Record<'kode' | 'nama_kegiatan' | 'penerima' | 'lokasi_tujuan' | 'no_invoice_mdk' | 'project_hosting' | 'task_name', string | null>[];
   };
