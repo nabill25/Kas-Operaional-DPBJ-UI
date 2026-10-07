@@ -54,6 +54,7 @@ export const STATUS_INFO: Record<Status, { label: string; deskripsi: string }> =
 export const MEKANISME_LIST = ['KO', 'LS'] as const;
 export type Mekanisme = (typeof MEKANISME_LIST)[number];
 
+/** Data lama Perjadin (sebelum uang harian & uang transport diisi terpisah per orang). Tidak diisi lagi. */
 export const JENIS_UANG_LIST = ['uang_harian', 'uang_transport'] as const;
 export type JenisUang = (typeof JENIS_UANG_LIST)[number];
 export const JENIS_UANG_LABEL: Record<JenisUang, string> = {
@@ -137,6 +138,37 @@ export const ROLE_PENGAJU: readonly Role[] = ['operator', 'admin'];
 /** Peran yang memeriksa berkas & memproses (PUM). */
 export const ROLE_PUM: readonly Role[] = ['pum', 'admin'];
 
+/** Status saat PUM boleh menandai uang konsumsi "sudah dibayarkan" ke pemilik uang. */
+export const STATUS_BISA_DIBAYARKAN: readonly Status[] = ['diajukan_pum', 'diajukan_mdk', 'selesai'];
+
+/** Saran nama bank untuk rekening "uang siapa" (isian tetap bebas). */
+export const BANK_SARAN = [
+  'Bank Mandiri',
+  'BNI',
+  'BRI',
+  'BTN',
+  'BSI (Bank Syariah Indonesia)',
+  'BCA',
+  'CIMB Niaga',
+  'Bank Permata',
+  'Bank Danamon',
+  'Bank DKI',
+  'Bank BJB',
+  'Bank Mega',
+  'OCBC',
+  'Maybank Indonesia',
+  'Panin Bank',
+  'SeaBank',
+  'Bank Jago',
+] as const;
+
+export const CATATAN_BIAYA_TRANSFER = 'Jika bukan Bank Mandiri, biaya transfer akan dibebankan kepada pemilik rekening.';
+
+/** Rekening Bank Mandiri (bebas biaya transfer). "Mandiri Syariah" lama kini BSI, jadi tidak dihitung. */
+export function isBankMandiri(bank: string | null | undefined): boolean {
+  return !!bank && /\bmandiri\b/i.test(bank) && !/syariah/i.test(bank);
+}
+
 export const MAX_PESERTA_TRANSPORT = 2;
 export const MAX_NILAI = 1_000_000_000_000;
 export const MAX_UPLOAD_MB = 10;
@@ -174,6 +206,8 @@ export const AKSI_RIWAYAT_LIST = [
   'selesai',
   'invoice_diubah',
   'selesai_dibatalkan',
+  'dibayarkan',
+  'dibayarkan_batal',
 ] as const;
 export type AksiRiwayat = (typeof AKSI_RIWAYAT_LIST)[number];
 
@@ -196,6 +230,8 @@ export const AKSI_RIWAYAT_LABEL: Record<AksiRiwayat, string> = {
   selesai: 'Invoice MDK diinput — selesai (paid)',
   invoice_diubah: 'Data invoice MDK diubah',
   selesai_dibatalkan: 'Status selesai dibatalkan',
+  dibayarkan: 'Uang ditandai sudah dibayarkan',
+  dibayarkan_batal: 'Tanda sudah dibayarkan dibatalkan',
 };
 
 export const JENIS_NOTIFIKASI_LIST = [
@@ -206,5 +242,7 @@ export const JENIS_NOTIFIKASI_LIST = [
   'selesai_dibatalkan',
   /** Pendaftaran akun mandiri menunggu persetujuan (ke admin). */
   'registrasi',
+  /** Uang konsumsi sudah dibayarkan PUM ke pemilik uang (ke pengaju). */
+  'dibayarkan',
 ] as const;
 export type JenisNotifikasi = (typeof JENIS_NOTIFIKASI_LIST)[number];

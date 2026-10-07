@@ -3,7 +3,6 @@
 import {
   JENIS_TRANSPORT_LIST,
   JENIS_KONSUMSI_LIST,
-  JENIS_UANG_LIST,
   KATEGORI_LIST,
   MAX_NILAI,
   MAX_PESERTA_TRANSPORT,
@@ -37,6 +36,8 @@ export interface PengajuanBersih {
   jenis_konsumsi: JenisKonsumsi | null;
   total: number;
   uang_siapa_id: number | null;
+  rekening_bank: string | null;
+  rekening_nomor: string | null;
   catatan: string | null;
   peserta: PesertaInput[];
 }
@@ -114,9 +115,12 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
   let total = 0;
   let jumlah_orang = 0;
   let uang_siapa_id: number | null = null;
+  let rekening_bank: string | null = null;
+  let rekening_nomor: string | null = null;
   let lokasi_tujuan: string | null = null;
   let tanggal_selesai: string | null = null;
-  let jenis_uang: JenisUang | null = null;
+  // Jenis uang tidak dipilih lagi: Perjadin mengisi uang harian & uang transport per orang.
+  const jenis_uang: JenisUang | null = null;
   let jenis_transport: JenisTransport | null = null;
   let jenis_konsumsi: JenisKonsumsi | null = null;
   const peserta: PesertaInput[] = [];
@@ -140,6 +144,21 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
     const us = keInteger(r.uang_siapa_id);
     if (us === null || Number.isNaN(us) || us <= 0) e.uang_siapa_id = 'Pilih uang siapa yang digunakan';
     else uang_siapa_id = us;
+
+    // Rekening pemilik uang: opsional, tetapi bank & nomor harus diisi berpasangan.
+    const bank = teks(r.rekening_bank);
+    const nomor = teks(r.rekening_nomor).replace(/[\s.-]/g, '');
+    if (bank || nomor) {
+      if (!bank) e.rekening_bank = 'Isi nama bank';
+      else if (bank.length < 2) e.rekening_bank = 'Nama bank minimal 2 karakter';
+      else if (bank.length > 60) e.rekening_bank = 'Nama bank maksimal 60 karakter';
+      else rekening_bank = bank;
+
+      if (!nomor) e.rekening_nomor = 'Isi nomor rekening';
+      else if (!/^\d+$/.test(nomor)) e.rekening_nomor = 'Nomor rekening hanya boleh berisi angka';
+      else if (nomor.length < 5 || nomor.length > 30) e.rekening_nomor = 'Nomor rekening harus 5–30 digit';
+      else rekening_nomor = nomor;
+    }
   } else {
     const lok = teks(r.lokasi_tujuan);
     if (!lok) e.lokasi_tujuan = 'Lokasi tujuan wajib diisi';
@@ -154,10 +173,10 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
       e.peserta = `Maksimal ${MAX_PESERTA_TRANSPORT} orang per pengajuan`;
     } else {
       const sudah = new Set<number>();
+      const perjadin = kategori === 'perjadin';
       daftar.forEach((item, i) => {
         const o = objek(item);
         const pid = keInteger(o.pegawai_id);
-        const nilai = keInteger(o.nilai);
         let valid = true;
         if (pid === null || Number.isNaN(pid) || pid <= 0) {
           e[`peserta.${i}.pegawai_id`] = 'Pilih nama pegawai';
@@ -168,6 +187,35 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
         } else {
           sudah.add(pid);
         }
+        if (perjadin) {
+          // Perjadin: uang harian + uang transport per orang (kosong = 0, minimal salah satu diisi).
+          let uangValid = true;
+          const uang = (field: 'uang_harian' | 'uang_transport', label: string): number => {
+            const v = keInteger(o[field]);
+            if (v === null) return 0;
+            let salah = '';
+            if (Number.isNaN(v)) salah = `${label} harus berupa angka`;
+            else if (v < 0) salah = `${label} tidak boleh negatif`;
+            else if (v > MAX_NILAI) salah = `${label} melebihi batas maksimal`;
+            if (!salah) return v;
+            e[`peserta.${i}.${field}`] = salah;
+            uangValid = false;
+            return 0;
+          };
+          const uang_harian = uang('uang_harian', 'Uang harian');
+          const uang_transport = uang('uang_transport', 'Uang transport');
+          const nilai = uang_harian + uang_transport;
+          if (uangValid && nilai <= 0) {
+            e[`peserta.${i}.uang_harian`] = 'Isi uang harian dan/atau uang transport';
+            uangValid = false;
+          } else if (uangValid && nilai > MAX_NILAI) {
+            e[`peserta.${i}.uang_harian`] = 'Jumlah uang melebihi batas maksimal';
+            uangValid = false;
+          }
+          if (valid && uangValid && pid !== null) peserta.push({ pegawai_id: pid, nilai, uang_harian, uang_transport });
+          return;
+        }
+        const nilai = keInteger(o.nilai);
         if (nilai === null) {
           e[`peserta.${i}.nilai`] = 'Nilai uang wajib diisi';
           valid = false;
@@ -178,7 +226,9 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
           e[`peserta.${i}.nilai`] = 'Nilai uang melebihi batas maksimal';
           valid = false;
         }
-        if (valid && pid !== null && nilai !== null) peserta.push({ pegawai_id: pid, nilai });
+        if (valid && pid !== null && nilai !== null) {
+          peserta.push({ pegawai_id: pid, nilai, uang_harian: null, uang_transport: null });
+        }
       });
       jumlah_orang = daftar.length;
       total = peserta.reduce((s, p) => s + p.nilai, 0);
@@ -198,9 +248,6 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
       } else {
         tanggal_selesai = ts;
       }
-
-      if (!termasuk(JENIS_UANG_LIST, r.jenis_uang)) e.jenis_uang = 'Pilih jenis uang';
-      else jenis_uang = r.jenis_uang;
 
       if (!termasuk(JENIS_TRANSPORT_LIST, r.jenis_transport)) e.jenis_transport = 'Pilih jenis transport';
       else jenis_transport = r.jenis_transport;
@@ -224,6 +271,8 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
       jenis_konsumsi,
       total,
       uang_siapa_id,
+      rekening_bank,
+      rekening_nomor,
       catatan: catatan || null,
       peserta,
     },
@@ -435,4 +484,10 @@ export function validateCekBerkas(raw: unknown): Hasil<CekBerkasBersih> {
   if (catatan.length > 500) e.catatan = 'Catatan maksimal 500 karakter';
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return { ok: true, data: { jenis, status, catatan: status === 'revisi' ? catatan : null } };
+}
+
+export function validateDibayarkan(raw: unknown): Hasil<{ dibayarkan: boolean }> {
+  const r = objek(raw);
+  if (typeof r.dibayarkan !== 'boolean') return { ok: false, errors: { dibayarkan: 'Nilai dibayarkan harus true atau false' } };
+  return { ok: true, data: { dibayarkan: r.dibayarkan } };
 }

@@ -1,10 +1,12 @@
 import {
   Ban,
+  Banknote,
   CalendarDays,
   CircleCheck,
   CircleX,
   ClipboardCheck,
   ClipboardList,
+  Copy,
   Ellipsis,
   FileDown,
   FileQuestion,
@@ -12,6 +14,7 @@ import {
   History,
   Hourglass,
   Info,
+  Landmark,
   MapPin,
   PencilLine,
   ReceiptText,
@@ -24,11 +27,18 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { JENIS_KONSUMSI_LABEL, JENIS_TRANSPORT_LABEL, JENIS_UANG_LABEL, KATEGORI_INFO } from '../../shared/constants';
+import {
+  CATATAN_BIAYA_TRANSFER,
+  JENIS_KONSUMSI_LABEL,
+  JENIS_TRANSPORT_LABEL,
+  KATEGORI_INFO,
+  STATUS_BISA_DIBAYARKAN,
+  isBankMandiri,
+} from '../../shared/constants';
 import { formatAngka, formatRentangTanggal, formatRupiah, formatTanggal, formatWaktu, lamaHari, selisihHari } from '../../shared/format';
-import type { PengajuanDetail } from '../../shared/types';
+import type { PengajuanDetail, Peserta } from '../../shared/types';
 import { CatatanModal, DataPumModal, InvoiceModal, TeruskanModal } from '../components/pengajuan/AksiModal';
 import { BerkasPanel } from '../components/pengajuan/BerkasPanel';
 import { RiwayatTimeline } from '../components/pengajuan/RiwayatTimeline';
@@ -56,6 +66,118 @@ function Info2({ label, children, className }: { label: string; children: ReactN
     <div className={className}>
       <dt className="text-[11px] font-bold tracking-wider text-fg-subtle uppercase">{label}</dt>
       <dd className="mt-1 text-sm font-semibold text-fg">{children}</dd>
+    </div>
+  );
+}
+
+/** Rincian uang Perjadin per orang. Data lama (tanpa rincian) memakai jenis uang yang dulu dipilih. */
+function rincianUang(p: PengajuanDetail, ps: Peserta): { harian: number; transport: number } {
+  if (ps.uang_harian !== null || ps.uang_transport !== null) {
+    return { harian: ps.uang_harian ?? 0, transport: ps.uang_transport ?? 0 };
+  }
+  return p.jenis_uang === 'uang_harian' ? { harian: ps.nilai, transport: 0 } : { harian: 0, transport: ps.nilai };
+}
+
+/** "Uang siapa" (konsumsi): pemilik uang, rekeningnya, dan tanda sudah dibayarkan oleh PUM. */
+function UangSiapa({
+  p,
+  bisaTandai,
+  bisaEdit,
+  memuat,
+  onTandai,
+}: {
+  p: PengajuanDetail;
+  bisaTandai: boolean;
+  bisaEdit: boolean;
+  memuat: boolean;
+  onTandai: (dibayarkan: boolean) => void;
+}) {
+  const adaRekening = !!(p.rekening_bank && p.rekening_nomor);
+  const salin = async () => {
+    try {
+      await navigator.clipboard.writeText(p.rekening_nomor ?? '');
+      toast.success('Nomor rekening disalin');
+    } catch {
+      toast.error('Gagal menyalin nomor rekening');
+    }
+  };
+  return (
+    <div data-testid="uang-siapa">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <Avatar nama={p.uang_siapa_nama ?? '?'} className="size-6 text-[9px] ring-0" />
+          <span className="min-w-0 truncate">{p.uang_siapa_nama ?? '-'}</span>
+        </span>
+        {p.dibayar_at ? (
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-300"
+            title={`Dibayarkan ${formatWaktu(p.dibayar_at)}${p.dibayar_by_nama ? ` oleh ${p.dibayar_by_nama}` : ''}`}
+          >
+            <CircleCheck className="size-3.5" aria-hidden /> Sudah dibayarkan
+          </span>
+        ) : bisaTandai ? (
+          <Button varian="sukses" ukuran="sm" ikon={<Banknote className="size-4" />} memuat={memuat} onClick={() => onTandai(true)}>
+            Sudah dibayarkan
+          </Button>
+        ) : (
+          p.status !== 'draft' && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-fg/[0.05] px-2.5 py-1 text-xs font-semibold text-fg-muted ring-1 ring-fg/10">
+              <Hourglass className="size-3.5" aria-hidden /> Belum dibayarkan
+            </span>
+          )
+        )}
+      </div>
+      {p.dibayar_at && (
+        <p className="mt-1.5 text-xs font-normal text-fg-muted">
+          Dibayarkan {formatWaktu(p.dibayar_at)}
+          {p.dibayar_by_nama ? ` oleh ${p.dibayar_by_nama}` : ''}
+          {bisaTandai && (
+            <>
+              {' · '}
+              <button
+                type="button"
+                onClick={() => onTandai(false)}
+                disabled={memuat}
+                className="font-semibold text-fg-muted underline-offset-2 hover:text-fg hover:underline disabled:opacity-60"
+              >
+                Batalkan tanda
+              </button>
+            </>
+          )}
+        </p>
+      )}
+
+      {adaRekening ? (
+        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] font-normal text-fg-muted">
+          <Landmark className="size-3.5 shrink-0" aria-hidden />
+          <span className="font-semibold text-fg">{p.rekening_bank}</span>
+          <span aria-hidden>·</span>
+          <span className="angka font-semibold tracking-wide text-fg">{p.rekening_nomor}</span>
+          <button
+            type="button"
+            onClick={() => void salin()}
+            className="grid size-7 place-items-center rounded-lg text-fg-muted transition hover:bg-fg/[0.06] hover:text-fg"
+            aria-label="Salin nomor rekening"
+            title="Salin nomor rekening"
+          >
+            <Copy className="size-3.5" />
+          </button>
+        </p>
+      ) : (
+        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-xs font-normal text-fg-subtle">
+          <Landmark className="size-3.5 shrink-0" aria-hidden /> Rekening belum diisi
+          {bisaEdit && (
+            <Link to={`/pengajuan/${p.id}/ubah`} className="font-semibold text-fg-muted underline-offset-2 hover:text-fg hover:underline">
+              · Tambah rekening
+            </Link>
+          )}
+        </p>
+      )}
+      {adaRekening && !isBankMandiri(p.rekening_bank) && (
+        <p className="mt-2 flex items-start gap-1.5 rounded-xl bg-amber-400/15 px-2.5 py-1.5 text-xs font-medium text-amber-900 ring-1 ring-amber-500/30 dark:text-amber-100">
+          <Info className="mt-px size-3.5 shrink-0" aria-hidden /> {CATATAN_BIAYA_TRANSFER}
+        </p>
+      )}
     </div>
   );
 }
@@ -123,6 +245,8 @@ function Detail({ p }: { p: PengajuanDetail }) {
   const transport = p.kategori !== 'konsumsi';
   const k = p.kelengkapan;
   const revisi = k.items.filter((i) => i.cek?.status === 'revisi');
+  const bisaTandaiBayar = pum && p.kategori === 'konsumsi' && STATUS_BISA_DIBAYARKAN.includes(p.status);
+  const lama = p.kategori === 'perjadin' ? lamaHari(p.tanggal_kegiatan, p.tanggal_selesai) : 1;
 
   const jalankan = async (fn: () => Promise<unknown>, sukses: string, deskripsi?: string) => {
     try {
@@ -161,6 +285,34 @@ function Detail({ p }: { p: PengajuanDetail }) {
       teksYa: 'Tarik kembali',
     });
     if (ok) await jalankan(() => aksi.mutateAsync({ aksi: 'tarik' }), 'Pengajuan ditarik kembali ke draft');
+  };
+
+  const tandaiDibayarkan = async (dibayarkan: boolean) => {
+    const rekening = p.rekening_bank && p.rekening_nomor ? ` (${p.rekening_bank} ${p.rekening_nomor})` : '';
+    const ok = await konfirmasi(
+      dibayarkan
+        ? {
+            judul: 'Tandai sudah dibayarkan?',
+            pesan: (
+              <>
+                Uang <b className="text-fg">{formatRupiah(p.total)}</b> untuk <b className="text-fg">{p.uang_siapa_nama ?? '-'}</b>
+                {rekening} ditandai sudah dibayarkan. Pengaju menerima notifikasi otomatis.
+              </>
+            ),
+            teksYa: 'Ya, sudah dibayarkan',
+          }
+        : {
+            judul: 'Batalkan tanda sudah dibayarkan?',
+            pesan: 'Pengajuan akan kembali berstatus belum dibayarkan. Pembatalan tercatat di riwayat.',
+            teksYa: 'Batalkan tanda',
+            varian: 'bahaya',
+          },
+    );
+    if (!ok) return;
+    await jalankan(
+      () => aksi.mutateAsync({ aksi: 'dibayarkan', dibayarkan }),
+      dibayarkan ? 'Ditandai sudah dibayarkan' : 'Tanda sudah dibayarkan dibatalkan',
+    );
   };
 
   const hapusPengajuan = async () => {
@@ -397,8 +549,9 @@ function Detail({ p }: { p: PengajuanDetail }) {
         </motion.div>
       )}
 
+      {/* Desktop: [informasi | total & PUM], lalu tabel berkas & riwayat selebar halaman. HP: mengikuti urutan DOM. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="space-y-5 lg:col-span-2">
+        <div className="flex flex-col gap-5 lg:col-span-2 lg:[&>:last-child]:flex-1">
           <GlassCard className="p-5 sm:p-6" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
             <JudulKartu ikon={<ClipboardList className="size-4.5" />} judul="Informasi kegiatan" deskripsi={KATEGORI_INFO[p.kategori].deskripsi} />
             <dl className="mt-5 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -426,20 +579,20 @@ function Detail({ p }: { p: PengajuanDetail }) {
                 <MekanismeBadge mekanisme={p.mekanisme} />
               </Info2>
               {p.kategori === 'perjadin' && (
-                <>
-                  <Info2 label="Jenis uang">{p.jenis_uang ? JENIS_UANG_LABEL[p.jenis_uang] : '-'}</Info2>
-                  <Info2 label="Jenis transport">{p.jenis_transport ? JENIS_TRANSPORT_LABEL[p.jenis_transport] : '-'}</Info2>
-                </>
+                <Info2 label="Jenis transport">{p.jenis_transport ? JENIS_TRANSPORT_LABEL[p.jenis_transport] : '-'}</Info2>
               )}
               {p.kategori === 'konsumsi' && (
                 <Info2 label="Jenis konsumsi">{p.jenis_konsumsi ? JENIS_KONSUMSI_LABEL[p.jenis_konsumsi] : '-'}</Info2>
               )}
               {p.kategori === 'konsumsi' && (
-                <Info2 label="Uang siapa">
-                  <span className="inline-flex items-center gap-2">
-                    <Avatar nama={p.uang_siapa_nama ?? '?'} className="size-6 text-[9px] ring-0" />
-                    {p.uang_siapa_nama ?? '-'}
-                  </span>
+                <Info2 label="Uang siapa" className="sm:col-span-2">
+                  <UangSiapa
+                    p={p}
+                    bisaTandai={bisaTandaiBayar}
+                    bisaEdit={bisaEdit}
+                    memuat={aksi.isPending}
+                    onTandai={(d) => void tandaiDibayarkan(d)}
+                  />
                 </Info2>
               )}
               <Info2 label="Dibuat oleh">
@@ -463,37 +616,63 @@ function Detail({ p }: { p: PengajuanDetail }) {
               <JudulKartu
                 ikon={<Users className="size-4.5" />}
                 judul="Penerima & nilai uang"
-                deskripsi="Nilai per orang — dijumlahkan menjadi total pengajuan"
+                deskripsi={
+                  p.kategori === 'perjadin'
+                    ? 'Uang harian + uang transport per orang — dijumlahkan menjadi total pengajuan'
+                    : 'Nilai per orang — dijumlahkan menjadi total pengajuan'
+                }
               />
               <ul className="mt-4 divide-y divide-line">
-                {p.peserta.map((ps, i) => (
-                  <motion.li
-                    key={ps.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + i * 0.06 }}
-                    className="flex items-center gap-3 py-3"
-                  >
-                    <Avatar nama={ps.nama} className="size-10" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold text-fg">{ps.nama}</p>
-                      <p className="truncate text-xs text-fg-muted">
-                        {[ps.jabatan, ps.nip ? `NIP ${ps.nip}` : null].filter(Boolean).join(' · ') || '—'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="angka font-extrabold text-fg">{formatRupiah(ps.nilai)}</p>
-                      {p.kategori === 'perjadin' && p.jenis_uang === 'uang_harian' && (
-                        <p className="text-[11px] text-fg-muted">
-                          ≈ {formatRupiah(Math.round(ps.nilai / Math.max(1, lamaHari(p.tanggal_kegiatan, p.tanggal_selesai))))}/hari
-                        </p>
+                {p.peserta.map((ps, i) => {
+                  const r = rincianUang(p, ps);
+                  return (
+                    <motion.li
+                      key={ps.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 + i * 0.06 }}
+                      className="py-3"
+                      data-peserta={i}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar nama={ps.nama} className="size-10" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-bold text-fg">{ps.nama}</p>
+                          <p className="truncate text-xs text-fg-muted">
+                            {[ps.jabatan, ps.nip ? `NIP ${ps.nip}` : null].filter(Boolean).join(' · ') || '—'}
+                          </p>
+                        </div>
+                        <p className="angka text-right font-extrabold text-fg">{formatRupiah(ps.nilai)}</p>
+                      </div>
+                      {p.kategori === 'perjadin' && (
+                        <dl className="mt-2.5 grid grid-cols-2 gap-2 text-xs sm:ml-13 sm:max-w-md">
+                          <div className="rounded-xl bg-fg/[0.04] px-3 py-2 ring-1 ring-fg/[0.06]">
+                            <dt className="text-fg-subtle">Uang harian</dt>
+                            <dd className="angka mt-0.5 font-bold text-fg">{formatRupiah(r.harian)}</dd>
+                            {r.harian > 0 && lama > 1 && (
+                              <dd className="text-[11px] text-fg-muted">≈ {formatRupiah(Math.round(r.harian / lama))}/hari</dd>
+                            )}
+                          </div>
+                          <div className="rounded-xl bg-fg/[0.04] px-3 py-2 ring-1 ring-fg/[0.06]">
+                            <dt className="text-fg-subtle">Uang transport</dt>
+                            <dd className="angka mt-0.5 font-bold text-fg">{formatRupiah(r.transport)}</dd>
+                          </div>
+                        </dl>
                       )}
-                    </div>
-                  </motion.li>
-                ))}
+                    </motion.li>
+                  );
+                })}
               </ul>
               <div className="mt-2 flex items-center justify-between rounded-2xl bg-navy-900 px-4 py-3 text-white dark:bg-white/[0.07]">
-                <span className="text-sm font-semibold">Total ({p.peserta.length} orang)</span>
+                <span className="min-w-0 text-sm font-semibold">
+                  Total ({p.peserta.length} orang)
+                  {p.kategori === 'perjadin' && (
+                    <span className="block text-[11px] font-normal text-white/70">
+                      Harian {formatRupiah(p.peserta.reduce((a, ps) => a + rincianUang(p, ps).harian, 0))} · Transport{' '}
+                      {formatRupiah(p.peserta.reduce((a, ps) => a + rincianUang(p, ps).transport, 0))}
+                    </span>
+                  )}
+                </span>
                 <span className="angka text-lg font-extrabold text-kuning-300">{formatRupiah(p.total)}</span>
               </div>
             </GlassCard>
@@ -518,7 +697,9 @@ function Detail({ p }: { p: PengajuanDetail }) {
               </div>
             </GlassCard>
           )}
+        </div>
 
+        <div className="lg:col-span-3 lg:row-start-2">
           <BerkasPanel
             p={p}
             bisaKelola={bisaEdit}
@@ -565,7 +746,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
           />
         </div>
 
-        <div className="space-y-5">
+        <div className="flex flex-col gap-5 lg:col-start-3 lg:row-start-1 lg:[&>:last-child]:flex-1">
           <GlassCard
             interaktif
             className="overflow-hidden p-6"
@@ -605,14 +786,19 @@ function Detail({ p }: { p: PengajuanDetail }) {
           </GlassCard>
 
           {p.status !== 'draft' && <KartuPum p={p} bisaDataPum={bisaDataPum} onUbahData={() => setModal('data-pum')} />}
-
-          <GlassCard className="p-5 sm:p-6" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-            <JudulKartu ikon={<History className="size-4.5" />} judul="Riwayat aktivitas" deskripsi={`${p.riwayat.length} catatan`} />
-            <div className="mt-4 max-h-[620px] overflow-y-auto pr-1 pb-4 [mask-image:linear-gradient(to_bottom,black_calc(100%-28px),transparent)]">
-              <RiwayatTimeline items={p.riwayat} />
-            </div>
-          </GlassCard>
         </div>
+
+        <GlassCard
+          className="p-5 sm:p-6 lg:col-span-3"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <JudulKartu ikon={<History className="size-4.5" />} judul="Riwayat aktivitas" deskripsi={`${p.riwayat.length} catatan`} />
+          <div className="mt-4 max-h-[620px] overflow-y-auto pr-1 pb-4 [mask-image:linear-gradient(to_bottom,black_calc(100%-28px),transparent)]">
+            <RiwayatTimeline items={p.riwayat} />
+          </div>
+        </GlassCard>
       </div>
 
       <TeruskanModal p={p} open={modal === 'teruskan'} onOpenChange={(o) => !o && setModal(null)} />

@@ -28,9 +28,11 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 | MDK | Pihak **di luar sistem** yang menerbitkan invoice. Tidak punya akun & tidak ada tampilan input untuk MDK |
 | Pimpinan | Pemantau (hanya lihat): dashboard, daftar, detail, rekap & laporan |
 | Centang berkas | Hasil pemeriksaan PUM per berkas wajib: `sesuai` atau `revisi` (+ catatan) — tabel `cek_berkas` |
-| Project Hosting / Task Name | Dua isian teks bebas (opsional, maks. 150) yang diisi PUM saat/ setelah meneruskan ke MDK |
+| Project Hosting / Task Name | Dua isian (opsional, maks. 150) yang diisi PUM saat/setelah meneruskan ke MDK. Dipilih lewat kotak cari dari **master Kasubdit** (`shared/project-task.ts`): project `<kode>:<nama>`, task `<kode>_<nama>`; teks lain tetap diterima |
+| Rekening | Bank & No. Rekening milik "uang siapa" (konsumsi, opsional) — tujuan pembayaran oleh PUM |
+| Sudah dibayarkan | Tanda PUM bahwa uang konsumsi sudah dibayarkan ke pemilik uang (`dibayar_at`/`dibayar_by`) |
 | Pegawai | Master data orang (punya `id` sendiri) → dipakai untuk "Uang siapa" & peserta transport, agar bisa **direkap per orang** |
-| Peserta | Orang yang menerima nilai uang pada pengajuan transport (maks. 2) |
+| Peserta | Orang yang menerima nilai uang pada pengajuan transport (maks. 2). Perjadin: uang harian + uang transport per orang |
 | Berkas | Dokumen unggahan (PDF/gambar/Office) per jenis kelengkapan |
 | N/A berkas | Berkas wajib yang ditandai "tidak diperlukan" oleh pengaju (dianggap terpenuhi; tetap dicentang PUM) |
 | Notifikasi | Pemberitahuan otomatis di aplikasi (lonceng + toast) — tabel `notifikasi` |
@@ -38,8 +40,16 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 ## 3. Aturan Bisnis per Kategori (dari kebutuhan pemilik project)
 
 ### 3.1 Konsumsi (kode `KSM-YYYY-NNNN`)
-Field: nama kegiatan*, tanggal kegiatan*, jumlah orang* (≥1), jumlah uang yang digunakan* (Rp > 0),
-uang siapa* (pilih Pegawai), mekanisme* `KO`/`LS`, catatan (opsional).
+Field: nama kegiatan*, tanggal kegiatan*, **jenis konsumsi*** (`kudapan` | `makan_siang` | `kudapan_makan_siang` —
+label "Kudapan", "Makan Siang", "Kudapan + Makan Siang"), jumlah orang* (≥1), jumlah uang yang digunakan* (Rp > 0),
+uang siapa* (pilih Pegawai), **rekening uang siapa** (opsional: `rekening_bank` 2–60 karakter + `rekening_nomor` 5–30 digit,
+wajib berpasangan; spasi/titik/strip pada nomor dibuang), mekanisme* `KO`/`LS`, catatan (opsional).
+Catatan tetap di form & detail: "Jika bukan Bank Mandiri, biaya transfer akan dibebankan kepada pemilik rekening."
+(`CATATAN_BIAYA_TRANSFER`; ditonjolkan bila bank bukan Mandiri — `isBankMandiri`). Jenis konsumsi & rekening selalu `null`
+untuk transport; pengajuan lama boleh `null` (jenis wajib dipilih saat diedit). Perubahan jenis/rekening tercatat di riwayat `diubah`.
+**Sudah dibayarkan**: tombol PUM/admin di dekat nama "uang siapa" (status `diajukan_pum`, `diajukan_mdk`, `selesai`;
+boleh tanpa rekening, mis. tunai) → `dibayar_at`, `dibayar_by`, riwayat `dibayarkan` + notifikasi ke pengaju.
+Bisa dibatalkan (riwayat `dibayarkan_batal`, tanpa notifikasi). Tanda tetap tersimpan bila pengajuan kemudian dikembalikan.
 Berkas wajib: **Notula, Undangan, Invoice, Daftar Hadir**. Berkas tambahan: **Dokumen Lainnya** (bebas, banyak, beri nama).
 (Kunci internal Notula tetap `notulen` — sudah tersimpan di DB/API; yang diubah hanya label tampilnya.)
 `total` = jumlah uang yang digunakan. Ditampilkan juga "biaya per orang" (total ÷ jumlah orang) — informasi saja.
@@ -51,8 +61,10 @@ Field: tanggal kegiatan*, nama kegiatan*, lokasi tujuan*, mekanisme* `KO`/`LS`, 
 Berkas wajib: **Surat Tugas, Laporan Kegiatan**.
 
 ### 3.3 Transport — Perjadin (kode `TPD-YYYY-NNNN`)
-Semua field Rumah Tangga **+** lama kegiatan **dari*** & **sampai*** (sampai ≥ dari),
-jenis uang* `Uang Harian`/`Uang Transport`, jenis transport* `Dalam Kota`/`Luar Kota`.
+Semua field Rumah Tangga **+** lama kegiatan **dari*** & **sampai*** (sampai ≥ dari), jenis transport* `Dalam Kota`/`Luar Kota`
+(di samping Mekanisme). **Tanpa "jenis uang"**: tiap orang mengisi **uang harian** dan **uang transport** (Rp ≥ 0, kosong = 0,
+minimal salah satu > 0); `nilai` per orang = uang harian + uang transport (dihitung server). Kolom `pengajuan.jenis_uang`
+hanya data lama (simpanan baru selalu `null`); migrasi menyalin nilai lama ke kolom sesuai jenis uangnya.
 `tanggal_kegiatan` = tanggal **dari**; `tanggal_selesai` = **sampai**; lama (hari) = selisih + 1.
 Berkas wajib: **Surat Tugas, Laporan Kegiatan, Invoice Hotel, Invoice Tiket**.
 
@@ -102,7 +114,7 @@ Notifikasi otomatis (in-app; **tanpa email/WA**):
 |---|---|
 | Diajukan / diajukan ulang ke PUM | Semua PUM aktif (bila tidak ada PUM aktif → admin) |
 | Dikembalikan (berisi alasan + daftar berkas revisi) | Pembuat pengajuan (bila nonaktif → semua operator aktif) |
-| Diteruskan ke MDK · Selesai (paid) · Selesai dibatalkan | Pembuat pengajuan (aturan sama) |
+| Diteruskan ke MDK · Selesai (paid) · Selesai dibatalkan · Uang konsumsi sudah dibayarkan | Pembuat pengajuan (aturan sama) |
 
 Pelaku aksi tidak menerima notifikasinya sendiri. UI: lonceng + jumlah belum dibaca (polling 30 detik), toast saat ada
 notifikasi baru, ringkasan "n notifikasi belum dibaca" sekali per tab setelah login, membuka detail pengajuan
@@ -120,37 +132,48 @@ otomatis menandai notifikasi pengajuan itu dibaca. Pimpinan tidak menerima notif
 | Halaman **Verifikasi PUM**, centang berkas, kembalikan, teruskan ke MDK | ✗ | ✓ | ✗ | ✓ |
 | Isi/ubah Project Hosting & Task Name (diajukan_pum, diajukan_mdk, selesai) | ✗ | ✓ | ✗ | ✓ |
 | Input / ubah No. Invoice MDK, batalkan selesai | ✗ | ✓ | ✗ | ✓ |
+| Tandai uang konsumsi "sudah dibayarkan" / batalkan | ✗ | ✓ | ✗ | ✓ |
 | Master Pegawai: lihat | ✓ | ✓ | ✓ | ✓ |
 | Master Pegawai: tambah/ubah | ✓ | ✗ | ✗ | ✓ |
 | Master Pegawai: hapus (hanya jika belum dipakai) / nonaktifkan | ✗ | ✗ | ✗ | ✓ |
-| Kelola Pengguna | ✗ | ✗ | ✗ | ✓ |
+| Kelola Pengguna, setujui/tolak pendaftaran | ✗ | ✗ | ✗ | ✓ |
+| Halaman Pengaturan (tema warna, info akun, ganti password) | ✓ | ✓ | ✓ | ✓ |
+
+**Pendaftaran mandiri** (`/daftar`): akun baru dibuat `aktif=false`, `menunggu_persetujuan=true`, peran sementara
+`operator`; admin dinotifikasi (`jenis=registrasi`, badge di menu Pengguna), lalu **Setujui** (pilih peran → aktif) atau
+**Tolak** (profil & akun Supabase Auth dihapus). Pendaftar tidak memilih peran sendiri. Email yang sudah punya akun
+Supabase Auth hanya bisa didaftarkan dengan password akun itu.
 
 Konstanta peran: `ROLE_LIHAT_DRAFT`, `ROLE_PENGAJU` (`operator`,`admin`), `ROLE_PUM` (`pum`,`admin`) di `shared/constants.ts`.
 Keputusan: semua operator boleh mengedit pengajuan draft/dikembalikan milik siapa pun (tim kecil;
 akuntabilitas lewat `riwayat`). Bisa diperketat menjadi "hanya pembuat" bila diminta.
 
-## 6. Model Data (SQLite, `server/db.ts`, versi skema via `PRAGMA user_version`)
+## 6. Model Data (PostgreSQL di Supabase — `supabase/schema.sql`)
 
-Skema saat ini **v2** (migrasi otomatis saat server start; v1→v2 membangun ulang `users` & `pengajuan`:
-peran `mdk`→`pum`, status `diajukan`→`diajukan_pum`, `catatan_mdk`→`catatan_pum`; urutan AUTOINCREMENT dipertahankan;
-diuji di `tests/api/migrasi.test.ts`).
+Skema lengkap untuk database baru ada di `supabase/schema.sql` (menolak berjalan bila tabel sudah berisi data).
+Perubahan skema berikutnya = **file baru di `supabase/migrasi/`** (idempoten, hanya menambah), lalu perbarui
+`schema.sql` juga dan terapkan ke Supabase **sebelum** kode yang memakainya di-deploy.
 
-- `users` (id, username unik, nama, role `operator|pum|pimpinan|admin`, password_hash scrypt, aktif)
-- `sessions` (token_hash sha256, user_id, expires_at) — cookie httpOnly `kas_sid`, 7 hari
+- `users` (id, `auth_id` → auth.users, username = **email** unik huruf kecil, nama, role
+  `operator|pum|pimpinan|admin`, aktif, `menunggu_persetujuan`) — **tanpa password**: password dikelola Supabase Auth.
+- `sessions` (token_hash sha256, user_id, expires_at) — cookie httpOnly `kas_sid`, 7 hari (Secure di Vercel)
 - `pegawai` (id, nama, nip opsional unik, jabatan, aktif)
-- `kode_counter` (prefix, tahun, last) — nomor urut kode pengajuan, tidak pernah dipakai ulang
-- `pengajuan` (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang,
-  lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, uang_siapa_id→pegawai, total, catatan,
-  berkas_na (JSON array), berkas_terpenuhi/berkas_wajib (denormalisasi), status,
-  no_invoice_mdk, tanggal_invoice_mdk, **catatan_pum** (alasan pengembalian / catatan teruskan / catatan invoice — terakhir),
-  **project_hosting, task_name**, created_by, updated_by, diajukan_at,
-  **diteruskan_by, diteruskan_at** (teruskan ke MDK), diproses_by/diproses_at (dikembalikan atau invoice diinput),
-  created_at, updated_at)
-- `pengajuan_peserta` (pengajuan_id, pegawai_id, nilai, urutan) — UNIQUE(pengajuan_id, pegawai_id)
-- `berkas` (pengajuan_id, jenis, nama_berkas, nama_asli, nama_file acak, mime, ukuran, uploaded_by)
+- `kode_counter` (prefix, tahun, terakhir) — nomor urut kode pengajuan, tidak pernah dipakai ulang
+- `pengajuan` (kode, kategori, nama_kegiatan, tanggal_kegiatan DATE, tanggal_selesai, jumlah_orang,
+  lokasi_tujuan, mekanisme, jenis_uang (data lama), jenis_transport, **jenis_konsumsi**, uang_siapa_id→pegawai,
+  **rekening_bank, rekening_nomor, dibayar_at, dibayar_by**→users, total BIGINT, catatan,
+  berkas_na JSONB, berkas_terpenuhi/berkas_wajib (denormalisasi), status, no_invoice_mdk, tanggal_invoice_mdk,
+  catatan_pum, project_hosting, task_name, created_by, updated_by, diajukan_at, diteruskan_by/at, diproses_by/at, …)
+- `pengajuan_peserta` (pengajuan_id, pegawai_id, nilai, **uang_harian, uang_transport** (Perjadin; Rumah Tangga `null`), urutan)
+  — UNIQUE(pengajuan_id, pegawai_id)
+- `berkas` (pengajuan_id, jenis, nama_berkas, nama_asli, **nama_file = kunci objek Storage** `<pengajuan_id>/<uuid>.<ext>`,
+  mime, ukuran, uploaded_by)
 - `cek_berkas` (pengajuan_id, jenis, status `sesuai|revisi`, catatan, diperiksa_by, diperiksa_at) — PK(pengajuan_id, jenis)
-- `notifikasi` (user_id, pengajuan_id NULL-able, kode, jenis, judul, pesan, dibaca_at, created_at)
-- `riwayat` (pengajuan_id NULL-able, kode, user_id, aksi, keterangan, created_at)
+- `notifikasi` (user_id, pengajuan_id NULL-able, kode, jenis incl. `registrasi`, judul, pesan, dibaca_at)
+- `riwayat` (pengajuan_id NULL-able, kode, user_id, aksi enum, keterangan, created_at)
+- Enum PostgreSQL mengikuti `shared/constants.ts` persis (aksi riwayat, jenis notifikasi, status, dst.).
+- Keamanan: RLS aktif di semua tabel tanpa policy + hak `anon`/`authenticated` dicabut → hanya server (DATABASE_URL)
+  yang bisa membaca/menulis. Bucket Storage **`berkas`** privat, maks. 10 MB, MIME sesuai `UPLOAD_DIIZINKAN`.
 
 `berkas_sesuai` (jumlah centang sesuai) dihitung lewat subquery di `SELECT_PENGAJUAN`.
 Rekap per pegawai = Konsumsi (via `uang_siapa_id`, nilai = total) **+** Transport (via peserta, nilai per orang).
@@ -159,73 +182,88 @@ Jumlah seluruh rekap per pegawai = jumlah total seluruh pengajuan (konsisten, di
 ## 7. Tech Stack
 
 - **Frontend**: React 19 + Vite 8 + TypeScript 5.9 + Tailwind CSS v4 (`@tailwindcss/vite`) +
-  Motion 14 (`motion/react`) + Recharts 3 + TanStack Query 5 + React Router 8 (mode deklaratif,
-  import dari `react-router`) + Radix UI (`radix-ui`) + lucide-react + sonner + date-fns (locale `id`) +
-  jsPDF 4 + jspdf-autotable 5 (PDF dibuat di browser, di-*lazy load*).
-- **Backend**: Node ≥ 22.22 (dev: Node 26) + Express 5 + **`node:sqlite` bawaan** (tanpa modul native)
-  + multer 2 (upload) + tsx (menjalankan TypeScript).
-- **Test**: Vitest 5 (+ supertest untuk API, jsdom + Testing Library untuk komponen) dan Playwright (E2E).
-- **Ekspor Excel**: penulis `.xlsx` minimal sendiri (`src/lib/xlsx.ts`, zip via `fflate`) — angka disimpan sebagai angka.
-  (CSV sengaja tidak dipakai: Excel berlokal Indonesia memakai `;` sehingga CSV sering rusak kolomnya.)
+  Motion 14 (`motion/react`) + Recharts 3 + TanStack Query 5 + React Router 8 (import dari `react-router`) +
+  Radix UI + lucide-react + sonner + date-fns + jsPDF 4 + jspdf-autotable 5 (PDF dibuat di browser, *lazy load*).
+- **Backend**: Express 5 sebagai **fungsi serverless Vercel** (`server/vercel.ts` dibundel esbuild → `api/bundle.mjs`,
+  region `syd1` dekat database). Database **PostgreSQL Supabase** lewat `pg` + **Transaction pooler** (IPv4, port 6543).
+  Login **Supabase Auth** (verifikasi password), berkas **Supabase Storage** (`@supabase/supabase-js`).
+  Lokal: `tsx` menjalankan `server/index.ts`.
+- **Test**: Vitest 5 (+ supertest untuk API terhadap PostgreSQL lokal, jsdom + Testing Library untuk komponen) dan
+  Playwright (E2E). Supabase Auth/Storage ditiru (`tests/support/palsu.ts`, `tests/e2e/server.ts`).
+- **Ekspor Excel**: penulis `.xlsx` minimal sendiri (`src/lib/xlsx.ts`, zip via `fflate`).
 
 ## 8. Struktur Folder
 
 ```
-shared/        konstanta, tipe, validasi, format, kelengkapan (dipakai server & client — tanpa API DOM/Node)
-server/        Express API: app.ts (createApp), db.ts (migrasi), auth.ts, routes/*, services/*, seed.ts, scripts/*
-src/           React app: components/(ui|layout|pengajuan|dashboard), pages/, context/, hooks/,
-               lib/ (api, queries, pdf/laporan, xlsx, periode)
-tests/         api/*.test.ts (Vitest+supertest, DB in-memory), unit/*.test.ts, e2e/*.spec.ts (Playwright)
-               src/**/*.test.tsx = test komponen (jsdom)
-data/          (gitignored) kas-dpbj.db + uploads/ — dibuat otomatis; data/e2e/ khusus E2E
+shared/        konstanta, tipe, validasi, format, kelengkapan, project-task (master Kasubdit) — dipakai server & client
+server/        Express API: app.ts (createApp), db-pg.ts, auth.ts (sesi), supabase.ts + providers.ts (Auth/Storage),
+               env.ts (baca env toleran), routes/*, services/*, vercel.ts (entry Vercel), index.ts (entry lokal)
+api/           bundle.mjs — HASIL BUILD (npm run build), di-commit; satu-satunya fungsi Vercel
+supabase/      schema.sql (database baru) + migrasi/*.sql (perubahan bertahap)
+src/           React app: components/(ui|layout|pengajuan|dashboard), pages/, context/, hooks/, lib/
+tests/         api/*.test.ts, unit/*.test.ts, e2e/*.spec.ts + e2e/server.ts, support/ (pg, palsu, seed-demo)
 docs/          PANDUAN-UJI-MANUAL.md
 ```
 
 Endpoint alur (semua `/api/pengajuan/:id/...`): `POST ajukan`, `POST tarik`, `PUT cek-berkas` {jenis, status, catatan},
 `POST kembalikan` {catatan}, `POST teruskan` {project_hosting, task_name, catatan}, `PUT data-pum`,
-`POST selesai` & `PUT invoice` {no_invoice_mdk, tanggal_invoice_mdk, catatan}, `POST batal-selesai` {catatan}.
-Lainnya: `GET /api/pengajuan/saran-pum` (saran isian project/task), `GET /api/notifikasi`, `POST /api/notifikasi/baca` {id?}.
+`POST selesai` & `PUT invoice` {no_invoice_mdk, tanggal_invoice_mdk, catatan}, `POST batal-selesai` {catatan},
+`PUT dibayarkan` {dibayarkan: boolean} (konsumsi).
+Berkas: `POST berkas/siapkan` {jenis, nama_berkas?, nama_asli, ukuran} → URL unggah bertanda tangan; browser `PUT` file
+langsung ke Storage; `POST berkas/konfirmasi` {key, …} (server cek isi & ukuran lalu mencatat). `GET /api/berkas/:id/file`
+→ 302 ke URL sementara (`?unduh=1` = attachment dengan nama asli).
+Akun: `POST /api/auth/login` {username=email, password}, `POST /api/auth/daftar` {nama, username, password},
+`POST /api/users/:id/setujui` {role}, `DELETE /api/users/:id` (tolak pendaftaran). Lainnya: `GET /api/pengajuan/saran-pum`,
+`GET /api/notifikasi` (antrian incl. `pendaftar` untuk admin), `POST /api/notifikasi/baca` {id?}, `GET /api/health`
+(status database + `peringatan` konfigurasi).
 
-## 9. Perintah
+## 9. Perintah & Deploy
 
 | Perintah | Fungsi |
 |---|---|
-| `npm run dev` | API (port **5211**) + Web Vite (port **5210**) → buka http://localhost:5210 |
-| `npm run dev:lan` | Sama, tetapi web dapat diakses dari perangkat lain di jaringan (uji di ponsel) |
-| `jalankan.bat` | (Windows) install bila perlu + `npm run dev` + buka browser |
-| `npm run build` | typecheck + build frontend ke `dist/` |
-| `npm start` | Produksi: API + frontend hasil build di http://localhost:5211 |
-| `npm test` | Unit + integrasi API + komponen (Vitest) |
-| `npm run test:e2e` | Build + Playwright E2E (server uji port 5212, DB terpisah `data/e2e/`) |
-| `npm run typecheck` | Cek tipe frontend, server, dan test E2E |
-| `npm run db:seed` | **Reset** DB + isi data demo |
-| `npm run db:reset` | **Reset** DB kosong (hanya akun admin) — untuk mulai pakai sungguhan |
+| `npm run dev` | API (port **5211**) + Web Vite (port **5210**) → http://localhost:5210 (butuh `.env`, lihat `.env.example`) |
+| `npm run build` | typecheck + build frontend (`dist/`) + bundel server (`api/bundle.mjs`) |
+| `npm test` | Vitest: unit + komponen + API (**butuh `TEST_DATABASE_URL`** ke PostgreSQL lokal kosong) |
+| `npm run test:e2e` | Build + Playwright E2E (server uji port 5212, PostgreSQL lokal + Supabase tiruan) |
+| `npm run typecheck` | Cek tipe frontend & server (E2E: `npx tsc -p tsconfig.e2e.json --noEmit`) |
 
-Hentikan server sebelum `db:seed`/`db:reset` (di Windows file DB terkunci). `concurrently -k` di `npm run dev`
-mematikan kedua proses saat Ctrl+C.
+**Deploy**: push ke `main` di GitHub (`nabill25/Kas-Operaional-DPBJ-UI`) → Vercel (proyek `kas-operaional-dpbj-ui`,
+akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jalankan `npm run build` sebelum commit** agar
+`api/bundle.mjs` ikut diperbarui. Perubahan skema: terapkan migrasi ke Supabase dulu, baru push.
+
+**Environment** (lokal `.env`, Vercel → Settings → Environment Variables, centang Production, lalu Redeploy):
+`DATABASE_URL` (Transaction pooler `postgres.<ref>@aws-0-ap-southeast-2.pooler.supabase.com:6543`; host
+`db.<ref>.supabase.co` hanya IPv6 → otomatis dialihkan), `SUPABASE_URL`, `SUPABASE_ANON_KEY` (atau `VITE_*`),
+`SUPABASE_SERVICE_ROLE_KEY` (rahasia; tanpa ini login tetap jalan, tetapi berkas/daftar akun/kelola pengguna mati),
+`COOKIE_SECURE`. Nama variabel dibaca tanpa peka huruf besar/kecil. **Jangan pernah commit nilai rahasia.**
+
+**Akun**: tidak ada akun demo di produksi. Login memakai email + password Supabase Auth; profil (peran) di tabel
+`users` dibuat admin (menu Pengguna) atau lewat pendaftaran yang disetujui admin.
 
 ### Pengujian — aturan
 
-- Test API memakai `buatKonteks()` (`tests/api/helpers.ts`): DB `:memory:` + folder upload sementara per test.
-  Data demo di test memakai tanggal acuan tetap 6 Okt tahun berjalan. `masuk(ctx, 'operator'|'pum'|'pimpinan'|'admin')`.
+- Test API memakai `await buatKonteks()` (`tests/api/helpers.ts`): satu database PostgreSQL per file test (dari template
+  `supabase/schema.sql` + stub `tests/support/supabase-stubs.sql`), dikosongkan tiap test; Auth & Storage tiruan.
+  `masuk(ctx, 'operator'|'pum'|'pimpinan'|'admin')` (email `<peran>@dpbj.test`), unggah lewat `unggah(ctx, agent, …)`.
+  **Jangan jalankan Vitest bersamaan dengan server E2E** — setup global menghapus database `kas_test_*`.
 - Fixture E2E (`tests/e2e/fixtures.ts`) **menggagalkan test bila ada `console.error`/error JS** di browser.
   Respons 4xx yang disengaja ikut tercatat browser sebagai error → kosongkan `galat` setelahnya.
-- Kait test di UI: `data-berkas="<jenis>"` + `data-keadaan="ada|na|kosong"` + `data-cek="sesuai|revisi|belum"` pada baris
-  berkas; `data-kode` pada kartu Verifikasi PUM; `data-testid="kartu-pum" | "aksi-pum" | "catatan-pengembalian"`;
-  id stabil pada input form (mis. `#peserta-0-nilai`, `#uang_siapa_id`, `#no_invoice_mdk`).
+- Kait test di UI: `data-berkas` + `data-keadaan` + `data-cek` (baris berkas), `data-kode` (kartu Verifikasi PUM),
+  `data-testid="kartu-pum" | "aksi-pum" | "catatan-pengembalian"`, `data-pendaftar` (baris pendaftar),
+  `data-warna-opsi` + `data-terpilih` (tema), `data-jenis-konsumsi` (pilihan jenis konsumsi), `data-testid="uang-siapa"`
+  (nama, rekening, tombol "Sudah dibayarkan"), `data-peserta` (rincian per orang di detail),
+  id stabil pada input form (mis. `#peserta-0-nilai`, `#peserta-0-uang_harian`, `#peserta-0-uang_transport`,
+  `#uang_siapa_id`, `#rekening_bank`, `#rekening_nomor`, `#jenis_konsumsi`). Kotak cari Project/Task:
+  combobox berlabel "Project Hosting"/"Task Name", kotak pencarian "Cari project"/"Cari task".
 - Playwright `getByLabel(..., { exact: true })` ikut menghitung tanda `*` wajib → pakai `getByRole('textbox', { name })` atau id.
-  Input dengan `list` (datalist) berperan `combobox`, bukan `textbox`.
-
-Env opsional: `PORT`, `KAS_DB_PATH`, `KAS_UPLOAD_DIR`, `KAS_SEED` (`demo`|`minimal`, dipakai saat DB kosong),
-`COOKIE_SECURE=true` (jika di belakang HTTPS).
-
-Akun demo (`db:seed`): `operator/operator123`, `pum/pum123`, `pimpinan/pimpinan123`, `admin/admin123`.
-**Ganti password sebelum produksi.**
 
 ## 10. Desain UI
 
-- Tema: **kuning UI `#FFD100`** (aksen/CTA, teks di atasnya navy) + **biru dongker `#0A1A3F`** (brand/teks).
-  Light & dark mode (token CSS di `src/index.css`, kelas `.dark` di `<html>`).
+- **Tema warna** (halaman Pengaturan, per perangkat, `localStorage kas-warna`, atribut `data-warna` di `<html>`):
+  `dpbj` (bawaan) = biru dongker `#0A1A3F` + kuning `#FFD100`; `ui` = **kuning resmi UI `#F6DB00`** (Pantone 109 C,
+  pedoman logo UI) + hitam arang. Tema menimpa palet `--color-kuning-*`/`--color-navy-*` & token semantik di `index.css`;
+  setiap variabel di blok terang sebuah tema wajib diulang di blok gelapnya. Terpisah dari mode terang/gelap
+  (kelas `.dark`). Warna kategori chart & status **tidak** ikut tema (bermakna data).
 - Gaya **liquid glass**: kelas `.glass` (backdrop blur + saturate, highlight specular, border gradien),
   latar gradien bergerak (blob) agar efek kaca terlihat. Hormati `prefers-reduced-motion` (`MotionConfig reducedMotion="user"`).
 - Font: Plus Jakarta Sans Variable (offline via @fontsource).
@@ -235,13 +273,21 @@ Akun demo (`db:seed`): `operator/operator123`, `pum/pum123`, `pimpinan/pimpinan1
 - Status selalu **ikon + label** (bukan warna saja): Draft (abu), Diajukan ke PUM (biru), Dikembalikan (amber),
   Diajukan ke MDK (ungu), Selesai (Paid) (hijau). Bahasa UI: **Indonesia**.
 - Tampilan per peran: menu & tombol aksi hanya muncul untuk peran yang berhak (lihat §5); pimpinan baca-saja.
+- **Kelengkapan berkas = tabel** (Berkas & file · Pemeriksaan PUM · Aksi), kolom mengikuti lebar panel (container query:
+  3 kolom ≥ 42rem, 2 kolom ≥ 28rem, bertumpuk di HP). Aksi PUM: centang **Sesuai** + **Revisi** (retur, dengan catatan);
+  aksi pengaju: **Unggah** + ⋯ (tandai tidak diperlukan). Di detail (desktop): [informasi | total & PUM], lalu tabel berkas
+  dan riwayat selebar halaman; urutan di HP mengikuti DOM (informasi → berkas → total → riwayat).
+- Responsif (diaudit 320–1440 px): tabel lebar (Daftar Pengajuan, Rekap) hanya ≥1280 px dengan `table-fixed` + `<colgroup>`;
+  di bawahnya daftar kartu. Segmented berisi banyak opsi memakai grid di HP. Nominal di kartu sempit = ringkas + lengkap.
 - Toast (sonner) di **tengah atas, di bawah topbar** — tidak menutupi lonceng/menu akun, tombol aksi halaman (kanan),
   atau bar simpan form (bawah). Hindari toast sukses untuk aksi yang perubahannya sudah terlihat (mis. centang berkas).
 
 ## 11. Konvensi Kode
 
 - TypeScript strict. Nama domain berbahasa Indonesia (`pengajuan`, `pegawai`, `berkas`), sama di DB/API/UI.
-- SQL **selalu** parameter `?` (tidak ada interpolasi string nilai). `node:sqlite` tidak menerima `boolean`/`undefined` → konversi ke `0/1`/`null`.
+- SQL **selalu** parameter `?` (diubah ke `$1..` oleh `db-pg.ts`; tidak ada interpolasi nilai). Boolean = `true/false`.
+  `db.run()` hanya mengembalikan `lastInsertRowid` bila SQL memakai `RETURNING id` (tidak semua tabel punya `id`).
+  `SUM(...)` rupiah di-cast `::bigint`; DATE dikembalikan `YYYY-MM-DD`, timestamptz sebagai ISO string.
 - API JSON: sukses → objek data; gagal → `{ message, errors? }` + status HTTP yang tepat (400/401/403/404/409/413).
 - Setiap perubahan status/data pengajuan **wajib** menulis `riwayat`; perubahan status yang menyangkut pihak lain
   **wajib** mengirim notifikasi (`kirimNotifikasi`).
@@ -251,16 +297,20 @@ Akun demo (`db:seed`): `operator/operator123`, `pum/pum123`, `pimpinan/pimpinan1
 - Ikon/prefiks di dalam input (`absolute`) wajib `z-10`: `.kontrol` memakai `backdrop-filter` sehingga menutupi elemen sebelumnya.
 - Angka beranimasi (`AnimatedNumber`) memakai tween berdurasi tetap agar selalu berhenti tepat di nilai akhir.
 - Warna chart untuk atribut SVG diambil dari `src/components/dashboard/palet.ts` (nilai sama dengan token CSS).
-- Perubahan skema DB = tambah elemen baru di `MIGRASI` (`server/db.ts`), jangan ubah migrasi lama; uji di `migrasi.test.ts`.
+- Perubahan skema DB = file baru di `supabase/migrasi/` (idempoten) + perbarui `supabase/schema.sql`; terapkan ke Supabase
+  sebelum deploy. Environment dibaca lewat `bacaEnv()` (`server/env.ts`).
 - Setelah mengubah aturan bisnis: perbarui `shared/`, test API, dan dokumen ini.
 
 ## 11a. Keputusan Teknis yang Sudah Diambil
 
 - `GET /api/auth/me` selalu 200: `{ user: null }` bila belum login (cek sesi tidak memunculkan error 401 di konsol).
   Endpoint lain tetap 401 bila sesi tidak ada/kedaluwarsa; frontend lalu kembali ke halaman login.
-- Upload: whitelist ekstensi + verifikasi tanda tangan byte (PDF/PNG/JPG/WEBP/DOCX/XLSX/DOC/XLS), maks. 10 MB,
-  nama file disimpan acak (UUID); MIME saat diunduh ditentukan server dari ekstensi, `X-Content-Type-Options: nosniff`.
-- Login: hash scrypt, token sesi acak (disimpan sebagai sha256), pembatas percobaan (10 gagal / 15 menit / IP+username).
+- Upload langsung browser → Supabase Storage (URL bertanda tangan; menghindari batas body 4,5 MB fungsi Vercel), lalu server
+  memverifikasi: kunci harus `<pengajuan_id>/<uuid><ext>`, ukuran ≤ 10 MB, tanda tangan byte sesuai ekstensi; gagal →
+  objek dihapus. Unduh = redirect 302 ke URL sementara 5 menit (nama file ditambahkan sendiri, encode sekali).
+- Login: password diverifikasi Supabase Auth (anon key), profil dicocokkan lewat `auth_id` (fallback: email untuk profil
+  yang belum tertaut); sesi aplikasi = token acak (sha256) di tabel `sessions`; pembatas 10 gagal / 15 menit / IP+email.
+  Pendaftaran: maks. 10 / jam / IP.
 - Rekap default = semua status **kecuali draft**; PUM & pimpinan tidak pernah melihat draft (daftar, detail, rekap, dashboard).
 - Data demo: tanggal relatif terhadap hari ini (±11 bulan ke belakang), waktu aktivitas di jam kerja (Sen–Jum 08.00–16.30).
 - PegawaiPicker tidak menawarkan "Tambah … sebagai pegawai baru" bila nama persis sudah terdaftar; pegawai yang sudah
@@ -269,15 +319,17 @@ Akun demo (`db:seed`): `operator/operator123`, `pum/pum123`, `pimpinan/pimpinan1
 ## 12. Pertanyaan Terbuka (asumsi saat ini — mohon dikonfirmasi pemilik project)
 
 1. Kepanjangan **KO / LS**, **PUM**, dan **MDK** (saat ini hanya ditampilkan singkatannya).
-2. Apakah "Uang Harian / Uang Transport" untuk Perjadin cukup **satu pilihan per pengajuan** (saat ini begitu),
-   atau perlu dua nilai terpisah per orang?
+2. ~~Jenis uang Perjadin~~ — **terjawab**: uang harian & uang transport diisi terpisah per orang (Okt 2026).
 3. Batas **maks. 2 orang** saat ini berlaku untuk Rumah Tangga **dan** Perjadin ("field sama seperti sebelumnya").
 4. Format resmi **No. Invoice MDK** (saat ini teks bebas, maks. 100 karakter, unik tidak diwajibkan).
 5. Apakah pengajuan wajib berkas lengkap sebelum diajukan (saat ini: boleh dengan peringatan).
 6. Logo resmi: ganti `public/logo.svg` dengan logo UI/DPBJ resmi bila diizinkan.
-7. **Project Hosting & Task Name**: diasumsikan dua isian teks bebas opsional milik PUM (diisi saat meneruskan ke MDK,
-   bisa diubah setelahnya; ada saran dari nilai yang pernah dipakai), tampil di detail, Excel & PDF. Perlu daftar
-   pilihan baku / wajib diisi?
+7. **Project Hosting & Task Name**: kini dipilih dari master Kasubdit (38 pasangan project–task, Okt 2026) lewat kotak cari;
+   task terisi otomatis bila project hanya punya satu task sesuai kategori (Konsumsi → Beban Konsumsi, Rumah Tangga →
+   Beban Transportasi Rumah Tangga; Perjadin dipilih manual). Tetap opsional & teks lain diterima. Label resmi
+   "Project Hosting" atau "Project **Costing**"? Perlu wajib diisi?
+12. **Sudah dibayarkan** diasumsikan boleh ditandai PUM sejak status Diajukan ke PUM sampai Selesai. Perlu dibatasi
+    (mis. hanya setelah Selesai)? Perlu kolom pembayaran di Excel/rekap?
 8. **Teruskan ke MDK** diasumsikan hanya boleh bila **semua berkas wajib dicentang sesuai**. Benar?
 9. **Notifikasi** saat ini hanya di dalam aplikasi (lonceng + toast). Perlu email/WhatsApp? Perlu notifikasi untuk pimpinan?
 10. **Pimpinan** diasumsikan hanya memantau (tanpa aksi & tanpa melihat draft). Perlu persetujuan pimpinan di alur?

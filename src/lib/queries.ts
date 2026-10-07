@@ -101,15 +101,17 @@ export type AksiPengajuan =
   | { aksi: 'data-pum'; project_hosting: string; task_name: string }
   | { aksi: 'selesai'; no_invoice_mdk: string; tanggal_invoice_mdk: string; catatan?: string }
   | { aksi: 'invoice'; no_invoice_mdk: string; tanggal_invoice_mdk: string; catatan?: string }
-  | { aksi: 'batal-selesai'; catatan: string };
+  | { aksi: 'batal-selesai'; catatan: string }
+  | { aksi: 'dibayarkan'; dibayarkan: boolean };
 
 export function useAksiPengajuan(id: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (a: AksiPengajuan) => {
       const { aksi, ...body } = a;
-      if (aksi === 'invoice') return api<PengajuanDetail>(`/pengajuan/${id}/invoice`, { method: 'PUT', body });
-      if (aksi === 'data-pum') return api<PengajuanDetail>(`/pengajuan/${id}/data-pum`, { method: 'PUT', body });
+      if (aksi === 'invoice' || aksi === 'data-pum' || aksi === 'dibayarkan') {
+        return api<PengajuanDetail>(`/pengajuan/${id}/${aksi}`, { method: 'PUT', body });
+      }
       return api<PengajuanDetail>(`/pengajuan/${id}/${aksi}`, { method: 'POST', body });
     },
     onSuccess: (detail, a) => {

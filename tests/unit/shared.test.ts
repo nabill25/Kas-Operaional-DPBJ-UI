@@ -10,7 +10,9 @@ import {
   tanggalLokalIso,
   waktuRelatif,
 } from '../../shared/format';
+import { isBankMandiri } from '../../shared/constants';
 import { hitungKelengkapan, parseBerkasNa } from '../../shared/kelengkapan';
+import { DAFTAR_PROJECT, DAFTAR_PROJECT_TASK, DAFTAR_TASK, cariProject, taskOtomatis, taskSesuaiKategori } from '../../shared/project-task';
 import {
   isTanggalValid,
   validateCekBerkas,
@@ -132,7 +134,7 @@ describe('validasi', () => {
     expect(Object.keys(h.errors).sort()).toEqual(['jenis_konsumsi', 'jumlah_orang', 'total', 'uang_siapa_id']);
   });
 
-  it('transport: total dari peserta, data konsumsi diabaikan', () => {
+  it('perjadin: nilai per orang = uang harian + uang transport, data konsumsi & jenis uang diabaikan', () => {
     const h = validatePengajuan({
       kategori: 'perjadin',
       nama_kegiatan: 'Perjalanan Dinas',
@@ -143,10 +145,12 @@ describe('validasi', () => {
       jenis_uang: 'uang_transport',
       jenis_transport: 'luar_kota',
       uang_siapa_id: 9,
+      rekening_bank: 'BNI',
+      rekening_nomor: '0123456789',
       total: 1,
       peserta: [
-        { pegawai_id: 1, nilai: 500000 },
-        { pegawai_id: 2, nilai: '250000' },
+        { pegawai_id: 1, nilai: 1, uang_harian: 300000, uang_transport: 200000 },
+        { pegawai_id: 2, uang_transport: '250000' },
       ],
     });
     expect(h.ok).toBe(true);
@@ -154,6 +158,72 @@ describe('validasi', () => {
     expect(h.data.total).toBe(750000);
     expect(h.data.jumlah_orang).toBe(2);
     expect(h.data.uang_siapa_id).toBeNull();
+    expect(h.data.jenis_uang).toBeNull();
+    expect(h.data).toMatchObject({ rekening_bank: null, rekening_nomor: null });
+    expect(h.data.peserta).toEqual([
+      { pegawai_id: 1, nilai: 500000, uang_harian: 300000, uang_transport: 200000 },
+      { pegawai_id: 2, nilai: 250000, uang_harian: 0, uang_transport: 250000 },
+    ]);
+  });
+
+  it('perjadin: uang kosong, negatif, atau bukan angka ditolak per orang', () => {
+    const h = validatePengajuan({
+      kategori: 'perjadin',
+      nama_kegiatan: 'Perjalanan Dinas',
+      tanggal_kegiatan: '2026-10-01',
+      tanggal_selesai: '2026-10-01',
+      lokasi_tujuan: 'Bandung',
+      mekanisme: 'KO',
+      jenis_transport: 'dalam_kota',
+      peserta: [
+        { pegawai_id: null, uang_harian: '', uang_transport: null },
+        { pegawai_id: 2, uang_harian: -1, uang_transport: 'abc' },
+      ],
+    });
+    expect(h.ok).toBe(false);
+    if (h.ok) return;
+    expect(h.errors).toEqual({
+      'peserta.0.pegawai_id': 'Pilih nama pegawai',
+      'peserta.0.uang_harian': 'Isi uang harian dan/atau uang transport',
+      'peserta.1.uang_harian': 'Uang harian tidak boleh negatif',
+      'peserta.1.uang_transport': 'Uang transport harus berupa angka',
+    });
+  });
+
+  it('konsumsi: rekening opsional, berpasangan, nomor dirapikan', () => {
+    const dasar = {
+      kategori: 'konsumsi',
+      nama_kegiatan: 'Rapat Koordinasi',
+      tanggal_kegiatan: '2026-10-06',
+      jumlah_orang: 5,
+      total: 100000,
+      uang_siapa_id: 1,
+      mekanisme: 'KO',
+      jenis_konsumsi: 'kudapan',
+    };
+    expect(validatePengajuan(dasar)).toMatchObject({ ok: true, data: { rekening_bank: null, rekening_nomor: null } });
+    expect(validatePengajuan({ ...dasar, rekening_bank: ' Bank  Mandiri ', rekening_nomor: '157-00.01 234' })).toMatchObject({
+      ok: true,
+      data: { rekening_bank: 'Bank Mandiri', rekening_nomor: '1570001234' },
+    });
+    expect(validatePengajuan({ ...dasar, rekening_bank: 'BRI', rekening_nomor: '' })).toMatchObject({
+      ok: false,
+      errors: { rekening_nomor: 'Isi nomor rekening' },
+    });
+    expect(validatePengajuan({ ...dasar, rekening_bank: 'X', rekening_nomor: '12345' })).toMatchObject({
+      ok: false,
+      errors: { rekening_bank: 'Nama bank minimal 2 karakter' },
+    });
+  });
+
+  it('bank Mandiri (bebas biaya transfer) dikenali dari namanya', () => {
+    expect(isBankMandiri('Bank Mandiri')).toBe(true);
+    expect(isBankMandiri('mandiri')).toBe(true);
+    expect(isBankMandiri('PT Bank Mandiri (Persero) Tbk')).toBe(true);
+    expect(isBankMandiri('Bank Syariah Mandiri')).toBe(false);
+    expect(isBankMandiri('BNI')).toBe(false);
+    expect(isBankMandiri('Mandiriku')).toBe(false);
+    expect(isBankMandiri(null)).toBe(false);
   });
 
   it('peserta transport kosong → pesan "wajib", bukan "harus > 0"', () => {
@@ -179,13 +249,39 @@ describe('validasi', () => {
       tanggal_selesai: '2027-06-01',
       lokasi_tujuan: 'Bandung',
       mekanisme: 'KO',
-      jenis_uang: 'uang_harian',
       jenis_transport: 'luar_kota',
-      peserta: [{ pegawai_id: 1, nilai: 1 }],
+      peserta: [{ pegawai_id: 1, uang_harian: 1 }],
     });
     expect(h.ok).toBe(false);
     if (h.ok) return;
     expect(h.errors.tanggal_selesai).toContain('366');
+  });
+
+  it('master project hosting & task name dari Kasubdit', () => {
+    expect(DAFTAR_PROJECT_TASK).toHaveLength(38);
+    expect(DAFTAR_PROJECT).toHaveLength(15);
+    expect(DAFTAR_TASK).toHaveLength(18);
+    expect(DAFTAR_PROJECT_TASK[0]).toEqual({
+      project: 'D0030.07.01.6.001:Sosialisasi Revisi PRPBJ dan E-Proc',
+      projectKode: 'D0030.07.01.6.001',
+      projectNama: 'Sosialisasi Revisi PRPBJ dan E-Proc',
+      task: '723207_Beban Konsumsi',
+      taskKode: '723207',
+      taskNama: 'Beban Konsumsi',
+    });
+    // Nama project boleh berisi "&" dan koma
+    expect(cariProject('D0030.10.01.6.005:Undangan, penugasan, koordinasi kelembagaan & temuan')?.tasks.map((t) => t.taskKode)).toEqual([
+      '723216',
+    ]);
+    // Task terisi otomatis hanya bila tepat satu task sesuai kategori
+    const koordinasi = 'D0030.09.01.6.002:Koordinasi Tata Kelola Pengadaan';
+    expect(taskOtomatis('konsumsi', koordinasi)).toBe('723207_Beban Konsumsi');
+    expect(taskOtomatis('rumah_tangga', koordinasi)).toBe('723216_Beban Transportasi Rumah Tangga');
+    expect(taskOtomatis('perjadin', koordinasi)).toBeNull();
+    expect(taskOtomatis('konsumsi', 'D0030.06.01.6.001:Penguatan Manajemen Kontrak')).toBeNull();
+    expect(taskOtomatis('konsumsi', 'Project lain')).toBeNull();
+    expect(taskSesuaiKategori('perjadin', 'Beban Tiket - Perjadin Luar Negeri')).toBe(true);
+    expect(taskSesuaiKategori('konsumsi', 'Beban Transportasi Rumah Tangga')).toBe(false);
   });
 
   it('pegawai, user, invoice', () => {

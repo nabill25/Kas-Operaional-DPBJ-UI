@@ -10,10 +10,11 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 
 ## 0. Persiapan
 
-1. ☐ Jalankan `npm run dev` (atau klik dua kali `jalankan.bat`), buka **http://localhost:5210**.
-2. ☐ (Disarankan) Mulai dari data demo yang bersih: hentikan server (Ctrl+C) → `npm run db:seed` → jalankan lagi.
-3. Akun: **operator / operator123**, **pum / pum123**, **pimpinan / pimpinan123**, **admin / admin123**.
-   Di halaman login (mode pengembangan) ada tombol cepat *Operator / PUM / Pimpinan / Admin*.
+1. ☐ Buka aplikasi (Vercel) atau jalankan lokal `npm run dev` (butuh `.env`, lihat README) → **http://localhost:5210**.
+2. ☐ Gunakan pengajuan **uji** (nama jelas, mis. "UJI …") dan hapus setelah selesai bila masih draft —
+   database Supabase berisi data sungguhan.
+3. Akun: siapkan 4 akun **email + password** (Supabase Auth) berperan **Operator**, **PUM**, **Pimpinan**, **Admin**
+   (dibuat admin di menu **Pengguna**, atau daftar di halaman **Daftar** lalu disetujui admin).
 4. Agar mudah berganti peran, gunakan dua browser (mis. Chrome untuk operator, Edge/jendela samaran untuk PUM).
    Notifikasi diperbarui otomatis tiap ±30 detik (atau saat jendela kembali difokuskan).
 
@@ -24,12 +25,12 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
 | A1 | ☐ Buka http://localhost:5210 tanpa login | Diarahkan ke halaman **Masuk** |
-| A2 | ☐ Klik **Masuk** dengan isian kosong | Muncul "Username wajib diisi" & "Password wajib diisi" |
-| A3 | ☐ Login `operator` dengan password salah | Pesan "Username atau password salah" (kotak bergetar) |
-| A4 | ☐ Login `operator / operator123` | Masuk ke **Dashboard**, sapaan "Selamat …, Operator" |
+| A2 | ☐ Klik **Masuk** dengan isian kosong | Muncul "Email wajib diisi" & "Password wajib diisi" |
+| A3 | ☐ Login akun operator dengan password salah | Pesan "Email atau password salah" (kotak bergetar) |
+| A4 | ☐ Login akun operator dengan password benar | Masuk ke **Dashboard**, sapaan "Selamat …, <nama>" |
 | A5 | ☐ Klik avatar (kanan atas) → **Keluar** | Kembali ke halaman login; membuka `/pengajuan` diarahkan ke login |
-| A6 | ☐ Login `pum`, buka `http://localhost:5210/pengajuan/baru` | "Tidak memiliki akses" (PUM tidak membuat pengajuan) |
-| A7 | ☐ Login `operator`, buka `http://localhost:5210/verifikasi` | "Tidak memiliki akses" (hanya PUM & admin) |
+| A6 | ☐ Login akun PUM, buka `http://localhost:5210/pengajuan/baru` | "Tidak memiliki akses" (PUM tidak membuat pengajuan) |
+| A7 | ☐ Login akun operator, buka `http://localhost:5210/verifikasi` | "Tidak memiliki akses" (hanya PUM & admin) |
 
 ## B. Operator — Konsumsi
 
@@ -41,8 +42,10 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | B4 | ☐ **Uang siapa**: klik, ketik "nur", pilih *Nurul Hidayah* (bisa pakai ↑ ↓ Enter) | Nama terpilih tampil di kotak |
 | B5 | ☐ Pada "Uang siapa" ketik nama baru (mis. "Budi Uji") → *Tambah "Budi Uji" sebagai pegawai baru* → **Simpan & pilih** | Pegawai baru dibuat & langsung terpilih |
 | B6 | ☐ Ketik nama pegawai yang **sudah ada persis** (mis. "Nurul Hidayah") | Opsi "Tambah … sebagai pegawai baru" **tidak** muncul (mencegah data ganda) |
+| B6a | ☐ **Rekening uang siapa** (opsional): isi Bank **BNI** + No. Rekening `0123 456 789` | Catatan "Jika bukan Bank Mandiri, biaya transfer akan dibebankan kepada pemilik rekening." berwarna kuning; isi hanya bank tanpa nomor → "Isi nomor rekening" |
 | B7 | ☐ Pilih mekanisme **KO**, klik **Simpan draft** | Detail; kode `KSM-2026-xxxx`; status **Draft**; kotak kuning "…lalu klik Ajukan ke PUM" |
-| B8 | ☐ Panel **Kelengkapan berkas**: unggah PDF untuk *Notula* | Bilah progres tampil, lalu baris hijau "1 file terunggah"; cincin 1/4 |
+| B7a | ☐ Detail → **Uang siapa** | Nama pegawai, **BNI · 0123456789** (tombol salin), catatan biaya transfer, keterangan "Belum dibayarkan" setelah diajukan |
+| B8 | ☐ Panel **Kelengkapan berkas** (tabel: Berkas & file · Pemeriksaan PUM · Aksi): unggah PDF untuk *Notula* | Bilah progres tampil, lalu baris hijau "1 file terunggah"; cincin 1/4 |
 | B9 | ☐ Seret-lepas (drag & drop) gambar JPG/PNG ke baris *Undangan* | Baris berubah kuning saat diseret, file terunggah |
 | B10 | ☐ Coba unggah file `.exe`/`.zip` atau file > 10 MB | Ditolak dengan pesan jelas; tidak ada file tersimpan |
 | B11 | ☐ Klik nama file / ikon mata | Pratinjau PDF/gambar dalam jendela; tombol *Unduh* & *Buka di tab baru* |
@@ -70,7 +73,9 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 |---|---|---|
 | D1 | ☐ Buat Pengajuan → **Transport Perjadin**; isi *dari* 10 Okt, *sampai* 8 Okt; simpan | Error "Tanggal selesai tidak boleh sebelum tanggal mulai" |
 | D2 | ☐ Ubah *sampai* ke 12 Okt | Muncul "Lama kegiatan 3 hari" |
-| D3 | ☐ Pilih Jenis uang & Jenis transport **Dalam Kota**, isi lokasi + peserta, simpan | Detail menampilkan rentang tanggal (3 hari), jenis uang/transport |
+| D3 | ☐ Perhatikan form | Tidak ada pilihan *Jenis uang*; **Jenis transport** berada di samping **Mekanisme** |
+| D3a | ☐ Pilih **Dalam Kota**, isi lokasi; orang 1: **Uang harian** `450000`; orang 2: biarkan kedua uang kosong → simpan | Orang 2: "Isi uang harian dan/atau uang transport" |
+| D3b | ☐ Orang 2: Uang harian `200000` + Uang transport `100000` → simpan | "Jumlah orang 2: Rp 300.000"; total Rp 750.000; detail menampilkan rincian uang harian & uang transport per orang |
 | D4 | ☐ Berkas *Invoice Hotel* → tombol **⋯** → **Tandai tidak diperlukan** (juga *Invoice Tiket*) | Baris abu-abu "Ditandai tidak diperlukan oleh pengaju"; dihitung terpenuhi |
 | D5 | ☐ Unggah file ke baris yang ditandai tidak diperlukan | Tanda dilepas otomatis, baris menjadi hijau |
 
@@ -83,14 +88,15 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | E3 | ☐ Menu **Verifikasi PUM** → tab **Perlu diperiksa** | Pengajuan *Diajukan ke PUM*, terlama di atas; lencana lama menunggu (≥ 7 hari kuning), "Dicek x/y sesuai" |
 | E4 | ☐ Klik **Periksa berkas** pada pengajuan dari B18 | Detail dengan panel **Periksa kelengkapan berkas** (bingkai kuning) + petunjuk |
 | E5 | ☐ Perhatikan tombol **Teruskan ke MDK** (atas) & **Setujui & teruskan ke MDK** (bawah panel) | Nonaktif; tertulis "Centang n berkas lagi sebagai Sesuai…" |
-| E6 | ☐ Buka berkas *Notula*, lalu centang **Sesuai** | Kotak centang hijau; tercatat "dicentang oleh PUM · baru saja"; cincin "Dicentang sesuai" naik |
+| E6 | ☐ Buka berkas *Notula*, lalu klik tombol centang **Sesuai** (kolom Aksi) | Tombol menjadi hijau; kolom *Pemeriksaan PUM*: "Sesuai · <nama PUM>, baru saja"; cincin "Dicentang sesuai" naik |
 | E7 | ☐ Klik **Sesuai** sekali lagi (hapus centang) | Centang batal; riwayat mencatat "Centang berkas dibatalkan" |
-| E8 | ☐ Pada *Undangan* klik **Perlu revisi** → kosongkan catatan → **Simpan catatan revisi** | Pesan "Tuliskan apa yang perlu direvisi" |
-| E9 | ☐ Isi catatan (mis. "Tanda tangan ketua belum ada") → simpan | Baris berbingkai kuning "Catatan revisi …"; kartu **Verifikasi PUM**: "1 berkas ditandai perlu revisi" |
+| E8 | ☐ Pada *Undangan* klik **Revisi** (retur) → kosongkan catatan → **Simpan catatan revisi** | Pesan "Tuliskan apa yang perlu direvisi" |
+| E9 | ☐ Isi catatan (mis. "Tanda tangan ketua belum ada") → simpan | Baris berbingkai kuning; kolom *Pemeriksaan PUM*: "Perlu revisi" + catatan + **Batalkan tanda**; kartu **Verifikasi PUM**: "1 berkas ditandai perlu revisi" |
 | E10 | ☐ Klik **Kembalikan** → kosongkan alasan → kirim | "Alasan pengembalian wajib diisi" |
 | E11 | ☐ Pilih alasan cepat / tulis alasan → **Kembalikan ke pengaju** | Dialog menampilkan daftar berkas revisi; status **Dikembalikan**; toast "Notifikasi otomatis terkirim ke pengaju" |
 | E12 | ☐ Buka pengajuan *Diajukan ke PUM* lain → centang **Sesuai** semua berkas wajib | Muncul "Semua berkas wajib sesuai"; tombol teruskan aktif |
-| E13 | ☐ **Teruskan ke MDK** → isi **Project Hosting** & **Task Name** (ada saran isian dari data sebelumnya) → kirim | Status **Diajukan ke MDK**; kotak ungu "Disetujui PUM & diteruskan ke MDK — menunggu invoice"; project/task tampil di kartu Verifikasi PUM |
+| E13 | ☐ **Teruskan ke MDK** → **Project Hosting**: klik, ketik "tata kelola", pilih *D0030.09.01.6.002 Koordinasi Tata Kelola Pengadaan* | **Task Name** terisi otomatis *723207 Beban Konsumsi* ("Terisi otomatis: task Konsumsi untuk project ini"); daftar task hanya berisi task project itu |
+| E13a | ☐ Kirim | Status **Diajukan ke MDK**; kotak ungu "Disetujui PUM & diteruskan ke MDK — menunggu invoice"; project/task tampil di kartu Verifikasi PUM |
 | E14 | ☐ Berkas setelah diteruskan | Terkunci; centang tidak bisa diubah lagi |
 | E15 | ☐ Kartu **Verifikasi PUM** → **Ubah project hosting / task name** | Bisa diubah; riwayat mencatat perubahan |
 | E16 | ☐ Cari draft operator (mis. lewat URL detail) | PUM tidak dapat melihat draft ("tidak ditemukan") |
@@ -105,6 +111,8 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | F4 | ☐ Detail pengajuan selesai → **Aksi PUM** → **Ubah data invoice** | Nomor/tanggal bisa dikoreksi; riwayat mencatat lama → baru |
 | F5 | ☐ **Aksi PUM** → **Batalkan status selesai** (alasan wajib) | Status kembali **Diajukan ke MDK**; invoice dihapus; pengaju menerima notifikasi |
 | F6 | ☐ Pengajuan *Diajukan ke MDK* → **Aksi PUM** → **Kembalikan ke pengaju** | Bisa dikembalikan (mis. ditolak MDK) dengan alasan |
+| F7 | ☐ Konsumsi (Diajukan ke PUM / ke MDK / Selesai) → tombol **Sudah dibayarkan** di samping nama *Uang siapa* → **Ya, sudah dibayarkan** | Lencana hijau "Sudah dibayarkan" + "Dibayarkan … oleh <PUM>"; riwayat "Uang ditandai sudah dibayarkan"; pengaju menerima notifikasi |
+| F8 | ☐ **Batalkan tanda** (di bawah lencana) | Kembali belum dibayarkan; riwayat mencatat pembatalan. Operator/pimpinan tidak melihat tombol ini |
 
 ## G. Operator — notifikasi & revisi setelah dikembalikan
 
@@ -160,6 +168,7 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
 | K1 | ☐ Tombol bulan/matahari (kanan atas) | Tema gelap/terang berganti mulus & diingat setelah muat ulang |
+| K1a | ☐ Menu **Pengaturan** → tema warna **Kuning UI** / **Biru Dongker DPBJ** | Warna aksen berganti seketika & diingat di perangkat ini |
 | K2 | ☐ Perkecil jendela / buka di ponsel (`npm run dev:lan`) | Menu menjadi tombol ☰ (drawer), tabel menjadi kartu, tidak ada geser horizontal |
 | K3 | ☐ Pencarian di topbar (mis. "Rapat", atau nama project) + Enter | Daftar pengajuan terfilter kata kunci |
 | K4 | ☐ Daftar pengajuan: filter status (5 status), urutan, paginasi | Hasil & jumlah total menyesuaikan; tombol **Reset** mengosongkan filter |

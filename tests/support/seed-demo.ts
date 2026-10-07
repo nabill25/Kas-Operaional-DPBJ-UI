@@ -15,6 +15,7 @@ import {
   type Status,
 } from '../../shared/constants';
 import { formatRupiah, formatTanggal, tanggalLokalIso } from '../../shared/format';
+import { DAFTAR_PROJECT_TASK, taskSesuaiKategori } from '../../shared/project-task';
 import type { Db } from '../../server/db-pg';
 import { catatRiwayat, kodeBerikutnya, segarkanKelengkapan } from '../../server/services/pengajuan';
 import { buatPdfContoh } from './pdf-contoh';
@@ -84,11 +85,21 @@ const KEGIATAN_PERJADIN: readonly [string, string, JenisTransport][] = [
   ['Studi Banding Tata Kelola Pengadaan', 'Semarang', 'luar_kota'],
 ];
 
-const TASK_NAME: Record<Kategori, string> = {
-  konsumsi: 'Konsumsi Rapat',
-  rumah_tangga: 'Transport Rumah Tangga',
-  perjadin: 'Perjalanan Dinas',
-};
+/** Pasangan project–task dari master Kasubdit yang sesuai kategori (dipilih deterministik dari nomor kode). */
+function projectTask(kategori: Kategori, nomor: number) {
+  const opsi = DAFTAR_PROJECT_TASK.filter((pt) => taskSesuaiKategori(kategori, pt.taskNama));
+  return opsi[nomor % opsi.length];
+}
+
+/** Rekening "uang siapa" contoh (deterministik; sebagian sengaja dikosongkan). */
+function rekeningContoh(nomor: number, pegawaiId: number): { bank: string; nomor: string } | null {
+  const jenis = nomor % 4;
+  if (jenis === 3) return null;
+  const angka = String(1_000_000_007 * (pegawaiId + 3) + nomor * 7919).replace(/\D/g, '');
+  if (jenis === 0) return { bank: 'Bank Mandiri', nomor: `157${angka}`.slice(0, 13) };
+  if (jenis === 1) return { bank: 'BNI', nomor: `0${angka}`.slice(0, 10) };
+  return { bank: 'BRI', nomor: `0341${angka}`.padEnd(15, '7').slice(0, 15) };
+}
 
 interface RencanaBerkas {
   jenis: JenisBerkas;
@@ -154,6 +165,7 @@ export async function seedDemo(
       );
       pg[nama] = res.lastInsertRowid;
     }
+    const namaPegawai = new Map(Object.entries(pg).map(([n, id]) => [id, n] as const));
     const pemegangUang = ['Nurul Hidayah', 'Fitri Handayani', 'Siti Rahmawati', 'Maya Anggraini', 'Ahmad Fauzan'];
     const pesertaRT = ['Bambang Sutrisno', 'Yudi Kurniawan', 'Agus Setiawan', 'Dimas Prasetyo'];
     const pesertaPD = ['Ahmad Fauzan', 'Rizky Pratama', 'Maya Anggraini', 'Dimas Prasetyo', 'Nurul Hidayah'];
@@ -300,7 +312,7 @@ export async function seedDemo(
       let jumlahOrang: number;
       let total: number;
       let catatan: string | null = null;
-      const peserta: { pegawai_id: number; nilai: number }[] = [];
+      const peserta: { pegawai_id: number; nilai: number; uang_harian: number | null; uang_transport: number | null }[] = [];
 
       if (x.kategori === 'konsumsi') {
         nama = pilih(KEGIATAN_KONSUMSI);
@@ -314,7 +326,9 @@ export async function seedDemo(
         lokasi = lok;
         const jumlah = rnd() < 0.55 ? 2 : 1;
         const kandidat = [...pesertaRT].sort(() => rnd() - 0.5).slice(0, jumlah);
-        for (const k of kandidat) peserta.push({ pegawai_id: pg[k], nilai: bulatkan(antara(50, 250) * 1000, 10000) });
+        for (const k of kandidat) {
+          peserta.push({ pegawai_id: pg[k], nilai: bulatkan(antara(50, 250) * 1000, 10000), uang_harian: null, uang_transport: null });
+        }
         jumlahOrang = peserta.length;
         total = peserta.reduce((s, p) => s + p.nilai, 0);
       } else {
@@ -329,11 +343,18 @@ export async function seedDemo(
         const jumlah = rnd() < 0.5 ? 2 : 1;
         const kandidat = [...pesertaPD].sort(() => rnd() - 0.5).slice(0, jumlah);
         for (const k of kandidat) {
-          const nilai =
+          // Urutan pemakaian rnd() sama seperti sebelumnya; komponen kedua dihitung tanpa rnd().
+          const utama =
             jt === 'luar_kota'
               ? bulatkan(jenisUang === 'uang_harian' ? 480_000 * lama : antara(800, 1800) * 1000, 50_000)
               : bulatkan(antara(150, 450) * 1000, 25_000);
-          peserta.push({ pegawai_id: pg[k], nilai });
+          let uh = jenisUang === 'uang_harian' ? utama : 0;
+          let ut = jenisUang === 'uang_harian' ? 0 : utama;
+          if (jt === 'luar_kota') {
+            if (uh === 0) uh = 480_000 * lama;
+            else ut = 350_000 * Math.min(2, lama);
+          }
+          peserta.push({ pegawai_id: pg[k], nilai: uh + ut, uang_harian: uh, uang_transport: ut });
         }
         jumlahOrang = peserta.length;
         total = peserta.reduce((s, p) => s + p.nilai, 0);
@@ -354,17 +375,24 @@ export async function seedDemo(
         b ? `${JENIS_BERKAS_LABEL[b.jenis]} belum dilampirkan, mohon dilengkapi.` : 'Data kegiatan perlu diperbaiki.';
 
       const proyek = x.status === 'diajukan_mdk' || x.status === 'selesai';
-      const tahunTeruskan = x.waktu.diteruskan ? new Date(x.waktu.diteruskan).getFullYear() : null;
+      const nomorKode = Number(kode.slice(-4));
+      const pt = projectTask(x.kategori, nomorKode);
+      const rekening = x.kategori === 'konsumsi' && uangSiapa !== null ? rekeningContoh(nomorKode, uangSiapa) : null;
+      // Konsumsi selesai yang punya rekening: uang sudah dibayarkan PUM 45 menit setelah invoice.
+      const dibayar = x.kategori === 'konsumsi' && x.status === 'selesai' && rekening && x.waktu.diproses
+        ? Math.min(x.waktu.diproses + 45 * MENIT, now)
+        : null;
       const terakhir =
         x.waktu.diproses ?? x.waktu.diteruskan ?? x.waktu.kembali ?? x.waktu.diajukanUlang ?? x.waktu.diajukan ??
         x.waktu.dibuat + (diunggah.length + na.length) * 4 * MENIT;
 
       const { lastInsertRowid: id } = await txDb.run(
         `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang, lokasi_tujuan,
-           mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, total, catatan, berkas_na, status,
-           no_invoice_mdk, tanggal_invoice_mdk, catatan_pum, project_hosting, task_name,
-           created_by, updated_by, diajukan_at, diteruskan_by, diteruskan_at, diproses_by, diproses_at, created_at, updated_at, berkas_terpenuhi, berkas_wajib)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
+           mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, rekening_bank, rekening_nomor, dibayar_at,
+           dibayar_by, total, catatan, berkas_na, status, no_invoice_mdk, tanggal_invoice_mdk, catatan_pum, project_hosting,
+           task_name, created_by, updated_by, diajukan_at, diteruskan_by, diteruskan_at, diproses_by, diproses_at, created_at,
+           updated_at, berkas_terpenuhi, berkas_wajib)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
         kode,
         x.kategori,
         nama,
@@ -373,11 +401,16 @@ export async function seedDemo(
         jumlahOrang,
         lokasi,
         mekanisme,
-        jenisUang,
+        // Jenis uang tidak dipakai lagi: rincian uang harian & transport ada di tiap peserta.
+        null,
         jenisTransport,
         // Deterministik dari nomor kode (tanpa rnd) agar data demo lain tidak bergeser.
         x.kategori === 'konsumsi' ? JENIS_KONSUMSI_LIST[Number(kode.slice(-4)) % JENIS_KONSUMSI_LIST.length] : null,
         uangSiapa,
+        rekening?.bank ?? null,
+        rekening?.nomor ?? null,
+        dibayar ? iso(dibayar) : null,
+        dibayar ? userId.pum : null,
         total,
         catatan,
         JSON.stringify(na),
@@ -385,8 +418,8 @@ export async function seedDemo(
         x.invoice?.no ?? null,
         x.invoice?.tanggal ?? null,
         x.status === 'dikembalikan' ? alasanKembali(kurang) : null,
-        proyek ? `DPBJ-OPS-${tahunTeruskan}` : null,
-        proyek ? TASK_NAME[x.kategori] : null,
+        proyek ? pt.project : null,
+        proyek ? pt.task : null,
         userId.operator,
         x.status === 'draft' || x.status === 'diajukan_pum' ? userId.operator : userId.pum,
         x.status === 'draft' ? null : iso(x.waktu.diajukanUlang ?? x.waktu.diajukan!),
@@ -395,17 +428,19 @@ export async function seedDemo(
         x.waktu.diproses || x.status === 'dikembalikan' ? userId.pum : null,
         x.waktu.diproses ? iso(x.waktu.diproses) : x.status === 'dikembalikan' ? iso(x.waktu.kembali!) : null,
         iso(x.waktu.dibuat),
-        iso(Math.min(terakhir, now)),
+        iso(Math.min(Math.max(terakhir, dibayar ?? 0), now)),
         wajib.length
       );
       
       for (let i = 0; i < peserta.length; i++) {
         const p = peserta[i];
         await txDb.run(
-          'INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, urutan) VALUES (?, ?, ?, ?)',
+          'INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, uang_harian, uang_transport, urutan) VALUES (?, ?, ?, ?, ?, ?)',
           id,
           p.pegawai_id,
           p.nilai,
+          p.uang_harian,
+          p.uang_transport,
           i + 1,
         );
       }
@@ -546,7 +581,7 @@ export async function seedDemo(
           ref,
           userId.pum,
           'diteruskan_mdk',
-          `Berkas ${totalWajib}/${totalWajib} sesuai · Project: DPBJ-OPS-${tahunTeruskan} · Task: ${TASK_NAME[x.kategori]}`,
+          `Berkas ${totalWajib}/${totalWajib} sesuai · Project: ${pt.project} · Task: ${pt.task}`,
           iso(tTeruskan),
         );
         await notif(userId.operator, tTeruskan, {
@@ -566,6 +601,10 @@ export async function seedDemo(
           judul: 'Pengajuan selesai (paid)',
           pesan: `No. Invoice MDK: ${x.invoice.no} · ${formatRupiah(total)}`,
         });
+      }
+      if (dibayar && rekening) {
+        const ket = `${namaPegawai.get(uangSiapa!) ?? '-'} · ${formatRupiah(total)} · ${rekening.bank} ${rekening.nomor}`;
+        await catatRiwayat(txDb, ref, userId.pum, 'dibayarkan', ket, iso(dibayar));
       }
       await segarkanKelengkapan(txDb, id);
     }

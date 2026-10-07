@@ -48,9 +48,12 @@ create type aksi_riwayat_enum as enum (
   'dibuat', 'diubah', 'dihapus',
   'berkas_diunggah', 'berkas_dihapus', 'berkas_na', 'berkas_na_batal',
   'diajukan', 'ditarik', 'berkas_dicek', 'berkas_revisi', 'berkas_cek_batal',
-  'dikembalikan', 'diteruskan_mdk', 'data_pum_diubah', 'selesai', 'invoice_diubah', 'selesai_dibatalkan'
+  'dikembalikan', 'diteruskan_mdk', 'data_pum_diubah', 'selesai', 'invoice_diubah', 'selesai_dibatalkan',
+  'dibayarkan', 'dibayarkan_batal'
 );
-create type jenis_notifikasi_enum as enum ('diajukan', 'dikembalikan', 'diteruskan_mdk', 'selesai', 'selesai_dibatalkan', 'registrasi');
+create type jenis_notifikasi_enum as enum (
+  'diajukan', 'dikembalikan', 'diteruskan_mdk', 'selesai', 'selesai_dibatalkan', 'registrasi', 'dibayarkan'
+);
 
 -- ─── 3. Tabel ─────────────────────────────────────────────────
 
@@ -105,10 +108,14 @@ create table pengajuan (
   jumlah_orang        integer not null check (jumlah_orang >= 0),
   lokasi_tujuan       text,
   mekanisme           mekanisme_enum not null,
-  jenis_uang          jenis_uang_enum,
+  jenis_uang          jenis_uang_enum,          -- data lama Perjadin; kini rincian per orang di pengajuan_peserta
   jenis_transport     jenis_transport_enum,
   jenis_konsumsi      jenis_konsumsi_enum,      -- hanya kategori konsumsi
   uang_siapa_id       bigint references pegawai (id),
+  rekening_bank       text,                     -- rekening "uang siapa" (konsumsi, opsional)
+  rekening_nomor      text,
+  dibayar_at          timestamptz,              -- PUM menandai uang sudah dibayarkan ke pemilik uang
+  dibayar_by          bigint references users (id),
   total               bigint not null default 0 check (total >= 0),
   catatan             text,
   berkas_na           jsonb not null default '[]'::jsonb,
@@ -140,6 +147,9 @@ create table pengajuan_peserta (
   pengajuan_id  bigint not null references pengajuan (id) on delete cascade,
   pegawai_id    bigint not null references pegawai (id),
   nilai         bigint not null check (nilai > 0),
+  -- Perjadin: nilai = uang_harian + uang_transport (Rumah Tangga: keduanya null)
+  uang_harian   bigint constraint pengajuan_peserta_uang_harian_check check (uang_harian is null or uang_harian >= 0),
+  uang_transport bigint constraint pengajuan_peserta_uang_transport_check check (uang_transport is null or uang_transport >= 0),
   urutan        integer not null,
   unique (pengajuan_id, pegawai_id)
 );

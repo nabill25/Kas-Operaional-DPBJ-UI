@@ -179,7 +179,7 @@ describe('Berkas', () => {
   it('tanda N/A (tidak diperlukan) untuk berkas wajib', async () => {
     const id = (
       await op.post('/api/pengajuan').send(
-        dataPerjadin([{ pegawai_id: ctx.pegawai[0], nilai: 300_000 }], { jenis_transport: 'dalam_kota' }),
+        dataPerjadin([{ pegawai_id: ctx.pegawai[0], uang_transport: 300_000 }], { jenis_transport: 'dalam_kota' }),
       )
     ).body.id as number;
 

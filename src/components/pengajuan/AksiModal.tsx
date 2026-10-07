@@ -1,7 +1,17 @@
 import { Ban, CircleAlert, CircleCheck, CircleX, FolderKanban, Info, ReceiptText, Send, Undo2 } from 'lucide-react';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
+import { KATEGORI_INFO, type Kategori } from '../../../shared/constants';
 import { formatRupiah, tanggalLokalIso } from '../../../shared/format';
+import {
+  DAFTAR_PROJECT,
+  DAFTAR_TASK,
+  cariProject,
+  taskOtomatis,
+  taskSesuaiKategori,
+  type ProjectMaster,
+  type ProjectTask,
+} from '../../../shared/project-task';
 import type { PengajuanDetail, PengajuanRingkas } from '../../../shared/types';
 import { validateCatatanWajib, validateDataPum, validateInvoice, validateTeruskan } from '../../../shared/validation';
 import { ApiError } from '../../lib/api';
@@ -10,6 +20,7 @@ import { Chip } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Field, Input, Textarea } from '../ui/Field';
 import { Modal } from '../ui/Modal';
+import { PilihCari, type OpsiCari } from '../ui/PilihCari';
 
 type DataPengajuan = PengajuanDetail | PengajuanRingkas;
 
@@ -34,14 +45,19 @@ interface PropsModal {
 
 type MutasiAksi = ReturnType<typeof useAksiPengajuan>;
 
-/** Isian project hosting & task name dengan saran dari nilai yang pernah dipakai. */
+/**
+ * Project hosting & task name: kotak cari dari master Kasubdit (shared/project-task.ts) + nilai yang pernah dipakai.
+ * Memilih project otomatis mengisi task bila project itu hanya punya satu task yang sesuai kategori.
+ */
 function IsianPum({
+  kategori,
   project,
   task,
   setProject,
   setTask,
   errors,
 }: {
+  kategori: Kategori;
   project: string;
   task: string;
   setProject: (v: string) => void;
@@ -50,35 +66,87 @@ function IsianPum({
 }) {
   const id = useId().replace(/:/g, '');
   const { data: saran } = useSaranPum(true);
+  const [otomatis, setOtomatis] = useState(false);
+  const label = KATEGORI_INFO[kategori].labelPendek;
+  const master = cariProject(project);
+
+  const opsiProject = useMemo<OpsiCari[]>(() => {
+    const relevan = (pr: ProjectMaster) => pr.tasks.some((t) => taskSesuaiKategori(kategori, t.taskNama));
+    const keOpsi = (pr: ProjectMaster, grup: string): OpsiCari => ({ value: pr.project, kode: pr.kode, label: pr.nama, grup });
+    const lama = (saran?.project_hosting ?? []).filter((v) => !cariProject(v));
+    return [
+      ...DAFTAR_PROJECT.filter(relevan).map((pr) => keOpsi(pr, `Punya task ${label}`)),
+      ...DAFTAR_PROJECT.filter((pr) => !relevan(pr)).map((pr) => keOpsi(pr, 'Project lainnya')),
+      ...lama.map((v): OpsiCari => ({ value: v, label: v, grup: 'Pernah dipakai' })),
+    ];
+  }, [kategori, label, saran]);
+
+  const opsiTask = useMemo<OpsiCari[]>(() => {
+    const sumber = master ? master.tasks : DAFTAR_TASK;
+    const keOpsi = (t: ProjectTask, grup: string): OpsiCari => ({ value: t.task, kode: t.taskKode, label: t.taskNama, grup });
+    const dikenal = new Set(DAFTAR_TASK.map((t) => t.task));
+    const lama = master ? [] : (saran?.task_name ?? []).filter((v) => !dikenal.has(v));
+    return [
+      ...sumber.filter((t) => taskSesuaiKategori(kategori, t.taskNama)).map((t) => keOpsi(t, `Sesuai kategori ${label}`)),
+      ...sumber
+        .filter((t) => !taskSesuaiKategori(kategori, t.taskNama))
+        .map((t) => keOpsi(t, master ? 'Task lain project ini' : 'Task lainnya')),
+      ...lama.map((v): OpsiCari => ({ value: v, label: v, grup: 'Pernah dipakai' })),
+    ];
+  }, [kategori, label, master, saran]);
+
+  const pilihProject = (v: string) => {
+    setProject(v);
+    const pr = cariProject(v);
+    // Task lama tetap dipakai bila masih sah untuk project baru; selain itu isi otomatis (atau kosongkan).
+    if (!pr || pr.tasks.some((t) => t.task === task)) {
+      setOtomatis(false);
+      return;
+    }
+    const t = taskOtomatis(kategori, v);
+    setTask(t ?? '');
+    setOtomatis(t !== null);
+  };
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field label="Project Hosting" htmlFor={`${id}-project`} error={errors.project_hosting}>
-        <Input
+    <div className="grid grid-cols-1 gap-4">
+      <Field label="Project Hosting" htmlFor={`${id}-project`} error={errors.project_hosting} hint="Cari kode atau nama project">
+        <PilihCari
           id={`${id}-project`}
-          list={`${id}-project-list`}
           value={project}
-          maxLength={150}
+          onChange={pilihProject}
+          opsi={opsiProject}
           invalid={!!errors.project_hosting}
-          placeholder="mis. DPBJ-OPS-2026"
-          onChange={(e) => setProject(e.target.value)}
+          labelCari="Cari project"
+          placeholder="Pilih project…"
+          placeholderCari="mis. D0030.09 atau koordinasi"
         />
-        <datalist id={`${id}-project-list`}>
-          {saran?.project_hosting.map((v) => <option key={v} value={v} />)}
-        </datalist>
       </Field>
-      <Field label="Task Name" htmlFor={`${id}-task`} error={errors.task_name}>
-        <Input
+      <Field
+        label="Task Name"
+        htmlFor={`${id}-task`}
+        error={errors.task_name}
+        hint={
+          otomatis
+            ? `Terisi otomatis: task ${label} untuk project ini`
+            : master
+              ? 'Hanya task yang tersedia untuk project terpilih'
+              : 'Cari kode atau nama task'
+        }
+      >
+        <PilihCari
           id={`${id}-task`}
-          list={`${id}-task-list`}
           value={task}
-          maxLength={150}
+          onChange={(v) => {
+            setTask(v);
+            setOtomatis(false);
+          }}
+          opsi={opsiTask}
           invalid={!!errors.task_name}
-          placeholder="mis. Konsumsi Rapat"
-          onChange={(e) => setTask(e.target.value)}
+          labelCari="Cari task"
+          placeholder="Pilih task…"
+          placeholderCari="mis. 723207 atau konsumsi"
         />
-        <datalist id={`${id}-task-list`}>
-          {saran?.task_name.map((v) => <option key={v} value={v} />)}
-        </datalist>
       </Field>
     </div>
   );
@@ -141,7 +209,7 @@ function IsiTeruskan({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'op
         Semua berkas wajib sudah dicentang sesuai ({p.berkas_sesuai}/{p.berkas_wajib}).
       </p>
       <form onSubmit={kirim} className="space-y-4" noValidate>
-        <IsianPum project={project} task={task} setProject={setProject} setTask={setTask} errors={errors} />
+        <IsianPum kategori={p.kategori} project={project} task={task} setProject={setProject} setTask={setTask} errors={errors} />
         {!project.trim() && !task.trim() && (
           <p className="flex items-start gap-2 text-xs text-fg-muted">
             <Info className="mt-px size-3.5 shrink-0" /> Project hosting & task name boleh dilengkapi nanti dari halaman detail.
@@ -216,7 +284,7 @@ function IsiDataPum({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'ope
 
   return (
     <form onSubmit={kirim} className="space-y-4" noValidate>
-      <IsianPum project={project} task={task} setProject={setProject} setTask={setTask} errors={errors} />
+      <IsianPum kategori={p.kategori} project={project} task={task} setProject={setProject} setTask={setTask} errors={errors} />
       <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
         <Button varian="kedua" onClick={() => onOpenChange(false)} disabled={aksi.isPending}>
           Batal

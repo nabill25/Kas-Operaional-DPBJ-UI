@@ -11,6 +11,8 @@ import {
   ROLE_LIHAT_DRAFT,
   ROLE_PENGAJU,
   ROLE_PUM,
+  STATUS_BISA_DIBAYARKAN,
+  STATUS_INFO,
   STATUS_LIST,
   type AksiRiwayat,
   type JenisBerkas,
@@ -79,6 +81,11 @@ export interface PengajuanRow {
   jenis_konsumsi: PengajuanRingkas['jenis_konsumsi'];
   uang_siapa_id: number | null;
   uang_siapa_nama: string | null;
+  rekening_bank: string | null;
+  rekening_nomor: string | null;
+  dibayar_at: string | null;
+  dibayar_by: number | null;
+  dibayar_by_nama: string | null;
   total: number;
   catatan: string | null;
   berkas_na: string;
@@ -112,6 +119,7 @@ export const SELECT_PENGAJUAN = `
          ub.nama AS updated_by_nama,
          dt.nama AS diteruskan_by_nama,
          dp.nama AS diproses_by_nama,
+         dbr.nama AS dibayar_by_nama,
          (SELECT COUNT(*) FROM cek_berkas ck WHERE ck.pengajuan_id = p.id AND ck.status = 'sesuai')::int AS berkas_sesuai,
          CAST(p.berkas_na AS TEXT) AS berkas_na
     FROM pengajuan p
@@ -119,7 +127,8 @@ export const SELECT_PENGAJUAN = `
     LEFT JOIN users cb ON cb.id = p.created_by
     LEFT JOIN users ub ON ub.id = p.updated_by
     LEFT JOIN users dt ON dt.id = p.diteruskan_by
-    LEFT JOIN users dp ON dp.id = p.diproses_by`;
+    LEFT JOIN users dp ON dp.id = p.diproses_by
+    LEFT JOIN users dbr ON dbr.id = p.dibayar_by`;
 
 function keRingkas(row: PengajuanRow, pesertaNama: string[]): PengajuanRingkas {
   const penerima = row.kategori === 'konsumsi' ? (row.uang_siapa_nama ?? '-') : pesertaNama.join(', ') || '-';
@@ -149,6 +158,11 @@ function keRingkas(row: PengajuanRow, pesertaNama: string[]): PengajuanRingkas {
     jenis_konsumsi: row.jenis_konsumsi ?? null,
     uang_siapa_id: row.uang_siapa_id ? Number(row.uang_siapa_id) : null,
     uang_siapa_nama: row.uang_siapa_nama,
+    rekening_bank: row.rekening_bank ?? null,
+    rekening_nomor: row.rekening_nomor ?? null,
+    dibayar_at: normTs(row.dibayar_at),
+    dibayar_by: row.dibayar_by ? Number(row.dibayar_by) : null,
+    dibayar_by_nama: row.dibayar_by_nama ?? null,
     penerima,
     total: Number(row.total),
     status: row.status,
@@ -336,7 +350,8 @@ export async function ambilPengajuan(db: Db, user: SessionUser, id: number): Pro
 
 export async function getPeserta(db: Db, pengajuanId: number): Promise<Peserta[]> {
   return db.all<Peserta>(
-    `SELECT ps.id, ps.pegawai_id, pg.nama, pg.nip, pg.jabatan, ps.nilai::bigint AS nilai, ps.urutan
+    `SELECT ps.id, ps.pegawai_id, pg.nama, pg.nip, pg.jabatan, ps.nilai::bigint AS nilai,
+            ps.uang_harian, ps.uang_transport, ps.urutan
        FROM pengajuan_peserta ps JOIN pegawai pg ON pg.id = ps.pegawai_id
       WHERE ps.pengajuan_id = ? ORDER BY ps.urutan`,
     pengajuanId,
@@ -517,10 +532,13 @@ async function simpanPeserta(db: Db, pengajuanId: number, data: PengajuanBersih)
   for (let i = 0; i < data.peserta.length; i++) {
     const p = data.peserta[i];
     await db.run(
-      'INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, urutan) VALUES (?, ?, ?, ?)',
+      `INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, uang_harian, uang_transport, urutan)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       pengajuanId,
       p.pegawai_id,
       p.nilai,
+      p.uang_harian ?? null,
+      p.uang_transport ?? null,
       i + 1,
     );
   }
@@ -536,9 +554,10 @@ export async function buatPengajuan(db: Db, user: SessionUser, data: PengajuanBe
     const kode = await kodeBerikutnya(txDb, data.kategori, new Date().getFullYear());
     const { lastInsertRowid: id } = await txDb.run(
       `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang,
-         lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, total, catatan,
-         berkas_na, berkas_terpenuhi, berkas_wajib, status, created_by, updated_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
+         lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, rekening_bank,
+         rekening_nomor, total, catatan, berkas_na, berkas_terpenuhi, berkas_wajib, status, created_by, updated_by,
+         created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
       kode,
       data.kategori,
       data.nama_kegiatan,
@@ -551,6 +570,8 @@ export async function buatPengajuan(db: Db, user: SessionUser, data: PengajuanBe
       data.jenis_transport,
       data.jenis_konsumsi,
       data.uang_siapa_id,
+      data.rekening_bank,
+      data.rekening_nomor,
       data.total,
       data.catatan,
       BERKAS_WAJIB[data.kategori].length,
@@ -563,6 +584,10 @@ export async function buatPengajuan(db: Db, user: SessionUser, data: PengajuanBe
     await catatRiwayat(txDb, { id, kode }, user.id, 'dibuat', `${KATEGORI_INFO[data.kategori].label} · ${formatRupiah(data.total)}`, waktu);
     return id;
   });
+}
+
+function teksRekening(bank: string | null, nomor: string | null): string {
+  return bank && nomor ? `${bank} ${nomor}` : '-';
 }
 
 function pastikanBisaEdit(user: SessionUser, row: PengajuanRow): void {
@@ -598,8 +623,8 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
     const waktu = nowIso();
     await txDb.run(
       `UPDATE pengajuan SET nama_kegiatan = ?, tanggal_kegiatan = ?, tanggal_selesai = ?, jumlah_orang = ?,
-         lokasi_tujuan = ?, mekanisme = ?, jenis_uang = ?, jenis_transport = ?, jenis_konsumsi = ?, uang_siapa_id = ?, total = ?,
-         catatan = ?, updated_by = ?, updated_at = ?
+         lokasi_tujuan = ?, mekanisme = ?, jenis_uang = ?, jenis_transport = ?, jenis_konsumsi = ?, uang_siapa_id = ?,
+         rekening_bank = ?, rekening_nomor = ?, total = ?, catatan = ?, updated_by = ?, updated_at = ?
        WHERE id = ?`,
       data.nama_kegiatan,
       data.tanggal_kegiatan,
@@ -611,6 +636,8 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
       data.jenis_transport,
       data.jenis_konsumsi,
       data.uang_siapa_id,
+      data.rekening_bank,
+      data.rekening_nomor,
       data.total,
       data.catatan,
       user.id,
@@ -624,6 +651,9 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
       const label = (j: JenisKonsumsi | null) => (j ? JENIS_KONSUMSI_LABEL[j] : '-');
       perubahan.push(`Jenis konsumsi ${label(row.jenis_konsumsi ?? null)} → ${label(data.jenis_konsumsi)}`);
     }
+    const rekLama = teksRekening(row.rekening_bank ?? null, row.rekening_nomor ?? null);
+    const rekBaru = teksRekening(data.rekening_bank, data.rekening_nomor);
+    if (row.kategori === 'konsumsi' && rekLama !== rekBaru) perubahan.push(`Rekening ${rekLama} → ${rekBaru}`);
     await catatRiwayat(txDb, row, user.id, 'diubah', perubahan.join(' · ') || null, waktu);
   });
 }
@@ -862,6 +892,42 @@ export async function ubahDataPum(db: Db, user: SessionUser, id: number, data: D
       `Project: ${data.project_hosting ?? '-'} · Task: ${data.task_name ?? '-'}`,
       waktu,
     );
+  });
+}
+
+/** PUM menandai uang konsumsi sudah/belum dibayarkan ke pemilik uang ("uang siapa"). */
+export async function tandaiDibayarkan(db: Db, user: SessionUser, id: number, dibayarkan: boolean): Promise<void> {
+  await db.tx(async (txDb) => {
+    const row = await ambilPengajuan(txDb, user, id);
+    if (!bolehProsesPum(user)) throw forbidden('Hanya PUM atau admin yang dapat menandai pembayaran');
+    if (row.kategori !== 'konsumsi') throw conflict('Tanda sudah dibayarkan hanya untuk pengajuan Konsumsi');
+    if (!STATUS_BISA_DIBAYARKAN.includes(row.status)) {
+      throw conflict(`Pembayaran tidak dapat ditandai pada pengajuan berstatus ${STATUS_INFO[row.status].label}`);
+    }
+    if (dibayarkan === !!row.dibayar_at) {
+      throw conflict(dibayarkan ? 'Pengajuan ini sudah ditandai dibayarkan' : 'Pengajuan ini belum ditandai dibayarkan');
+    }
+    const waktu = nowIso();
+    await txDb.run(
+      'UPDATE pengajuan SET dibayar_at = ?, dibayar_by = ?, updated_by = ?, updated_at = ? WHERE id = ?',
+      dibayarkan ? waktu : null,
+      dibayarkan ? user.id : null,
+      user.id,
+      waktu,
+      id,
+    );
+    const rekening = row.rekening_bank && row.rekening_nomor ? ` · ${row.rekening_bank} ${row.rekening_nomor}` : '';
+    const ringkas = `${row.uang_siapa_nama ?? '-'} · ${formatRupiah(Number(row.total))}${rekening}`;
+    await catatRiwayat(txDb, row, user.id, dibayarkan ? 'dibayarkan' : 'dibayarkan_batal', dibayarkan ? ringkas : null, waktu);
+    if (dibayarkan) {
+      await kirimNotifikasi(
+        txDb,
+        await penerimaPengaju(txDb, row),
+        user.id,
+        { pengajuan_id: id, kode: row.kode, jenis: 'dibayarkan', judul: 'Uang konsumsi sudah dibayarkan', pesan: ringkas },
+        waktu,
+      );
+    }
   });
 }
 

@@ -1,6 +1,6 @@
 import { expect, masukAPI, pilihPegawai, test } from './fixtures';
 
-test('Perjadin: validasi tanggal, pegawai baru dari form, maks. 2 orang, total otomatis, berkas N/A', async ({ page }) => {
+test('Perjadin: uang harian & transport per orang, validasi, pegawai baru dari form, maks. 2 orang, berkas N/A', async ({ page }) => {
   const nama = `Perjalanan Dinas Uji ${Date.now()}`;
   const pegawaiBaru = `Pegawai Uji ${Date.now() % 100000}`;
 
@@ -13,8 +13,13 @@ test('Perjadin: validasi tanggal, pegawai baru dari form, maks. 2 orang, total o
   await page.getByLabel('Sampai').fill('2026-10-08');
   await page.getByLabel('Lokasi tujuan').fill('Bandung');
   await page.getByRole('radio', { name: 'LS' }).click();
-  await page.getByRole('radio', { name: 'Uang Harian' }).click();
   await page.getByRole('radio', { name: 'Dalam Kota' }).click();
+  // "Jenis uang" sudah tidak ada; jenis transport berada di samping mekanisme
+  await expect(page.getByText('Jenis uang')).toHaveCount(0);
+  const kotakMekanisme = await page.locator('[data-field="mekanisme"]').boundingBox();
+  const kotakTransport = await page.locator('[data-field="jenis_transport"]').boundingBox();
+  expect(Math.abs(kotakMekanisme!.y - kotakTransport!.y)).toBeLessThan(2);
+  expect(kotakTransport!.x).toBeGreaterThan(kotakMekanisme!.x + kotakMekanisme!.width - 1);
 
   // Peserta 1: tambah pegawai baru langsung dari combobox
   await page.locator('#peserta-0-pegawai_id').click();
@@ -23,19 +28,22 @@ test('Perjadin: validasi tanggal, pegawai baru dari form, maks. 2 orang, total o
   await page.locator('#pp-jabatan').fill('Staf Uji');
   await page.getByRole('button', { name: 'Simpan & pilih' }).click();
   await expect(page.locator('#peserta-0-pegawai_id')).toContainText(pegawaiBaru);
-  await page.locator('#peserta-0-nilai').fill('450000');
+  await page.locator('#peserta-0-uang_harian').fill('450000');
 
   // Peserta 2
   await page.getByRole('button', { name: 'Tambah orang' }).click();
   await pilihPegawai(page, 'peserta-1-pegawai_id', 'Rizky Pratama');
-  await page.locator('#peserta-1-nilai').fill('300000');
   await expect(page.getByRole('button', { name: 'Maksimal 2 orang' })).toBeDisabled();
-  await expect(page.getByText('Total pengajuan · 2 orang', { exact: false })).toBeVisible();
-  await expect(page.getByText('750.000').last()).toBeVisible();
 
-  // Tanggal sampai < dari ditolak
+  // Tanggal sampai < dari dan uang orang 2 yang masih kosong ditolak
   await page.getByRole('button', { name: 'Simpan draft' }).click();
   await expect(page.getByText('Tanggal selesai tidak boleh sebelum tanggal mulai')).toBeVisible();
+  await expect(page.getByText('Isi uang harian dan/atau uang transport', { exact: true })).toBeVisible();
+  await page.locator('#peserta-1-uang_harian').fill('200000');
+  await page.locator('#peserta-1-uang_transport').fill('100000');
+  await expect(page.getByText('Jumlah orang 2:')).toContainText('Rp 300.000');
+  await expect(page.getByText('Total pengajuan · 2 orang', { exact: false })).toBeVisible();
+  await expect(page.getByText('750.000').last()).toBeVisible();
   await page.getByLabel('Sampai').fill('2026-10-12');
   await expect(page.getByText('Lama kegiatan 3 hari')).toBeVisible();
   await page.getByRole('button', { name: 'Simpan draft' }).click();
@@ -46,6 +54,12 @@ test('Perjadin: validasi tanggal, pegawai baru dari form, maks. 2 orang, total o
   await expect(page.getByText(pegawaiBaru).first()).toBeVisible();
   await expect(page.getByText('Total (2 orang)')).toBeVisible();
   await expect(page.getByText('Rp 750.000').first()).toBeVisible();
+  await expect(page.locator('[data-peserta="1"]')).toContainText('Uang harian');
+  await expect(page.locator('[data-peserta="1"]')).toContainText('Rp 200.000');
+  await expect(page.locator('[data-peserta="1"]')).toContainText('Uang transport');
+  await expect(page.locator('[data-peserta="1"]')).toContainText('Rp 100.000');
+  await expect(page.getByText('Harian Rp 650.000 · Transport Rp 100.000')).toBeVisible();
+  await expect(page.getByText('Jenis uang')).toHaveCount(0);
   await expect(page.getByText('10–12 Okt 2026 (3 hari)')).toBeVisible();
   for (const jenis of ['surat_tugas', 'laporan_kegiatan', 'invoice_hotel', 'invoice_tiket']) {
     await expect(page.locator(`[data-berkas="${jenis}"]`)).toHaveAttribute('data-keadaan', 'kosong');
@@ -62,8 +76,8 @@ test('Perjadin: validasi tanggal, pegawai baru dari form, maks. 2 orang, total o
 
   // Ubah data: nilai diperbarui & total dihitung ulang
   await page.getByRole('link', { name: 'Ubah' }).click();
-  await expect(page.locator('#peserta-1-nilai')).toHaveValue('300.000');
-  await page.locator('#peserta-1-nilai').fill('350000');
+  await expect(page.locator('#peserta-1-uang_transport')).toHaveValue('100.000');
+  await page.locator('#peserta-1-uang_transport').fill('150000');
   await page.getByRole('button', { name: 'Simpan perubahan' }).click();
   await expect(page).toHaveURL(/\/pengajuan\/\d+$/);
   await expect(page.getByText('Rp 800.000').first()).toBeVisible();

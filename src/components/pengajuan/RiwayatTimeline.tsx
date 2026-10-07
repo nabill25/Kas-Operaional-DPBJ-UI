@@ -1,6 +1,7 @@
 import {
   Ban,
   BadgeCheck,
+  Banknote,
   CircleCheck,
   CircleX,
   Hourglass,
@@ -41,6 +42,8 @@ const GAYA: Record<AksiRiwayat, { ikon: LucideIcon; warna: string }> = {
   selesai: { ikon: BadgeCheck, warna: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
   invoice_diubah: { ikon: ReceiptText, warna: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
   selesai_dibatalkan: { ikon: Ban, warna: 'bg-red-500/15 text-red-600 dark:text-red-400' },
+  dibayarkan: { ikon: Banknote, warna: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+  dibayarkan_batal: { ikon: RotateCcw, warna: 'bg-slate-500/15 text-slate-600 dark:text-slate-300' },
 };
 
 export function gayaAksi(aksi: AksiRiwayat) {

@@ -148,7 +148,10 @@ export function dataRumahTangga(peserta: { pegawai_id: number; nilai: number }[]
   };
 }
 
-export function dataPerjadin(peserta: { pegawai_id: number; nilai: number }[], ubah: Record<string, unknown> = {}) {
+/** Peserta Perjadin: uang harian & uang transport per orang (nilai dihitung server). */
+export type PesertaPerjadin = { pegawai_id: number; uang_harian?: number | string | null; uang_transport?: number | string | null };
+
+export function dataPerjadin(peserta: PesertaPerjadin[], ubah: Record<string, unknown> = {}) {
   return {
     kategori: 'perjadin',
     nama_kegiatan: 'Bimbingan Teknis Pengadaan',
@@ -156,7 +159,6 @@ export function dataPerjadin(peserta: { pegawai_id: number; nilai: number }[], u
     tanggal_selesai: `${TAHUN_INI}-05-14`,
     lokasi_tujuan: 'Bandung',
     mekanisme: 'KO',
-    jenis_uang: 'uang_harian',
     jenis_transport: 'luar_kota',
     peserta,
     ...ubah,

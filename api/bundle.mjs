@@ -43744,8 +43744,14 @@ var KATEGORI_INFO = {
   }
 };
 var STATUS_LIST = ["draft", "diajukan_pum", "dikembalikan", "diajukan_mdk", "selesai"];
+var STATUS_INFO = {
+  draft: { label: "Draft", deskripsi: "Disimpan, belum diajukan" },
+  diajukan_pum: { label: "Diajukan ke PUM", deskripsi: "Menunggu pemeriksaan berkas oleh PUM" },
+  dikembalikan: { label: "Dikembalikan", deskripsi: "Perlu revisi sesuai catatan PUM" },
+  diajukan_mdk: { label: "Diajukan ke MDK", deskripsi: "Diteruskan PUM ke MDK, menunggu invoice" },
+  selesai: { label: "Selesai (Paid)", deskripsi: "No. Invoice MDK sudah diinput PUM" }
+};
 var MEKANISME_LIST = ["KO", "LS"];
-var JENIS_UANG_LIST = ["uang_harian", "uang_transport"];
 var JENIS_TRANSPORT_LIST = ["dalam_kota", "luar_kota"];
 var JENIS_KONSUMSI_LIST = ["kudapan", "makan_siang", "kudapan_makan_siang"];
 var JENIS_KONSUMSI_LABEL = {
@@ -43775,6 +43781,7 @@ var ROLE_LIST = ["operator", "pum", "pimpinan", "admin"];
 var ROLE_LIHAT_DRAFT = ["operator", "admin"];
 var ROLE_PENGAJU = ["operator", "admin"];
 var ROLE_PUM = ["pum", "admin"];
+var STATUS_BISA_DIBAYARKAN = ["diajukan_pum", "diajukan_mdk", "selesai"];
 var MAX_PESERTA_TRANSPORT = 2;
 var MAX_NILAI = 1e12;
 var MAX_UPLOAD_MB = 10;
@@ -43869,9 +43876,11 @@ function validatePengajuan(raw) {
   let total = 0;
   let jumlah_orang = 0;
   let uang_siapa_id = null;
+  let rekening_bank = null;
+  let rekening_nomor = null;
   let lokasi_tujuan = null;
   let tanggal_selesai = null;
-  let jenis_uang = null;
+  const jenis_uang = null;
   let jenis_transport = null;
   let jenis_konsumsi = null;
   const peserta = [];
@@ -43891,6 +43900,18 @@ function validatePengajuan(raw) {
     const us = keInteger(r.uang_siapa_id);
     if (us === null || Number.isNaN(us) || us <= 0) e.uang_siapa_id = "Pilih uang siapa yang digunakan";
     else uang_siapa_id = us;
+    const bank = teks(r.rekening_bank);
+    const nomor = teks(r.rekening_nomor).replace(/[\s.-]/g, "");
+    if (bank || nomor) {
+      if (!bank) e.rekening_bank = "Isi nama bank";
+      else if (bank.length < 2) e.rekening_bank = "Nama bank minimal 2 karakter";
+      else if (bank.length > 60) e.rekening_bank = "Nama bank maksimal 60 karakter";
+      else rekening_bank = bank;
+      if (!nomor) e.rekening_nomor = "Isi nomor rekening";
+      else if (!/^\d+$/.test(nomor)) e.rekening_nomor = "Nomor rekening hanya boleh berisi angka";
+      else if (nomor.length < 5 || nomor.length > 30) e.rekening_nomor = "Nomor rekening harus 5\u201330 digit";
+      else rekening_nomor = nomor;
+    }
   } else {
     const lok = teks(r.lokasi_tujuan);
     if (!lok) e.lokasi_tujuan = "Lokasi tujuan wajib diisi";
@@ -43904,10 +43925,10 @@ function validatePengajuan(raw) {
       e.peserta = `Maksimal ${MAX_PESERTA_TRANSPORT} orang per pengajuan`;
     } else {
       const sudah = /* @__PURE__ */ new Set();
+      const perjadin = kategori === "perjadin";
       daftar.forEach((item, i) => {
         const o = objek(item);
         const pid = keInteger(o.pegawai_id);
-        const nilai = keInteger(o.nilai);
         let valid = true;
         if (pid === null || Number.isNaN(pid) || pid <= 0) {
           e[`peserta.${i}.pegawai_id`] = "Pilih nama pegawai";
@@ -43918,6 +43939,34 @@ function validatePengajuan(raw) {
         } else {
           sudah.add(pid);
         }
+        if (perjadin) {
+          let uangValid = true;
+          const uang = (field, label) => {
+            const v = keInteger(o[field]);
+            if (v === null) return 0;
+            let salah = "";
+            if (Number.isNaN(v)) salah = `${label} harus berupa angka`;
+            else if (v < 0) salah = `${label} tidak boleh negatif`;
+            else if (v > MAX_NILAI) salah = `${label} melebihi batas maksimal`;
+            if (!salah) return v;
+            e[`peserta.${i}.${field}`] = salah;
+            uangValid = false;
+            return 0;
+          };
+          const uang_harian = uang("uang_harian", "Uang harian");
+          const uang_transport = uang("uang_transport", "Uang transport");
+          const nilai2 = uang_harian + uang_transport;
+          if (uangValid && nilai2 <= 0) {
+            e[`peserta.${i}.uang_harian`] = "Isi uang harian dan/atau uang transport";
+            uangValid = false;
+          } else if (uangValid && nilai2 > MAX_NILAI) {
+            e[`peserta.${i}.uang_harian`] = "Jumlah uang melebihi batas maksimal";
+            uangValid = false;
+          }
+          if (valid && uangValid && pid !== null) peserta.push({ pegawai_id: pid, nilai: nilai2, uang_harian, uang_transport });
+          return;
+        }
+        const nilai = keInteger(o.nilai);
         if (nilai === null) {
           e[`peserta.${i}.nilai`] = "Nilai uang wajib diisi";
           valid = false;
@@ -43928,7 +43977,9 @@ function validatePengajuan(raw) {
           e[`peserta.${i}.nilai`] = "Nilai uang melebihi batas maksimal";
           valid = false;
         }
-        if (valid && pid !== null && nilai !== null) peserta.push({ pegawai_id: pid, nilai });
+        if (valid && pid !== null && nilai !== null) {
+          peserta.push({ pegawai_id: pid, nilai, uang_harian: null, uang_transport: null });
+        }
       });
       jumlah_orang = daftar.length;
       total = peserta.reduce((s, p) => s + p.nilai, 0);
@@ -43947,8 +43998,6 @@ function validatePengajuan(raw) {
       } else {
         tanggal_selesai = ts;
       }
-      if (!termasuk(JENIS_UANG_LIST, r.jenis_uang)) e.jenis_uang = "Pilih jenis uang";
-      else jenis_uang = r.jenis_uang;
       if (!termasuk(JENIS_TRANSPORT_LIST, r.jenis_transport)) e.jenis_transport = "Pilih jenis transport";
       else jenis_transport = r.jenis_transport;
     }
@@ -43969,6 +44018,8 @@ function validatePengajuan(raw) {
       jenis_konsumsi,
       total,
       uang_siapa_id,
+      rekening_bank,
+      rekening_nomor,
       catatan: catatan || null,
       peserta
     }
@@ -44107,6 +44158,11 @@ function validateCekBerkas(raw) {
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return { ok: true, data: { jenis, status, catatan: status === "revisi" ? catatan : null } };
 }
+function validateDibayarkan(raw) {
+  const r = objek(raw);
+  if (typeof r.dibayarkan !== "boolean") return { ok: false, errors: { dibayarkan: "Nilai dibayarkan harus true atau false" } };
+  return { ok: true, data: { dibayarkan: r.dibayarkan } };
+}
 
 // server/providers.ts
 var AuthGagal = class extends Error {
@@ -44174,6 +44230,7 @@ var SELECT_PENGAJUAN = `
          ub.nama AS updated_by_nama,
          dt.nama AS diteruskan_by_nama,
          dp.nama AS diproses_by_nama,
+         dbr.nama AS dibayar_by_nama,
          (SELECT COUNT(*) FROM cek_berkas ck WHERE ck.pengajuan_id = p.id AND ck.status = 'sesuai')::int AS berkas_sesuai,
          CAST(p.berkas_na AS TEXT) AS berkas_na
     FROM pengajuan p
@@ -44181,7 +44238,8 @@ var SELECT_PENGAJUAN = `
     LEFT JOIN users cb ON cb.id = p.created_by
     LEFT JOIN users ub ON ub.id = p.updated_by
     LEFT JOIN users dt ON dt.id = p.diteruskan_by
-    LEFT JOIN users dp ON dp.id = p.diproses_by`;
+    LEFT JOIN users dp ON dp.id = p.diproses_by
+    LEFT JOIN users dbr ON dbr.id = p.dibayar_by`;
 function keRingkas(row, pesertaNama) {
   const penerima = row.kategori === "konsumsi" ? row.uang_siapa_nama ?? "-" : pesertaNama.join(", ") || "-";
   const normTgl = (v) => {
@@ -44209,6 +44267,11 @@ function keRingkas(row, pesertaNama) {
     jenis_konsumsi: row.jenis_konsumsi ?? null,
     uang_siapa_id: row.uang_siapa_id ? Number(row.uang_siapa_id) : null,
     uang_siapa_nama: row.uang_siapa_nama,
+    rekening_bank: row.rekening_bank ?? null,
+    rekening_nomor: row.rekening_nomor ?? null,
+    dibayar_at: normTs(row.dibayar_at),
+    dibayar_by: row.dibayar_by ? Number(row.dibayar_by) : null,
+    dibayar_by_nama: row.dibayar_by_nama ?? null,
     penerima,
     total: Number(row.total),
     status: row.status,
@@ -44357,7 +44420,8 @@ async function ambilPengajuan(db, user, id) {
 }
 async function getPeserta(db, pengajuanId) {
   return db.all(
-    `SELECT ps.id, ps.pegawai_id, pg.nama, pg.nip, pg.jabatan, ps.nilai::bigint AS nilai, ps.urutan
+    `SELECT ps.id, ps.pegawai_id, pg.nama, pg.nip, pg.jabatan, ps.nilai::bigint AS nilai,
+            ps.uang_harian, ps.uang_transport, ps.urutan
        FROM pengajuan_peserta ps JOIN pegawai pg ON pg.id = ps.pegawai_id
       WHERE ps.pengajuan_id = ? ORDER BY ps.urutan`,
     pengajuanId
@@ -44508,10 +44572,13 @@ async function simpanPeserta(db, pengajuanId, data) {
   for (let i = 0; i < data.peserta.length; i++) {
     const p = data.peserta[i];
     await db.run(
-      "INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, urutan) VALUES (?, ?, ?, ?)",
+      `INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, uang_harian, uang_transport, urutan)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       pengajuanId,
       p.pegawai_id,
       p.nilai,
+      p.uang_harian ?? null,
+      p.uang_transport ?? null,
       i + 1
     );
   }
@@ -44524,9 +44591,10 @@ async function buatPengajuan(db, user, data) {
     const kode = await kodeBerikutnya(txDb, data.kategori, (/* @__PURE__ */ new Date()).getFullYear());
     const { lastInsertRowid: id } = await txDb.run(
       `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang,
-         lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, total, catatan,
-         berkas_na, berkas_terpenuhi, berkas_wajib, status, created_by, updated_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
+         lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, rekening_bank,
+         rekening_nomor, total, catatan, berkas_na, berkas_terpenuhi, berkas_wajib, status, created_by, updated_by,
+         created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
       kode,
       data.kategori,
       data.nama_kegiatan,
@@ -44539,6 +44607,8 @@ async function buatPengajuan(db, user, data) {
       data.jenis_transport,
       data.jenis_konsumsi,
       data.uang_siapa_id,
+      data.rekening_bank,
+      data.rekening_nomor,
       data.total,
       data.catatan,
       BERKAS_WAJIB[data.kategori].length,
@@ -44551,6 +44621,9 @@ async function buatPengajuan(db, user, data) {
     await catatRiwayat(txDb, { id, kode }, user.id, "dibuat", `${KATEGORI_INFO[data.kategori].label} \xB7 ${formatRupiah(data.total)}`, waktu);
     return id;
   });
+}
+function teksRekening(bank, nomor) {
+  return bank && nomor ? `${bank} ${nomor}` : "-";
 }
 function pastikanBisaEdit(user, row) {
   if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat mengubah pengajuan");
@@ -44579,8 +44652,8 @@ async function ubahPengajuan(db, user, id, data) {
     const waktu = nowIso();
     await txDb.run(
       `UPDATE pengajuan SET nama_kegiatan = ?, tanggal_kegiatan = ?, tanggal_selesai = ?, jumlah_orang = ?,
-         lokasi_tujuan = ?, mekanisme = ?, jenis_uang = ?, jenis_transport = ?, jenis_konsumsi = ?, uang_siapa_id = ?, total = ?,
-         catatan = ?, updated_by = ?, updated_at = ?
+         lokasi_tujuan = ?, mekanisme = ?, jenis_uang = ?, jenis_transport = ?, jenis_konsumsi = ?, uang_siapa_id = ?,
+         rekening_bank = ?, rekening_nomor = ?, total = ?, catatan = ?, updated_by = ?, updated_at = ?
        WHERE id = ?`,
       data.nama_kegiatan,
       data.tanggal_kegiatan,
@@ -44592,6 +44665,8 @@ async function ubahPengajuan(db, user, id, data) {
       data.jenis_transport,
       data.jenis_konsumsi,
       data.uang_siapa_id,
+      data.rekening_bank,
+      data.rekening_nomor,
       data.total,
       data.catatan,
       user.id,
@@ -44605,6 +44680,9 @@ async function ubahPengajuan(db, user, id, data) {
       const label = (j) => j ? JENIS_KONSUMSI_LABEL[j] : "-";
       perubahan.push(`Jenis konsumsi ${label(row.jenis_konsumsi ?? null)} \u2192 ${label(data.jenis_konsumsi)}`);
     }
+    const rekLama = teksRekening(row.rekening_bank ?? null, row.rekening_nomor ?? null);
+    const rekBaru = teksRekening(data.rekening_bank, data.rekening_nomor);
+    if (row.kategori === "konsumsi" && rekLama !== rekBaru) perubahan.push(`Rekening ${rekLama} \u2192 ${rekBaru}`);
     await catatRiwayat(txDb, row, user.id, "diubah", perubahan.join(" \xB7 ") || null, waktu);
   });
 }
@@ -44833,6 +44911,40 @@ async function ubahDataPum(db, user, id, data) {
       `Project: ${data.project_hosting ?? "-"} \xB7 Task: ${data.task_name ?? "-"}`,
       waktu
     );
+  });
+}
+async function tandaiDibayarkan(db, user, id, dibayarkan) {
+  await db.tx(async (txDb) => {
+    const row = await ambilPengajuan(txDb, user, id);
+    if (!bolehProsesPum(user)) throw forbidden("Hanya PUM atau admin yang dapat menandai pembayaran");
+    if (row.kategori !== "konsumsi") throw conflict("Tanda sudah dibayarkan hanya untuk pengajuan Konsumsi");
+    if (!STATUS_BISA_DIBAYARKAN.includes(row.status)) {
+      throw conflict(`Pembayaran tidak dapat ditandai pada pengajuan berstatus ${STATUS_INFO[row.status].label}`);
+    }
+    if (dibayarkan === !!row.dibayar_at) {
+      throw conflict(dibayarkan ? "Pengajuan ini sudah ditandai dibayarkan" : "Pengajuan ini belum ditandai dibayarkan");
+    }
+    const waktu = nowIso();
+    await txDb.run(
+      "UPDATE pengajuan SET dibayar_at = ?, dibayar_by = ?, updated_by = ?, updated_at = ? WHERE id = ?",
+      dibayarkan ? waktu : null,
+      dibayarkan ? user.id : null,
+      user.id,
+      waktu,
+      id
+    );
+    const rekening = row.rekening_bank && row.rekening_nomor ? ` \xB7 ${row.rekening_bank} ${row.rekening_nomor}` : "";
+    const ringkas = `${row.uang_siapa_nama ?? "-"} \xB7 ${formatRupiah(Number(row.total))}${rekening}`;
+    await catatRiwayat(txDb, row, user.id, dibayarkan ? "dibayarkan" : "dibayarkan_batal", dibayarkan ? ringkas : null, waktu);
+    if (dibayarkan) {
+      await kirimNotifikasi(
+        txDb,
+        await penerimaPengaju(txDb, row),
+        user.id,
+        { pengajuan_id: id, kode: row.kode, jenis: "dibayarkan", judul: "Uang konsumsi sudah dibayarkan", pesan: ringkas },
+        waktu
+      );
+    }
   });
 }
 async function selesaikan(db, user, id, inv) {
@@ -45748,6 +45860,13 @@ function pengajuanRoutes(db, storage) {
     const user = userOf(req);
     const id = parseId(req.params.id, "Pengajuan");
     await ubahDataPum(db, user, id, assertValid(validateDataPum(req.body)));
+    res.json(await getDetail(db, user, id));
+  });
+  r.put("/:id/dibayarkan", async (req, res) => {
+    const user = userOf(req);
+    const id = parseId(req.params.id, "Pengajuan");
+    const { dibayarkan } = assertValid(validateDibayarkan(req.body));
+    await tandaiDibayarkan(db, user, id, dibayarkan);
     res.json(await getDetail(db, user, id));
   });
   r.post("/:id/kembalikan", async (req, res) => {

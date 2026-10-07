@@ -2,16 +2,17 @@
 import { jsPDF } from 'jspdf';
 import { autoTable, type RowInput, type UserOptions } from 'jspdf-autotable';
 import {
+  CATATAN_BIAYA_TRANSFER,
   JENIS_BERKAS_LABEL,
   JENIS_KONSUMSI_LABEL,
   JENIS_TRANSPORT_LABEL,
-  JENIS_UANG_LABEL,
   KATEGORI_INFO,
   KATEGORI_LIST,
   MEKANISME_LIST,
   STATUS_INFO,
   STATUS_LIST,
   AKSI_RIWAYAT_LABEL,
+  isBankMandiri,
 } from '../../../shared/constants';
 import {
   formatAngka,
@@ -433,12 +434,23 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
   ];
   if (p.kategori !== 'konsumsi') info.splice(1, 0, ['Lokasi tujuan', b(p.lokasi_tujuan)]);
   if (p.kategori === 'perjadin') {
-    info.push(['Jenis uang', p.jenis_uang ? JENIS_UANG_LABEL[p.jenis_uang] : '-']);
     info.push(['Jenis transport', p.jenis_transport ? JENIS_TRANSPORT_LABEL[p.jenis_transport] : '-']);
   }
   if (p.kategori === 'konsumsi') {
     info.push(['Jenis konsumsi', p.jenis_konsumsi ? JENIS_KONSUMSI_LABEL[p.jenis_konsumsi] : '-']);
     info.push(['Uang siapa', b(p.uang_siapa_nama)]);
+    if (p.rekening_bank && p.rekening_nomor) {
+      info.push(['Rekening', `${p.rekening_bank} - ${p.rekening_nomor}`]);
+      if (!isBankMandiri(p.rekening_bank)) info.push(['Biaya transfer', CATATAN_BIAYA_TRANSFER]);
+    } else {
+      info.push(['Rekening', '-']);
+    }
+    info.push([
+      'Pembayaran',
+      p.dibayar_at
+        ? `Sudah dibayarkan - ${formatWaktu(p.dibayar_at)}${p.dibayar_by_nama ? ` oleh ${p.dibayar_by_nama}` : ''}`
+        : 'Belum dibayarkan',
+    ]);
     info.push(['Rata-rata per orang', formatRupiah(Math.round(p.total / Math.max(1, p.jumlah_orang)))]);
   }
   info.push(['Dibuat oleh', `${p.created_by_nama} - ${formatWaktu(p.created_at)}`]);
@@ -455,14 +467,54 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
   if (p.kategori !== 'konsumsi') {
     y = cukupRuang(doc, y, 30);
     y = judulBagian(doc, 'Penerima & nilai uang', y);
-    tabel(doc, {
-      startY: y + 1,
-      head: [['No', 'Nama', 'NIP/NUP', 'Jabatan', 'Nilai (Rp)']],
-      body: p.peserta.map((ps, i) => [i + 1, bersihkan(ps.nama), b(ps.nip), b(ps.jabatan), formatAngka(ps.nilai)]),
-      foot: [[{ content: 'TOTAL', colSpan: 4 }, formatAngka(p.total)]],
-      columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { fontStyle: 'bold' }, 4: { halign: 'right', cellWidth: 30, fontStyle: 'bold' } },
-      footStyles: { halign: 'right' },
-    });
+    if (p.kategori === 'perjadin') {
+      // Perjadin: uang harian & uang transport per orang (data lama tanpa rincian mengikuti jenis uangnya).
+      const rinci = p.peserta.map((ps) =>
+        ps.uang_harian !== null || ps.uang_transport !== null
+          ? { harian: ps.uang_harian ?? 0, transport: ps.uang_transport ?? 0 }
+          : p.jenis_uang === 'uang_harian'
+            ? { harian: ps.nilai, transport: 0 }
+            : { harian: 0, transport: ps.nilai },
+      );
+      tabel(doc, {
+        startY: y + 1,
+        head: [['No', 'Nama', 'NIP/NUP', 'Jabatan', 'Uang Harian (Rp)', 'Uang Transport (Rp)', 'Jumlah (Rp)']],
+        body: p.peserta.map((ps, i) => [
+          i + 1,
+          bersihkan(ps.nama),
+          b(ps.nip),
+          b(ps.jabatan),
+          formatAngka(rinci[i].harian),
+          formatAngka(rinci[i].transport),
+          formatAngka(ps.nilai),
+        ]),
+        foot: [
+          [
+            { content: 'TOTAL', colSpan: 4 },
+            formatAngka(rinci.reduce((a, r) => a + r.harian, 0)),
+            formatAngka(rinci.reduce((a, r) => a + r.transport, 0)),
+            formatAngka(p.total),
+          ],
+        ],
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 10 },
+          1: { fontStyle: 'bold' },
+          4: { halign: 'right', cellWidth: 27 },
+          5: { halign: 'right', cellWidth: 29 },
+          6: { halign: 'right', cellWidth: 27, fontStyle: 'bold' },
+        },
+        footStyles: { halign: 'right' },
+      });
+    } else {
+      tabel(doc, {
+        startY: y + 1,
+        head: [['No', 'Nama', 'NIP/NUP', 'Jabatan', 'Nilai (Rp)']],
+        body: p.peserta.map((ps, i) => [i + 1, bersihkan(ps.nama), b(ps.nip), b(ps.jabatan), formatAngka(ps.nilai)]),
+        foot: [[{ content: 'TOTAL', colSpan: 4 }, formatAngka(p.total)]],
+        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { fontStyle: 'bold' }, 4: { halign: 'right', cellWidth: 30, fontStyle: 'bold' } },
+        footStyles: { halign: 'right' },
+      });
+    }
     y = akhirTabel(doc) + 7;
   }
 

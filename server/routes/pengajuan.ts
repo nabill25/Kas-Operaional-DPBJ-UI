@@ -6,6 +6,7 @@ import {
   validateCatatanWajib,
   validateCekBerkas,
   validateDataPum,
+  validateDibayarkan,
   validateInvoice,
   validatePengajuan,
   validateTeruskan,
@@ -32,6 +33,7 @@ import {
   selesaikan,
   setBerkasNa,
   tambahBerkas,
+  tandaiDibayarkan,
   tarikKembali,
   teruskanMdk,
   ubahDataPum,
@@ -188,6 +190,14 @@ export function pengajuanRoutes(db: Db, storage: StorageProvider): Router {
     const user = userOf(req);
     const id = parseId(req.params.id, 'Pengajuan');
     await ubahDataPum(db, user, id, assertValid(validateDataPum(req.body)));
+    res.json(await getDetail(db, user, id));
+  });
+
+  r.put('/:id/dibayarkan', async (req, res) => {
+    const user = userOf(req);
+    const id = parseId(req.params.id, 'Pengajuan');
+    const { dibayarkan } = assertValid(validateDibayarkan(req.body));
+    await tandaiDibayarkan(db, user, id, dibayarkan);
     res.json(await getDetail(db, user, id));
   });
 

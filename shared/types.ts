@@ -40,7 +40,11 @@ export interface Pegawai {
 
 export interface PesertaInput {
   pegawai_id: number;
+  /** Rumah Tangga: nilai uang. Perjadin: uang harian + uang transport (dihitung server). */
   nilai: number;
+  /** Hanya Perjadin (Rupiah, boleh 0); Rumah Tangga: null. */
+  uang_harian?: number | null;
+  uang_transport?: number | null;
 }
 
 export interface Peserta {
@@ -50,6 +54,9 @@ export interface Peserta {
   nip: string | null;
   jabatan: string | null;
   nilai: number;
+  /** Perjadin: rincian nilai. Rumah Tangga: null. */
+  uang_harian: number | null;
+  uang_transport: number | null;
   urutan: number;
 }
 
@@ -126,6 +133,13 @@ export interface PengajuanRingkas {
   jenis_konsumsi: JenisKonsumsi | null;
   uang_siapa_id: number | null;
   uang_siapa_nama: string | null;
+  /** Rekening "uang siapa" (konsumsi, opsional). */
+  rekening_bank: string | null;
+  rekening_nomor: string | null;
+  /** Konsumsi: kapan & oleh siapa PUM menandai uang sudah dibayarkan ke pemilik uang. */
+  dibayar_at: string | null;
+  dibayar_by: number | null;
+  dibayar_by_nama: string | null;
   /** Nama penerima: "uang siapa" (konsumsi) atau nama peserta (transport), dipisah koma. */
   penerima: string;
   total: number;
@@ -175,6 +189,8 @@ export interface PengajuanInput {
   jenis_konsumsi?: JenisKonsumsi | null;
   total?: number | null;
   uang_siapa_id?: number | null;
+  rekening_bank?: string | null;
+  rekening_nomor?: string | null;
   catatan?: string | null;
   peserta?: PesertaInput[];
 }

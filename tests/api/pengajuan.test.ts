@@ -175,11 +175,12 @@ describe('Pengajuan Transport Rumah Tangga', () => {
 });
 
 describe('Pengajuan Transport Perjadin', () => {
-  it('menyimpan rentang tanggal, jenis uang & jenis transport', async () => {
+  it('menyimpan rentang tanggal, jenis transport, serta uang harian & uang transport per orang', async () => {
     const res = await op.post('/api/pengajuan').send(
       dataPerjadin([
-        { pegawai_id: ctx.pegawai[0], nilai: 1_440_000 },
-        { pegawai_id: ctx.pegawai[1], nilai: 1_440_000 },
+        // nilai kiriman klien diabaikan: server menjumlahkan uang harian + uang transport
+        { pegawai_id: ctx.pegawai[0], uang_harian: 1_440_000, uang_transport: '500000', nilai: 1 } as never,
+        { pegawai_id: ctx.pegawai[1], uang_harian: 1_440_000, uang_transport: '' },
       ]),
     );
     expect(res.status).toBe(201);
@@ -187,12 +188,18 @@ describe('Pengajuan Transport Perjadin', () => {
       kode: `TPD-${TAHUN_INI}-0001`,
       tanggal_kegiatan: `${TAHUN_INI}-05-12`,
       tanggal_selesai: `${TAHUN_INI}-05-14`,
-      jenis_uang: 'uang_harian',
+      jenis_uang: null,
       jenis_transport: 'luar_kota',
-      total: 2_880_000,
+      total: 3_380_000,
       jumlah_orang: 2,
       berkas_wajib: 4,
     });
+    expect(
+      res.body.peserta.map((p: { nilai: number; uang_harian: number; uang_transport: number }) => [p.nilai, p.uang_harian, p.uang_transport]),
+    ).toEqual([
+      [1_940_000, 1_440_000, 500_000],
+      [1_440_000, 1_440_000, 0],
+    ]);
     expect(res.body.kelengkapan.items.map((i: { jenis: string }) => i.jenis)).toEqual([
       'surat_tugas',
       'laporan_kegiatan',
@@ -201,28 +208,50 @@ describe('Pengajuan Transport Perjadin', () => {
     ]);
   });
 
-  it('validasi tanggal sampai, jenis uang, jenis transport', async () => {
+  it('validasi tanggal sampai, jenis transport, dan uang per orang (jenis uang tidak dipilih lagi)', async () => {
     const res = await op.post('/api/pengajuan').send(
-      dataPerjadin([{ pegawai_id: ctx.pegawai[0], nilai: 100_000 }], {
-        tanggal_selesai: `${TAHUN_INI}-05-01`,
-        jenis_uang: 'uang_lain',
-        jenis_transport: '',
-      }),
+      dataPerjadin(
+        [
+          { pegawai_id: ctx.pegawai[0], uang_harian: null, uang_transport: '' },
+          { pegawai_id: ctx.pegawai[1], uang_harian: 100_000, uang_transport: -5 },
+        ],
+        { tanggal_selesai: `${TAHUN_INI}-05-01`, jenis_uang: 'uang_lain', jenis_transport: '' },
+      ),
     );
     expect(res.status).toBe(400);
-    expect(res.body.errors).toMatchObject({
+    expect(res.body.errors).toEqual({
       tanggal_selesai: 'Tanggal selesai tidak boleh sebelum tanggal mulai',
-      jenis_uang: expect.any(String),
       jenis_transport: expect.any(String),
+      'peserta.0.uang_harian': 'Isi uang harian dan/atau uang transport',
+      'peserta.1.uang_transport': 'Uang transport tidak boleh negatif',
     });
+  });
+
+  it('ubah perjadin: rincian per orang tersimpan ulang & riwayat mencatat perubahan nilai', async () => {
+    const { body } = await op.post('/api/pengajuan').send(dataPerjadin([{ pegawai_id: ctx.pegawai[0], uang_harian: 900_000 }]));
+    const res = await op
+      .put(`/api/pengajuan/${body.id}`)
+      .send(dataPerjadin([{ pegawai_id: ctx.pegawai[0], uang_harian: 900_000, uang_transport: 250_000 }]));
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1_150_000);
+    expect(res.body.peserta[0]).toMatchObject({ nilai: 1_150_000, uang_harian: 900_000, uang_transport: 250_000 });
+    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'diubah', keterangan: 'Nilai Rp 900.000 → Rp 1.150.000' });
+  });
+
+  it('rumah tangga tidak menyimpan rincian uang harian/transport', async () => {
+    const res = await op
+      .post('/api/pengajuan')
+      .send(dataRumahTangga([{ pegawai_id: ctx.pegawai[0], nilai: 75_000, uang_harian: 5, uang_transport: 5 } as never]));
+    expect(res.status).toBe(201);
+    expect(res.body.peserta[0]).toMatchObject({ nilai: 75_000, uang_harian: null, uang_transport: null });
   });
 
   it('maksimal 2 orang juga berlaku untuk perjadin', async () => {
     const res = await op.post('/api/pengajuan').send(
       dataPerjadin([
-        { pegawai_id: ctx.pegawai[0], nilai: 1 },
-        { pegawai_id: ctx.pegawai[1], nilai: 1 },
-        { pegawai_id: ctx.pegawai[2], nilai: 1 },
+        { pegawai_id: ctx.pegawai[0], uang_harian: 1 },
+        { pegawai_id: ctx.pegawai[1], uang_harian: 1 },
+        { pegawai_id: ctx.pegawai[2], uang_harian: 1 },
       ]),
     );
     expect(res.status).toBe(400);

@@ -1,4 +1,4 @@
-import { Ban, BadgeCheck, Bell, BellOff, CheckCheck, Hourglass, Send, Undo2, UserPlus, type LucideIcon } from 'lucide-react';
+import { Ban, BadgeCheck, Banknote, Bell, BellOff, CheckCheck, Hourglass, Send, Undo2, UserPlus, type LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Popover } from 'radix-ui';
 import { useEffect, useRef, useState } from 'react';
@@ -19,6 +19,7 @@ const GAYA_JENIS: Record<JenisNotifikasi, { ikon: LucideIcon; warna: string }> =
   selesai: { ikon: BadgeCheck, warna: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300' },
   selesai_dibatalkan: { ikon: Ban, warna: 'bg-red-500/10 text-red-700 dark:text-red-300' },
   registrasi: { ikon: UserPlus, warna: 'bg-sky-500/12 text-sky-700 dark:text-sky-300' },
+  dibayarkan: { ikon: Banknote, warna: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300' },
 };
 
 /** Halaman tujuan notifikasi: detail pengajuan, atau halaman Pengguna untuk pendaftaran akun. */

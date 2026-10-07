@@ -2,7 +2,7 @@ import { centangSesuai, expect, keluarAPI, masukAPI, pilihPegawai, test, unggahB
 
 const BERKAS_KONSUMSI = ['notulen', 'undangan', 'invoice', 'daftar_hadir'];
 
-test('alur lengkap Konsumsi: ajukan ke PUM → PUM centang berkas → teruskan ke MDK → input invoice (paid)', async ({ page }) => {
+test('alur lengkap Konsumsi: rekening → ajukan ke PUM → centang berkas → teruskan ke MDK (project/task dari master) → invoice → sudah dibayarkan', async ({ page }) => {
   const nama = `Rapat Uji E2E ${Date.now()}`;
 
   // 1. Operator membuat draft
@@ -15,6 +15,10 @@ test('alur lengkap Konsumsi: ajukan ke PUM → PUM centang berkas → teruskan k
   await page.getByLabel('Jumlah uang yang digunakan').fill('1500000');
   await expect(page.getByLabel('Jumlah uang yang digunakan')).toHaveValue('1.500.000');
   await pilihPegawai(page, 'uang_siapa_id', 'Nurul Hidayah');
+  // Rekening uang siapa (opsional): bukan Bank Mandiri → catatan biaya transfer ditonjolkan
+  await page.locator('#rekening_bank').fill('BNI');
+  await page.locator('#rekening_nomor').fill('0123 456 789');
+  await expect(page.getByText('Jika bukan Bank Mandiri, biaya transfer akan dibebankan kepada pemilik rekening.')).toBeVisible();
   await page.getByRole('radio', { name: 'KO' }).click();
   await expect(page.getByText('Rp 125.000')).toBeVisible(); // rata-rata per orang
   // Jenis konsumsi wajib dipilih: simpan tanpa memilih → ditandai, lalu pilih
@@ -28,6 +32,12 @@ test('alur lengkap Konsumsi: ajukan ke PUM → PUM centang berkas → teruskan k
   const id = Number(page.url().split('/').pop());
   await expect(page.getByRole('heading', { name: nama })).toBeVisible();
   await expect(page.getByText('Kudapan + Makan Siang')).toBeVisible(); // jenis konsumsi di Informasi kegiatan
+  const uangSiapa = page.getByTestId('uang-siapa');
+  await expect(uangSiapa).toContainText('Nurul Hidayah');
+  await expect(uangSiapa).toContainText('BNI');
+  await expect(uangSiapa).toContainText('0123456789');
+  await expect(uangSiapa).toContainText('Jika bukan Bank Mandiri, biaya transfer akan dibebankan kepada pemilik rekening.');
+  await expect(uangSiapa.getByRole('button', { name: 'Sudah dibayarkan' })).toHaveCount(0); // hanya PUM
   await expect(page.getByText('Draft tersimpan! Langkah berikutnya:')).toBeVisible();
   const kode = (await page.getByText(/^KSM-\d{4}-\d{4}$/).first().textContent())!.trim();
 
@@ -66,13 +76,23 @@ test('alur lengkap Konsumsi: ajukan ke PUM → PUM centang berkas → teruskan k
   await teruskanHeader.click();
   const dialog = page.getByRole('dialog', { name: 'Setujui & teruskan ke MDK' });
   await expect(dialog).toContainText('Semua berkas wajib sudah dicentang sesuai (4/4)');
-  await dialog.getByLabel('Project Hosting').fill('DPBJ-OPS-E2E');
-  await dialog.getByLabel('Task Name').fill('Konsumsi Rapat E2E');
+  // Project dipilih lewat kotak cari (master Kasubdit); task Konsumsi project itu terisi otomatis
+  await dialog.getByRole('combobox', { name: 'Project Hosting' }).click();
+  await page.getByLabel('Cari project').fill('tata kelola');
+  await page.getByRole('option', { name: /D0030\.09\.01\.6\.002/ }).click();
+  await expect(dialog.getByRole('combobox', { name: 'Project Hosting' })).toContainText('Koordinasi Tata Kelola Pengadaan');
+  await expect(dialog.getByRole('combobox', { name: 'Task Name' })).toContainText('Beban Konsumsi');
+  await expect(dialog.getByText('Terisi otomatis: task Konsumsi untuk project ini')).toBeVisible();
+  // Daftar task dibatasi pada task project terpilih
+  await dialog.getByRole('combobox', { name: 'Task Name' }).click();
+  await page.getByLabel('Cari task').fill('honor');
+  await expect(page.getByText('Tidak ada yang cocok di daftar.')).toBeVisible();
+  await page.keyboard.press('Escape');
   await dialog.getByRole('button', { name: 'Teruskan ke MDK' }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByText('Disetujui PUM & diteruskan ke MDK — menunggu invoice')).toBeVisible();
-  await expect(page.getByTestId('kartu-pum')).toContainText('DPBJ-OPS-E2E');
-  await expect(page.getByTestId('kartu-pum')).toContainText('Konsumsi Rapat E2E');
+  await expect(page.getByTestId('kartu-pum')).toContainText('D0030.09.01.6.002:Koordinasi Tata Kelola Pengadaan');
+  await expect(page.getByTestId('kartu-pum')).toContainText('723207_Beban Konsumsi');
 
   // 7. Invoice dari MDK (di luar sistem) diinput PUM → selesai (paid)
   await page.getByRole('button', { name: 'Input No. Invoice MDK' }).click();
@@ -81,6 +101,14 @@ test('alur lengkap Konsumsi: ajukan ke PUM → PUM centang berkas → teruskan k
   await expect(page.getByText('MDK/INV/E2E/0001').first()).toBeVisible();
   await expect(page.getByText('Selesai (Paid)').first()).toBeVisible();
 
+  // 7b. PUM menandai uang sudah dibayarkan ke pemilik uang (tombol di dekat "Uang siapa")
+  await uangSiapa.getByRole('button', { name: 'Sudah dibayarkan' }).click();
+  await page.getByRole('button', { name: 'Ya, sudah dibayarkan' }).click();
+  await expect(uangSiapa.getByRole('button', { name: 'Sudah dibayarkan' })).toHaveCount(0);
+  await expect(uangSiapa).toContainText('Sudah dibayarkan');
+  await expect(uangSiapa).toContainText('oleh Petugas PUM');
+  await expect(page.getByText('Uang ditandai sudah dibayarkan').first()).toBeVisible(); // riwayat
+
   // 8. Operator menerima notifikasi otomatis; membuka notifikasi menandainya dibaca
   await keluarAPI(page);
   await masukAPI(page, 'operator');
@@ -88,6 +116,7 @@ test('alur lengkap Konsumsi: ajukan ke PUM → PUM centang berkas → teruskan k
   await page.getByRole('button', { name: /^Notifikasi, \d+ belum dibaca$/ }).click();
   const panel = page.getByRole('dialog', { name: 'Notifikasi' });
   await expect(panel.getByRole('link').filter({ hasText: kode }).filter({ hasText: 'Berkas disetujui PUM & diteruskan ke MDK' })).toBeVisible();
+  await expect(panel.getByRole('link').filter({ hasText: kode }).filter({ hasText: 'Uang konsumsi sudah dibayarkan' })).toBeVisible();
   await panel.getByRole('link').filter({ hasText: kode }).filter({ hasText: 'Pengajuan selesai (paid)' }).click();
   await expect(page).toHaveURL(new RegExp(`/pengajuan/${id}$`));
   await expect(page.getByText('MDK/INV/E2E/0001').first()).toBeVisible();

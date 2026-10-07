@@ -1,17 +1,32 @@
-import { CakeSlice, CalendarRange, Info, MapPin, NotebookPen, Plus, Save, Trash, Users, UtensilsCrossed, Wallet, type LucideIcon } from 'lucide-react';
+import {
+  CakeSlice,
+  CalendarRange,
+  Info,
+  Landmark,
+  MapPin,
+  NotebookPen,
+  Plus,
+  Save,
+  Trash,
+  Users,
+  UtensilsCrossed,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import {
+  BANK_SARAN,
+  CATATAN_BIAYA_TRANSFER,
   JENIS_KONSUMSI_LABEL,
   JENIS_KONSUMSI_LIST,
   JENIS_TRANSPORT_LABEL,
-  JENIS_UANG_LABEL,
   KATEGORI_INFO,
   MAX_PESERTA_TRANSPORT,
+  isBankMandiri,
   type JenisKonsumsi,
   type JenisTransport,
-  type JenisUang,
   type Kategori,
   type Mekanisme,
 } from '../../../shared/constants';
@@ -31,8 +46,14 @@ import { Segmented } from '../ui/Segmented';
 interface BarisPeserta {
   kunci: string;
   pegawai_id: number | null;
+  /** Rumah Tangga */
   nilai: number | null;
+  /** Perjadin (minimal salah satu diisi) */
+  uang_harian: number | null;
+  uang_transport: number | null;
 }
+
+const barisKosong = (): BarisPeserta => ({ kunci: kunciBaru(), pegawai_id: null, nilai: null, uang_harian: null, uang_transport: null });
 
 /** Ikon tiap jenis konsumsi (kudapan, makan siang, atau keduanya). */
 const IKON_KONSUMSI: Record<JenisKonsumsi, LucideIcon[]> = {
@@ -47,18 +68,21 @@ interface StateForm {
   tanggal_selesai: string;
   lokasi_tujuan: string;
   mekanisme: Mekanisme | '';
-  jenis_uang: JenisUang | '';
   jenis_transport: JenisTransport | '';
   jenis_konsumsi: JenisKonsumsi | '';
   jumlah_orang: string;
   total: number | null;
   uang_siapa_id: number | null;
+  rekening_bank: string;
+  rekening_nomor: string;
   catatan: string;
   peserta: BarisPeserta[];
 }
 
 let nomorKunci = 0;
-const kunciBaru = () => `p${++nomorKunci}`;
+function kunciBaru() {
+  return `p${++nomorKunci}`;
+}
 
 function stateAwal(kategori: Kategori, d?: PengajuanDetail): StateForm {
   if (d) {
@@ -68,17 +92,28 @@ function stateAwal(kategori: Kategori, d?: PengajuanDetail): StateForm {
       tanggal_selesai: d.tanggal_selesai ?? '',
       lokasi_tujuan: d.lokasi_tujuan ?? '',
       mekanisme: d.mekanisme,
-      jenis_uang: d.jenis_uang ?? '',
       jenis_transport: d.jenis_transport ?? '',
       jenis_konsumsi: d.jenis_konsumsi ?? '',
       jumlah_orang: d.kategori === 'konsumsi' ? String(d.jumlah_orang) : '',
       total: d.kategori === 'konsumsi' ? d.total : null,
       uang_siapa_id: d.uang_siapa_id,
+      rekening_bank: d.rekening_bank ?? '',
+      rekening_nomor: d.rekening_nomor ?? '',
       catatan: d.catatan ?? '',
       peserta:
         d.peserta.length > 0
-          ? d.peserta.map((p) => ({ kunci: kunciBaru(), pegawai_id: p.pegawai_id, nilai: p.nilai }))
-          : [{ kunci: kunciBaru(), pegawai_id: null, nilai: null }],
+          ? d.peserta.map((p) => {
+              // Perjadin lama tanpa rincian: nilai masuk ke kolom sesuai jenis uang yang dulu dipilih.
+              const lama = d.kategori === 'perjadin' && p.uang_harian === null && p.uang_transport === null;
+              return {
+                kunci: kunciBaru(),
+                pegawai_id: p.pegawai_id,
+                nilai: p.nilai,
+                uang_harian: lama ? (d.jenis_uang === 'uang_harian' ? p.nilai : null) : p.uang_harian || null,
+                uang_transport: lama ? (d.jenis_uang === 'uang_harian' ? null : p.nilai) : p.uang_transport || null,
+              };
+            })
+          : [barisKosong()],
     };
   }
   return {
@@ -87,15 +122,21 @@ function stateAwal(kategori: Kategori, d?: PengajuanDetail): StateForm {
     tanggal_selesai: '',
     lokasi_tujuan: '',
     mekanisme: '',
-    jenis_uang: '',
     jenis_transport: '',
     jenis_konsumsi: '',
     jumlah_orang: '',
     total: null,
     uang_siapa_id: null,
+    rekening_bank: '',
+    rekening_nomor: '',
     catatan: '',
-    peserta: kategori === 'konsumsi' ? [] : [{ kunci: kunciBaru(), pegawai_id: null, nilai: null }],
+    peserta: kategori === 'konsumsi' ? [] : [barisKosong()],
   };
+}
+
+/** Nilai satu orang: Perjadin = uang harian + uang transport; Rumah Tangga = nilai uang. */
+function nilaiBaris(kategori: Kategori, p: BarisPeserta): number {
+  return kategori === 'perjadin' ? (p.uang_harian ?? 0) + (p.uang_transport ?? 0) : (p.nilai ?? 0);
 }
 
 function keInput(kategori: Kategori, s: StateForm): PengajuanInput {
@@ -113,18 +154,28 @@ function keInput(kategori: Kategori, s: StateForm): PengajuanInput {
       jumlah_orang: s.jumlah_orang === '' ? null : Number(s.jumlah_orang),
       total: s.total,
       uang_siapa_id: s.uang_siapa_id,
+      rekening_bank: s.rekening_bank,
+      rekening_nomor: s.rekening_nomor,
     };
   }
-  // Nilai kosong dikirim sebagai null agar validasi memberi pesan "wajib diisi" (bukan "harus > 0").
-  // Setelah lolos validasi, keduanya dijamin berupa bilangan.
-  const peserta = s.peserta.map((p) => ({ pegawai_id: p.pegawai_id as number, nilai: p.nilai as number }));
-  if (kategori === 'rumah_tangga') return { ...dasar, lokasi_tujuan: s.lokasi_tujuan, peserta };
+  if (kategori === 'rumah_tangga') {
+    // Nilai kosong dikirim sebagai null agar validasi memberi pesan "wajib diisi" (bukan "harus > 0").
+    // Setelah lolos validasi, keduanya dijamin berupa bilangan.
+    const peserta = s.peserta.map((p) => ({ pegawai_id: p.pegawai_id as number, nilai: p.nilai as number }));
+    return { ...dasar, lokasi_tujuan: s.lokasi_tujuan, peserta };
+  }
+  // Perjadin: nilai per orang dihitung server dari uang harian + uang transport.
+  const peserta = s.peserta.map((p) => ({
+    pegawai_id: p.pegawai_id as number,
+    nilai: nilaiBaris(kategori, p),
+    uang_harian: p.uang_harian,
+    uang_transport: p.uang_transport,
+  }));
   return {
     ...dasar,
     lokasi_tujuan: s.lokasi_tujuan,
     peserta,
     tanggal_selesai: s.tanggal_selesai,
-    jenis_uang: (s.jenis_uang || null) as JenisUang | null,
     jenis_transport: (s.jenis_transport || null) as JenisTransport | null,
   };
 }
@@ -160,7 +211,8 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
     setErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith('peserta'))));
   };
 
-  const total = transport ? s.peserta.reduce((a, p) => a + (p.nilai ?? 0), 0) : (s.total ?? 0);
+  const total = transport ? s.peserta.reduce((a, p) => a + nilaiBaris(kategori, p), 0) : (s.total ?? 0);
+  const bankBukanMandiri = s.rekening_bank.trim() !== '' && !isBankMandiri(s.rekening_bank);
   const jumlahOrangKonsumsi = Number(s.jumlah_orang) || 0;
   const lama =
     kategori === 'perjadin' && isTanggalValid(s.tanggal_kegiatan) && isTanggalValid(s.tanggal_selesai) && s.tanggal_selesai >= s.tanggal_kegiatan
@@ -318,36 +370,23 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
             />
           </Field>
 
+          {/* Perjadin: jenis transport di samping mekanisme */}
           {kategori === 'perjadin' && (
-            <>
-              <Field label="Jenis uang" htmlFor="jenis_uang" error={errors.jenis_uang} wajib>
-                <Segmented
-                  id="jenis_uang"
-                  label="Jenis uang"
-                  layoutId="seg-jenis-uang"
-                  penuh
-                  invalid={!!errors.jenis_uang}
-                  value={s.jenis_uang}
-                  onChange={(v) => ubah('jenis_uang', v)}
-                  opsi={(Object.keys(JENIS_UANG_LABEL) as JenisUang[]).map((k) => ({ value: k, label: JENIS_UANG_LABEL[k] }))}
-                />
-              </Field>
-              <Field label="Jenis transport" htmlFor="jenis_transport" error={errors.jenis_transport} wajib>
-                <Segmented
-                  id="jenis_transport"
-                  label="Jenis transport"
-                  layoutId="seg-jenis-transport"
-                  penuh
-                  invalid={!!errors.jenis_transport}
-                  value={s.jenis_transport}
-                  onChange={(v) => ubah('jenis_transport', v)}
-                  opsi={(Object.keys(JENIS_TRANSPORT_LABEL) as JenisTransport[]).map((k) => ({
-                    value: k,
-                    label: JENIS_TRANSPORT_LABEL[k],
-                  }))}
-                />
-              </Field>
-            </>
+            <Field label="Jenis transport" htmlFor="jenis_transport" error={errors.jenis_transport} wajib>
+              <Segmented
+                id="jenis_transport"
+                label="Jenis transport"
+                layoutId="seg-jenis-transport"
+                penuh
+                invalid={!!errors.jenis_transport}
+                value={s.jenis_transport}
+                onChange={(v) => ubah('jenis_transport', v)}
+                opsi={(Object.keys(JENIS_TRANSPORT_LABEL) as JenisTransport[]).map((k) => ({
+                  value: k,
+                  label: JENIS_TRANSPORT_LABEL[k],
+                }))}
+              />
+            </Field>
           )}
         </div>
       </GlassCard>
@@ -440,6 +479,61 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
                 onChange={(id) => ubah('uang_siapa_id', id)}
               />
             </Field>
+            <div
+              role="group"
+              aria-labelledby="judul-rekening"
+              data-field="rekening"
+              className="rounded-2xl bg-fg/[0.03] p-3.5 ring-1 ring-fg/[0.06] sm:col-span-2 sm:p-4"
+            >
+              <p id="judul-rekening" className="flex items-center gap-2 text-[13px] font-semibold text-fg">
+                <Landmark className="size-4 text-fg-muted" aria-hidden />
+                Rekening uang siapa
+              </p>
+              <p className="mt-0.5 pl-6 text-xs text-fg-subtle">Opsional — tujuan pembayaran oleh PUM</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Bank" htmlFor="rekening_bank" error={errors.rekening_bank}>
+                  <Input
+                    id="rekening_bank"
+                    list="saran-bank"
+                    autoComplete="off"
+                    maxLength={60}
+                    value={s.rekening_bank}
+                    invalid={!!errors.rekening_bank}
+                    placeholder="mis. Bank Mandiri"
+                    onChange={(e) => ubah('rekening_bank', e.target.value)}
+                  />
+                  <datalist id="saran-bank">
+                    {BANK_SARAN.map((b) => (
+                      <option key={b} value={b} />
+                    ))}
+                  </datalist>
+                </Field>
+                <Field label="No. Rekening" htmlFor="rekening_nomor" error={errors.rekening_nomor}>
+                  <Input
+                    id="rekening_nomor"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    className="angka"
+                    maxLength={34}
+                    value={s.rekening_nomor}
+                    invalid={!!errors.rekening_nomor}
+                    placeholder="mis. 1570001234567"
+                    onChange={(e) => ubah('rekening_nomor', e.target.value.replace(/[^\d\s.-]/g, ''))}
+                  />
+                </Field>
+              </div>
+              <p
+                className={cn(
+                  'mt-3 flex items-start gap-2 rounded-xl px-3 py-2 text-xs ring-1',
+                  bankBukanMandiri
+                    ? 'bg-amber-400/15 font-medium text-amber-900 ring-amber-500/30 dark:text-amber-100'
+                    : 'bg-fg/[0.03] text-fg-muted ring-fg/[0.06]',
+                )}
+              >
+                <Info className="mt-px size-3.5 shrink-0" aria-hidden />
+                {CATATAN_BIAYA_TRANSFER}
+              </p>
+            </div>
           </div>
           {jumlahOrangKonsumsi > 0 && (s.total ?? 0) > 0 && (
             <motion.p
@@ -458,14 +552,18 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
           <JudulKartu
             ikon={<Users className="size-4.5" />}
             judul="Penerima & nilai uang"
-            deskripsi={`Setiap orang tercatat terpisah untuk rekap per orang · maks. ${MAX_PESERTA_TRANSPORT} orang`}
+            deskripsi={
+              kategori === 'perjadin'
+                ? `Isi uang harian dan/atau uang transport tiap orang · maks. ${MAX_PESERTA_TRANSPORT} orang`
+                : `Setiap orang tercatat terpisah untuk rekap per orang · maks. ${MAX_PESERTA_TRANSPORT} orang`
+            }
             aksi={
               <span className="rounded-full bg-fg/[0.06] px-2.5 py-1 text-xs font-bold text-fg-muted">
                 {s.peserta.length}/{MAX_PESERTA_TRANSPORT} orang
               </span>
             }
           />
-          <div className="mt-5 space-y-3" data-field="peserta">
+          <div className="@container mt-5 space-y-3" data-field="peserta">
             <AnimatePresence initial={false}>
               {s.peserta.map((p, i) => (
                 <motion.div
@@ -476,39 +574,98 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <div className="grid grid-cols-1 items-start gap-3 rounded-2xl bg-fg/[0.03] p-3 ring-1 ring-fg/[0.06] sm:grid-cols-[2rem_1fr_13rem_2.5rem] sm:p-4">
-                    <span className="hidden size-8 place-items-center rounded-full bg-navy-900 text-xs font-bold text-kuning-300 sm:mt-7 sm:grid dark:bg-kuning-400 dark:text-navy-950">
-                      {i + 1}
-                    </span>
-                    <Field label={`Nama orang ${i + 1}`} htmlFor={`peserta-${i}-pegawai_id`} error={errors[`peserta.${i}.pegawai_id`]} wajib>
-                      <PegawaiPicker
-                        id={`peserta-${i}-pegawai_id`}
-                        value={p.pegawai_id}
-                        kecuali={dipilih.filter((x) => x !== p.pegawai_id)}
-                        invalid={!!errors[`peserta.${i}.pegawai_id`]}
-                        onChange={(id) => ubahPeserta(p.kunci, { pegawai_id: id })}
-                      />
-                    </Field>
-                    <Field label="Nilai uang" htmlFor={`peserta-${i}-nilai`} error={errors[`peserta.${i}.nilai`]} wajib>
-                      <CurrencyInput
-                        id={`peserta-${i}-nilai`}
-                        value={p.nilai}
-                        invalid={!!errors[`peserta.${i}.nilai`]}
-                        onChange={(v) => ubahPeserta(p.kunci, { nilai: v })}
-                      />
-                    </Field>
-                    <Button
-                      varian="hantu"
-                      ukuran="ikon"
-                      className="sm:mt-6.5"
-                      disabled={s.peserta.length <= 1}
-                      onClick={() => setS((prev) => ({ ...prev, peserta: prev.peserta.filter((x) => x.kunci !== p.kunci) }))}
-                      aria-label={`Hapus orang ${i + 1}`}
-                      title="Hapus orang"
-                    >
-                      <Trash className="size-4" />
-                    </Button>
-                  </div>
+                  {kategori === 'perjadin' ? (
+                    <div className="flex items-start gap-3 rounded-2xl bg-fg/[0.03] p-3 ring-1 ring-fg/[0.06] sm:p-4">
+                      <span className="mt-7 hidden size-8 shrink-0 place-items-center rounded-full bg-navy-900 text-xs font-bold text-kuning-300 sm:grid dark:bg-kuning-400 dark:text-navy-950">
+                        {i + 1}
+                      </span>
+                      {/* ≥ 48rem: satu baris (nama | uang harian | uang transport); 28–48rem: nama di atas; HP: bertumpuk */}
+                      <div className="grid min-w-0 flex-1 grid-cols-1 items-start gap-3 @md:grid-cols-2 @3xl:grid-cols-[minmax(0,1fr)_11rem_11rem]">
+                        <Field
+                          label={`Nama orang ${i + 1}`}
+                          htmlFor={`peserta-${i}-pegawai_id`}
+                          error={errors[`peserta.${i}.pegawai_id`]}
+                          wajib
+                          className="@md:col-span-2 @3xl:col-span-1"
+                        >
+                          <PegawaiPicker
+                            id={`peserta-${i}-pegawai_id`}
+                            value={p.pegawai_id}
+                            kecuali={dipilih.filter((x) => x !== p.pegawai_id)}
+                            invalid={!!errors[`peserta.${i}.pegawai_id`]}
+                            onChange={(id) => ubahPeserta(p.kunci, { pegawai_id: id })}
+                          />
+                        </Field>
+                        <Field label="Uang harian" htmlFor={`peserta-${i}-uang_harian`} error={errors[`peserta.${i}.uang_harian`]}>
+                          <CurrencyInput
+                            id={`peserta-${i}-uang_harian`}
+                            value={p.uang_harian}
+                            invalid={!!errors[`peserta.${i}.uang_harian`]}
+                            onChange={(v) => ubahPeserta(p.kunci, { uang_harian: v })}
+                          />
+                        </Field>
+                        <Field label="Uang transport" htmlFor={`peserta-${i}-uang_transport`} error={errors[`peserta.${i}.uang_transport`]}>
+                          <CurrencyInput
+                            id={`peserta-${i}-uang_transport`}
+                            value={p.uang_transport}
+                            invalid={!!errors[`peserta.${i}.uang_transport`] || (!!errors[`peserta.${i}.uang_harian`] && !p.uang_transport)}
+                            onChange={(v) => ubahPeserta(p.kunci, { uang_transport: v })}
+                          />
+                        </Field>
+                        {(p.uang_harian ?? 0) > 0 && (p.uang_transport ?? 0) > 0 && (
+                          <p className="text-right text-xs text-fg-muted @md:col-span-2 @3xl:col-span-3">
+                            Jumlah orang {i + 1}:{' '}
+                            <span className="angka font-bold text-fg">{formatRupiah(nilaiBaris(kategori, p))}</span>
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        varian="hantu"
+                        ukuran="ikon"
+                        className="mt-6.5"
+                        disabled={s.peserta.length <= 1}
+                        onClick={() => setS((prev) => ({ ...prev, peserta: prev.peserta.filter((x) => x.kunci !== p.kunci) }))}
+                        aria-label={`Hapus orang ${i + 1}`}
+                        title="Hapus orang"
+                      >
+                        <Trash className="size-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 items-start gap-3 rounded-2xl bg-fg/[0.03] p-3 ring-1 ring-fg/[0.06] sm:grid-cols-[2rem_1fr_13rem_2.5rem] sm:p-4">
+                      <span className="hidden size-8 place-items-center rounded-full bg-navy-900 text-xs font-bold text-kuning-300 sm:mt-7 sm:grid dark:bg-kuning-400 dark:text-navy-950">
+                        {i + 1}
+                      </span>
+                      <Field label={`Nama orang ${i + 1}`} htmlFor={`peserta-${i}-pegawai_id`} error={errors[`peserta.${i}.pegawai_id`]} wajib>
+                        <PegawaiPicker
+                          id={`peserta-${i}-pegawai_id`}
+                          value={p.pegawai_id}
+                          kecuali={dipilih.filter((x) => x !== p.pegawai_id)}
+                          invalid={!!errors[`peserta.${i}.pegawai_id`]}
+                          onChange={(id) => ubahPeserta(p.kunci, { pegawai_id: id })}
+                        />
+                      </Field>
+                      <Field label="Nilai uang" htmlFor={`peserta-${i}-nilai`} error={errors[`peserta.${i}.nilai`]} wajib>
+                        <CurrencyInput
+                          id={`peserta-${i}-nilai`}
+                          value={p.nilai}
+                          invalid={!!errors[`peserta.${i}.nilai`]}
+                          onChange={(v) => ubahPeserta(p.kunci, { nilai: v })}
+                        />
+                      </Field>
+                      <Button
+                        varian="hantu"
+                        ukuran="ikon"
+                        className="sm:mt-6.5"
+                        disabled={s.peserta.length <= 1}
+                        onClick={() => setS((prev) => ({ ...prev, peserta: prev.peserta.filter((x) => x.kunci !== p.kunci) }))}
+                        aria-label={`Hapus orang ${i + 1}`}
+                        title="Hapus orang"
+                      >
+                        <Trash className="size-4" />
+                      </Button>
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -522,7 +679,7 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
               ukuran="sm"
               ikon={<Plus className="size-4" />}
               disabled={s.peserta.length >= MAX_PESERTA_TRANSPORT}
-              onClick={() => setS((prev) => ({ ...prev, peserta: [...prev.peserta, { kunci: kunciBaru(), pegawai_id: null, nilai: null }] }))}
+              onClick={() => setS((prev) => ({ ...prev, peserta: [...prev.peserta, barisKosong()] }))}
             >
               {s.peserta.length >= MAX_PESERTA_TRANSPORT ? `Maksimal ${MAX_PESERTA_TRANSPORT} orang` : 'Tambah orang'}
             </Button>
