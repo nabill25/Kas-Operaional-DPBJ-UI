@@ -7,22 +7,6 @@ import type { SessionUser } from './types';
 
 export const SESSION_COOKIE = 'kas_sid';
 
-const SCRYPT = { N: 16384, r: 8, p: 1 } as const;
-
-export function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16);
-  const hash = crypto.scryptSync(password, salt, 64, SCRYPT);
-  return `scrypt$${salt.toString('base64')}$${hash.toString('base64')}`;
-}
-
-export function verifyPassword(password: string, stored: string): boolean {
-  const [alg, saltB64, hashB64] = stored.split('$');
-  if (alg !== 'scrypt' || !saltB64 || !hashB64) return false;
-  const expected = Buffer.from(hashB64, 'base64');
-  const actual = crypto.scryptSync(password, Buffer.from(saltB64, 'base64'), expected.length, SCRYPT);
-  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
-}
-
 function sha256(v: string): string {
   return crypto.createHash('sha256').update(v).digest('hex');
 }
@@ -64,7 +48,7 @@ export async function getUserByToken(db: Db, token: string): Promise<SessionUser
     sha256(token),
     nowIso(),
   );
-  return row ? { id: row.id, username: row.username, nama: row.nama, role: row.role } : null;
+  return row ? { id: row.id, username: row.username, nama: row.nama, role: row.role as Role } : null;
 }
 
 export function readCookie(req: Request, name: string): string | null {
@@ -116,7 +100,7 @@ export function userOf(req: Request): SessionUser {
   return req.user;
 }
 
-/** Pembatas percobaan login sederhana (in-memory) per IP + username. */
+/** Pembatas percobaan login sederhana (in-memory) per IP + email. Per instance serverless, cukup sebagai rem dasar. */
 export class LoginLimiter {
   private readonly gagal = new Map<string, { jumlah: number; sejak: number; blokirSampai: number }>();
   private readonly maks: number;

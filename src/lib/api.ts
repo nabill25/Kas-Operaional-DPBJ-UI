@@ -68,45 +68,68 @@ export async function api<T>(path: string, opsi: OpsiApi = {}): Promise<T> {
   return data as T;
 }
 
-/** Unggah berkas dengan progres (XHR, karena fetch belum mendukung progres upload). */
+function pesanUnggahStorage(status: number): string {
+  if (status === 413) return 'Ukuran file melebihi batas 10 MB';
+  if (status === 400 || status === 415) return 'File ditolak penyimpanan. Pastikan tipe file didukung.';
+  return `Unggahan ke penyimpanan gagal (kode ${status || 'jaringan'})`;
+}
+
+/**
+ * Unggah berkas dengan progres. Tiga langkah:
+ * 1) server memvalidasi dan memberi URL unggah bertanda tangan;
+ * 2) browser mengirim file langsung ke Supabase Storage (tidak melewati fungsi server);
+ * 3) server memeriksa isi file lalu mencatatnya sebagai berkas.
+ */
 export function unggahBerkas(
   pengajuanId: number,
   data: { file: File; jenis: string; nama_berkas?: string },
   onProgres?: (persen: number) => void,
 ): { hasil: Promise<PengajuanDetail>; batal: () => void } {
-  const xhr = new XMLHttpRequest();
-  const hasil = new Promise<PengajuanDetail>((resolve, reject) => {
-    const form = new FormData();
-    form.append('jenis', data.jenis);
-    if (data.nama_berkas) form.append('nama_berkas', data.nama_berkas);
-    form.append('file', data.file);
+  let xhr: XMLHttpRequest | null = null;
+  let dibatalkan = false;
 
-    xhr.open('POST', `/api/pengajuan/${pengajuanId}/berkas`);
-    xhr.withCredentials = true;
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgres?.(Math.min(99, Math.round((e.loaded / e.total) * 100)));
-    };
-    xhr.onload = () => {
-      let body: unknown = null;
-      try {
-        body = xhr.responseText ? JSON.parse(xhr.responseText) : null;
-      } catch {
-        body = null;
-      }
-      if (xhr.status >= 200 && xhr.status < 300) {
-        onProgres?.(100);
-        resolve(body as PengajuanDetail);
-        return;
-      }
-      if (xhr.status === 401) saatTidakTerotorisasi?.();
-      const b = (body && typeof body === 'object' ? body : null) as Partial<ApiErrorBody> | null;
-      reject(new ApiError(xhr.status, pesanGagal(xhr.status, b), b?.errors));
-    };
-    xhr.onerror = () => reject(new ApiError(0, 'Unggahan gagal: koneksi ke server terputus'));
-    xhr.onabort = () => reject(new ApiError(0, 'Unggahan dibatalkan'));
-    xhr.send(form);
-  });
-  return { hasil, batal: () => xhr.abort() };
+  const hasil = (async () => {
+    const siap = await api<{ key: string; url: string; contentType: string }>(
+      `/pengajuan/${pengajuanId}/berkas/siapkan`,
+      {
+        body: { jenis: data.jenis, nama_berkas: data.nama_berkas, nama_asli: data.file.name, ukuran: data.file.size },
+      },
+    );
+    if (dibatalkan) throw new ApiError(0, 'Unggahan dibatalkan');
+
+    await new Promise<void>((resolve, reject) => {
+      const req = new XMLHttpRequest();
+      xhr = req;
+      req.open('PUT', siap.url);
+      req.setRequestHeader('Content-Type', siap.contentType);
+      req.setRequestHeader('x-upsert', 'false');
+      req.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgres?.(Math.min(95, Math.round((e.loaded / e.total) * 95)));
+      };
+      req.onload = () => {
+        if (req.status >= 200 && req.status < 300) resolve();
+        else reject(new ApiError(req.status, pesanUnggahStorage(req.status)));
+      };
+      req.onerror = () => reject(new ApiError(0, 'Unggahan gagal: koneksi ke penyimpanan terputus'));
+      req.onabort = () => reject(new ApiError(0, 'Unggahan dibatalkan'));
+      req.send(data.file);
+    });
+
+    onProgres?.(97);
+    const detail = await api<PengajuanDetail>(`/pengajuan/${pengajuanId}/berkas/konfirmasi`, {
+      body: { key: siap.key, jenis: data.jenis, nama_berkas: data.nama_berkas, nama_asli: data.file.name },
+    });
+    onProgres?.(100);
+    return detail;
+  })();
+
+  return {
+    hasil,
+    batal: () => {
+      dibatalkan = true;
+      xhr?.abort();
+    },
+  };
 }
 
 export function urlBerkas(id: number, unduh = false): string {

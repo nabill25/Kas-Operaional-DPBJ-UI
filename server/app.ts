@@ -1,21 +1,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { requireAuth, sessionMiddleware } from './auth';
-import type { AppConfig } from './config';
-import type { Db } from './db-pg';
-import { HttpError } from './http';
-import { authRoutes } from './routes/auth';
-import { laporanRoutes } from './routes/laporan';
-import { pegawaiRoutes } from './routes/pegawai';
-import { berkasRoutes, pengajuanRoutes } from './routes/pengajuan';
-import { usersRoutes } from './routes/users';
+import { requireAuth, sessionMiddleware } from './auth.js';
+import type { AppConfig } from './config.js';
+import type { Db } from './db-pg.js';
+import type { AuthProvider, StorageProvider } from './providers';
+import { HttpError } from './http.js';
+import { authRoutes } from './routes/auth.js';
+import { laporanRoutes } from './routes/laporan.js';
+import { pegawaiRoutes } from './routes/pegawai.js';
+import { berkasRoutes, pengajuanRoutes } from './routes/pengajuan.js';
+import { usersRoutes } from './routes/users.js';
 import './types';
 
-export function createApp({ db, cfg }: { db: Db; cfg: AppConfig }) {
+export interface Dependensi {
+  db: Db;
+  cfg: AppConfig;
+  auth: AuthProvider;
+  storage: StorageProvider;
+}
+
+export function createApp({ db, cfg, auth, storage }: Dependensi) {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', true);
 
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -26,8 +34,15 @@ export function createApp({ db, cfg }: { db: Db; cfg: AppConfig }) {
 
   app.use(express.json({ limit: '1mb' }));
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, aplikasi: 'Kas Operasional DPBJ UI', waktu: new Date().toISOString() });
+  app.get('/api/health', async (_req, res) => {
+    const waktu = new Date().toISOString();
+    try {
+      await db.get('SELECT 1 AS ok');
+      res.json({ ok: true, aplikasi: 'Kas Operasional DPBJ UI', database: 'terhubung', waktu });
+    } catch (err) {
+      console.error('[health] database tidak terhubung:', (err as Error).message);
+      res.status(503).json({ ok: false, aplikasi: 'Kas Operasional DPBJ UI', database: 'tidak terhubung', waktu });
+    }
   });
 
   app.use('/api', (_req, res, next) => {
@@ -35,18 +50,18 @@ export function createApp({ db, cfg }: { db: Db; cfg: AppConfig }) {
     next();
   });
   app.use('/api', sessionMiddleware(db));
-  app.use('/api/auth', authRoutes(db, cfg));
+  app.use('/api/auth', authRoutes(db, cfg, auth));
   app.use('/api', requireAuth);
   app.use('/api/pegawai', pegawaiRoutes(db));
-  app.use('/api/users', usersRoutes(db));
-  app.use('/api/pengajuan', pengajuanRoutes(db, cfg));
-  app.use('/api/berkas', berkasRoutes(db, cfg));
+  app.use('/api/users', usersRoutes(db, auth));
+  app.use('/api/pengajuan', pengajuanRoutes(db, storage));
+  app.use('/api/berkas', berkasRoutes(db, storage));
   app.use('/api', laporanRoutes(db));
   app.use('/api', (_req, res) => {
     res.status(404).json({ message: 'Endpoint tidak ditemukan' });
   });
 
-  // Mode produksi: sajikan hasil build frontend (dist/) + fallback SPA.
+  // Mode produksi lokal: sajikan hasil build frontend (dist/) + fallback SPA.
   const indexHtml = path.join(cfg.distDir, 'index.html');
   if (fs.existsSync(indexHtml)) {
     app.use(
@@ -79,8 +94,17 @@ export function createApp({ db, cfg }: { db: Db; cfg: AppConfig }) {
       res.status(404).json({ message: 'Tidak ditemukan' });
       return;
     }
-    if (typeof e?.message === 'string' && e.message.includes('UNIQUE constraint failed')) {
+    // Kode error PostgreSQL: 23505 unique, 23503 foreign key, 22P02 format input, 22003 di luar rentang.
+    if (e?.code === '23505') {
       res.status(409).json({ message: 'Data duplikat: nilai yang sama sudah tersimpan' });
+      return;
+    }
+    if (e?.code === '23503') {
+      res.status(409).json({ message: 'Data masih terhubung dengan data lain' });
+      return;
+    }
+    if (e?.code === '22P02' || e?.code === '22003') {
+      res.status(400).json({ message: 'Data tidak valid' });
       return;
     }
     console.error('[server] Error tak terduga:', err);

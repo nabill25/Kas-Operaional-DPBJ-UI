@@ -1,6 +1,5 @@
+// Data demo realistis untuk test rekap/dashboard (dulu server/seed.ts). Hanya dipakai test.
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
 import {
   BERKAS_WAJIB,
   JENIS_BERKAS_LABEL,
@@ -13,41 +12,18 @@ import {
   type Mekanisme,
   type Role,
   type Status,
-} from '../shared/constants';
-import { formatRupiah, formatTanggal, tanggalLokalIso } from '../shared/format';
-import { hashPassword } from './auth';
-import type { AppConfig } from './config';
-import { nowIso, type Db } from './db-pg';
+} from '../../shared/constants';
+import { formatRupiah, formatTanggal, tanggalLokalIso } from '../../shared/format';
+import type { Db } from '../../server/db-pg';
+import { catatRiwayat, kodeBerikutnya, segarkanKelengkapan } from '../../server/services/pengajuan';
 import { buatPdfContoh } from './pdf-contoh';
-import { catatRiwayat, kodeBerikutnya, segarkanKelengkapan } from './services/pengajuan';
 
 export const AKUN_DEMO: readonly { username: string; password: string; nama: string; role: Role }[] = [
-  { username: 'operator', password: 'operator123', nama: 'Operator DPBJ', role: 'operator' },
-  { username: 'pum', password: 'pum123', nama: 'Petugas PUM', role: 'pum' },
-  { username: 'pimpinan', password: 'pimpinan123', nama: 'Pimpinan DPBJ', role: 'pimpinan' },
-  { username: 'admin', password: 'admin123', nama: 'Admin Sistem', role: 'admin' },
+  { username: 'operator@dpbj.test', password: 'operator123', nama: 'Operator DPBJ', role: 'operator' },
+  { username: 'pum@dpbj.test', password: 'pum123', nama: 'Petugas PUM', role: 'pum' },
+  { username: 'pimpinan@dpbj.test', password: 'pimpinan123', nama: 'Pimpinan DPBJ', role: 'pimpinan' },
+  { username: 'admin@dpbj.test', password: 'admin123', nama: 'Admin Sistem', role: 'admin' },
 ];
-
-export async function seedJikaKosong(db: Db, cfg: AppConfig): Promise<'demo' | 'minimal' | null> {
-  const ada = (await db.get<{ c: number }>('SELECT COUNT(*)::int AS c FROM users'))?.c ?? 0;
-  if (ada > 0) return null;
-  if (cfg.seed === 'minimal') await seedMinimal(db);
-  else await seedDemo(db, cfg.uploadDir);
-  return cfg.seed;
-}
-
-export async function seedMinimal(db: Db): Promise<void> {
-  const w = nowIso();
-  await db.run(
-    'INSERT INTO users (username, nama, role, password_hash, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, true, ?, ?)',
-    'admin',
-    'Administrator',
-    'admin',
-    hashPassword('admin123'),
-    w,
-    w,
-  );
-}
 
 function mulberry32(seed: number): () => number {
   let s = seed;
@@ -118,8 +94,12 @@ interface RencanaBerkas {
   nama_berkas: string | null;
 }
 
-export async function seedDemo(db: Db, uploadDir: string, sekarang: Date = new Date()): Promise<void> {
-  try { fs.mkdirSync(uploadDir, { recursive: true }); } catch (e) {}
+/** Isi database dengan akun, pegawai, dan ±56 pengajuan di semua status. `simpanFile` menyimpan isi berkas. */
+export async function seedDemo(
+  db: Db,
+  simpanFile: (key: string, isi: Buffer) => void,
+  sekarang: Date = new Date(),
+): Promise<void> {
   const rnd = mulberry32(20261006);
   const pilih = <T>(arr: readonly T[]): T => arr[Math.floor(rnd() * arr.length)];
   const antara = (a: number, b: number) => a + Math.floor(rnd() * (b - a + 1));
@@ -143,12 +123,17 @@ export async function seedDemo(db: Db, uploadDir: string, sekarang: Date = new D
     const awal = new Date(now - 340 * 86_400_000).toISOString();
     const userId = {} as Record<Role, number>;
     for (const a of AKUN_DEMO) {
+      const akun = await txDb.get<{ id: string }>(
+        'INSERT INTO auth.users (email, encrypted_password, email_confirmed_at) VALUES (?, ?, now()) RETURNING id',
+        a.username,
+        a.password,
+      );
       const res = await txDb.run(
-        'INSERT INTO users (username, nama, role, password_hash, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, true, ?, ?)',
+        'INSERT INTO users (auth_id, username, nama, role, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, true, ?, ?) RETURNING id',
+        akun!.id,
         a.username,
         a.nama,
         a.role,
-        hashPassword(a.password),
         awal,
         awal,
       );
@@ -158,7 +143,7 @@ export async function seedDemo(db: Db, uploadDir: string, sekarang: Date = new D
     const pg: Record<string, number> = {};
     for (const [nama, nip, jabatan, aktif] of PEGAWAI_DEMO) {
       const res = await txDb.run(
-        'INSERT INTO pegawai (nama, nip, jabatan, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO pegawai (nama, nip, jabatan, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
         nama,
         nip,
         jabatan,
@@ -378,7 +363,7 @@ export async function seedDemo(db: Db, uploadDir: string, sekarang: Date = new D
            mekanisme, jenis_uang, jenis_transport, uang_siapa_id, total, catatan, berkas_na, status,
            no_invoice_mdk, tanggal_invoice_mdk, catatan_pum, project_hosting, task_name,
            created_by, updated_by, diajukan_at, diteruskan_by, diteruskan_at, diproses_by, diproses_at, created_at, updated_at, berkas_terpenuhi, berkas_wajib)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
         kode,
         x.kategori,
         nama,
@@ -428,14 +413,14 @@ export async function seedDemo(db: Db, uploadDir: string, sekarang: Date = new D
 
       const simpanBerkas = async (b: RencanaBerkas, waktu: number) => {
         const label = b.nama_berkas ?? JENIS_BERKAS_LABEL[b.jenis];
-        const namaFile = `${crypto.randomUUID()}.pdf`;
+        const namaFile = `${id}/${crypto.randomUUID()}.pdf`;
         const isi = buatPdfContoh(label, [
           `Kode pengajuan : ${kode}`,
           `Kegiatan       : ${nama}`,
           `Tanggal        : ${formatTanggal(x.tanggal)}`,
           `Nilai          : ${formatRupiah(total)}`,
         ]);
-        fs.writeFileSync(path.join(uploadDir, namaFile), isi);
+        simpanFile(namaFile, isi);
         const namaAsli = `${label.replace(/[^A-Za-z0-9]+/g, '_')}_${kode}.pdf`;
         await txDb.run(
           `INSERT INTO berkas (pengajuan_id, jenis, nama_berkas, nama_asli, nama_file, mime, ukuran, uploaded_by, created_at)

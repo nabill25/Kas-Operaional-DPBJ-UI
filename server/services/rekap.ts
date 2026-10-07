@@ -80,10 +80,10 @@ export async function rekapPegawai(db: Db, user: SessionUser, f: FilterPengajuan
     `${cteKontribusi(where)}
      SELECT g.id AS pegawai_id, g.nama, g.nip, g.jabatan,
             COUNT(DISTINCT x.pengajuan_id)::int AS jumlah,
-            SUM(CASE WHEN x.kategori = 'konsumsi' THEN x.nilai ELSE 0 END)::int AS konsumsi,
-            SUM(CASE WHEN x.kategori = 'rumah_tangga' THEN x.nilai ELSE 0 END)::int AS rumah_tangga,
-            SUM(CASE WHEN x.kategori = 'perjadin' THEN x.nilai ELSE 0 END)::int AS perjadin,
-            SUM(x.nilai)::int AS total
+            SUM(CASE WHEN x.kategori = 'konsumsi' THEN x.nilai ELSE 0 END)::bigint AS konsumsi,
+            SUM(CASE WHEN x.kategori = 'rumah_tangga' THEN x.nilai ELSE 0 END)::bigint AS rumah_tangga,
+            SUM(CASE WHEN x.kategori = 'perjadin' THEN x.nilai ELSE 0 END)::bigint AS perjadin,
+            SUM(x.nilai)::bigint AS total
        FROM x JOIN pegawai g ON g.id = x.pegawai_id
       GROUP BY g.id
       ORDER BY total DESC, g.nama ASC`,
@@ -177,7 +177,7 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
 
   const perStatus = Object.fromEntries(STATUS_LIST.map((s) => [s, kosong()])) as Record<Status, JumlahNilai>;
   const statusRows = await db.all<{ status: Status; jumlah: number; nilai: number }>(
-    `SELECT status, COUNT(*)::int AS jumlah, COALESCE(SUM(total), 0)::int AS nilai
+    `SELECT status, COUNT(*)::int AS jumlah, COALESCE(SUM(total), 0)::bigint AS nilai
        FROM pengajuan WHERE EXTRACT(YEAR FROM tanggal_kegiatan) = ? GROUP BY status`,
     tahun,
   );
@@ -219,7 +219,7 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
   const perKategoriMap = Object.fromEntries(KATEGORI_LIST.map((k) => [k, kosong()])) as Record<Kategori, JumlahNilai>;
   const bulanRows = await db.all<{ bulan: number; kategori: Kategori; jumlah: number; nilai: number }>(
     `SELECT EXTRACT(MONTH FROM tanggal_kegiatan)::int AS bulan, kategori,
-            COUNT(*)::int AS jumlah, COALESCE(SUM(total), 0)::int AS nilai
+            COUNT(*)::int AS jumlah, COALESCE(SUM(total), 0)::bigint AS nilai
        FROM pengajuan WHERE status <> 'draft' AND EXTRACT(YEAR FROM tanggal_kegiatan) = ?
       GROUP BY bulan, kategori`,
     tahun,
@@ -236,7 +236,7 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
 
   const perMekanismeMap = Object.fromEntries(MEKANISME_LIST.map((m) => [m, kosong()])) as Record<Mekanisme, JumlahNilai>;
   const mekanismeRows = await db.all<{ mekanisme: Mekanisme; jumlah: number; nilai: number }>(
-    `SELECT mekanisme, COUNT(*)::int AS jumlah, COALESCE(SUM(total), 0)::int AS nilai
+    `SELECT mekanisme, COUNT(*)::int AS jumlah, COALESCE(SUM(total), 0)::bigint AS nilai
        FROM pengajuan WHERE status <> 'draft' AND EXTRACT(YEAR FROM tanggal_kegiatan) = ? GROUP BY mekanisme`,
     tahun,
   );
@@ -249,10 +249,10 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
   const topPegawaiRows = await db.all<DashboardData['topPegawai'][number]>(
     `${cteKontribusi(where)}
      SELECT g.id AS pegawai_id, g.nama,
-            SUM(CASE WHEN x.kategori = 'konsumsi' THEN x.nilai ELSE 0 END)::int AS konsumsi,
-            SUM(CASE WHEN x.kategori = 'rumah_tangga' THEN x.nilai ELSE 0 END)::int AS rumah_tangga,
-            SUM(CASE WHEN x.kategori = 'perjadin' THEN x.nilai ELSE 0 END)::int AS perjadin,
-            SUM(x.nilai)::int AS total,
+            SUM(CASE WHEN x.kategori = 'konsumsi' THEN x.nilai ELSE 0 END)::bigint AS konsumsi,
+            SUM(CASE WHEN x.kategori = 'rumah_tangga' THEN x.nilai ELSE 0 END)::bigint AS rumah_tangga,
+            SUM(CASE WHEN x.kategori = 'perjadin' THEN x.nilai ELSE 0 END)::bigint AS perjadin,
+            SUM(x.nilai)::bigint AS total,
             COUNT(DISTINCT x.pengajuan_id)::int AS jumlah
        FROM x JOIN pegawai g ON g.id = x.pegawai_id
       GROUP BY g.id ORDER BY total DESC, g.nama ASC LIMIT 5`,

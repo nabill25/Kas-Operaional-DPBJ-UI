@@ -55,7 +55,7 @@ export function pegawaiRoutes(db: Db): Router {
     await cekNipUnik(db, data.nip);
     const waktu = nowIso();
     const { lastInsertRowid } = await db.run(
-      'INSERT INTO pegawai (nama, nip, jabatan, aktif, created_at, updated_at) VALUES (?, ?, ?, true, ?, ?)',
+      'INSERT INTO pegawai (nama, nip, jabatan, aktif, created_at, updated_at) VALUES (?, ?, ?, true, ?, ?) RETURNING id',
       data.nama,
       data.nip,
       data.jabatan,

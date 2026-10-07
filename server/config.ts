@@ -6,23 +6,20 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 
 export interface AppConfig {
   port: number;
-  dbPath: string;
-  uploadDir: string;
   distDir: string;
   cookieSecure: boolean;
   sessionDays: number;
-  seed: 'demo' | 'minimal';
+  /** Nama bucket Supabase Storage untuk berkas pengajuan (privat). */
+  storageBucket: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const dataDir = path.join(ROOT, 'data');
   return {
     port: Number(env.PORT ?? 5211),
-    dbPath: env.KAS_DB_PATH ? path.resolve(env.KAS_DB_PATH) : path.join(dataDir, 'kas-dpbj.db'),
-    uploadDir: env.KAS_UPLOAD_DIR ? path.resolve(env.KAS_UPLOAD_DIR) : (env.VERCEL ? '/tmp/uploads' : path.join(dataDir, 'uploads')),
     distDir: path.join(ROOT, 'dist'),
-    cookieSecure: env.COOKIE_SECURE === 'true',
+    // Di Vercel (HTTPS) cookie sesi selalu Secure, kecuali COOKIE_SECURE diisi eksplisit.
+    cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === 'true' : Boolean(env.VERCEL),
     sessionDays: 7,
-    seed: env.KAS_SEED === 'minimal' ? 'minimal' : 'demo',
+    storageBucket: 'berkas',
   };
 }

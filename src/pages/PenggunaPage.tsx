@@ -76,7 +76,7 @@ export default function PenggunaPage() {
                     {u.id === saya.id && <span className="rounded-md bg-kuning-400/25 px-1.5 py-0.5 text-[10px] font-bold text-kuning-900 dark:text-kuning-200">Anda</span>}
                   </p>
                   <p className="truncate text-xs text-fg-muted">
-                    @{u.username} · dibuat {formatTanggal(u.created_at, 'pendek')}
+                    {u.username} · dibuat {formatTanggal(u.created_at, 'pendek')}
                   </p>
                 </div>
                 <span className={cn('hidden rounded-full px-2.5 py-1 text-xs font-bold sm:inline-flex', GAYA_PERAN[u.role])}>
@@ -181,11 +181,13 @@ function IsiFormPengguna({
         <Field label="Nama" htmlFor="u-nama" error={errors.nama} wajib>
           <Input id="u-nama" autoFocus value={nama} invalid={!!errors.nama} onChange={(e) => setNama(e.target.value)} />
         </Field>
-        <Field label="Username" htmlFor="u-username" error={errors.username} wajib>
+        <Field label="Email (untuk login)" htmlFor="u-username" error={errors.username} wajib>
           <Input
             id="u-username"
             value={username}
+            placeholder="nama@instansi.go.id"
             autoComplete="off"
+            inputMode="email"
             invalid={!!errors.username}
             onChange={(e) => setUsername(e.target.value.toLowerCase())}
           />

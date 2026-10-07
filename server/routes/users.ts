@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { validateUser } from '../../shared/validation';
-import { deleteUserSessions, hashPassword, requireRole, userOf } from '../auth';
+import { deleteUserSessions, requireRole, userOf } from '../auth';
 import { nowIso, type Db } from '../db-pg';
 import { assertValid, badRequest, conflict, notFound, parseId } from '../http';
+import { AuthGagal, type AuthProvider, type AuthUser } from '../providers';
 import { keUser, type UserRow } from './auth';
 
-export function usersRoutes(db: Db): Router {
+export function usersRoutes(db: Db, auth: AuthProvider): Router {
   const r = Router();
   r.use(requireRole('admin'));
 
@@ -17,20 +18,42 @@ export function usersRoutes(db: Db): Router {
   r.post('/', async (req, res) => {
     const data = assertValid(validateUser(req.body, 'buat'));
     if (await db.get('SELECT id FROM users WHERE username = ?', data.username)) {
-      throw badRequest('Username sudah dipakai', { username: 'Username sudah dipakai' });
+      throw badRequest('Email sudah dipakai', { username: 'Email sudah dipakai' });
     }
+    const password = data.password ?? '';
+
+    let akun: AuthUser;
+    let akunBaru = true;
+    try {
+      akun = await auth.buat(data.username, password);
+    } catch (err) {
+      if (!(err instanceof AuthGagal && err.kode === 'email_sudah_ada')) throw err;
+      // Akun login sudah ada di Supabase (mis. dibuat manual): tautkan, dan setel password sesuai isian.
+      const ada = await auth.cariByEmail(data.username);
+      if (!ada) throw err;
+      await auth.ubahPassword(ada.id, password);
+      akun = ada;
+      akunBaru = false;
+    }
+
     const waktu = nowIso();
-    const { lastInsertRowid } = await db.run(
-      'INSERT INTO users (username, nama, role, password_hash, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      data.username,
-      data.nama,
-      data.role,
-      hashPassword(data.password ?? ''),
-      true,
-      waktu,
-      waktu,
-    );
-    res.status(201).json(keUser((await db.get<UserRow>('SELECT * FROM users WHERE id = ?', lastInsertRowid))!));
+    try {
+      const { lastInsertRowid } = await db.run(
+        'INSERT INTO users (auth_id, username, nama, role, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
+        akun.id,
+        data.username,
+        data.nama,
+        data.role,
+        data.aktif,
+        waktu,
+        waktu,
+      );
+      res.status(201).json(keUser((await db.get<UserRow>('SELECT * FROM users WHERE id = ?', lastInsertRowid))!));
+    } catch (err) {
+      // Profil gagal disimpan: batalkan akun login yang baru dibuat agar tidak menggantung.
+      if (akunBaru) await auth.hapus(akun.id).catch((e: Error) => console.error('[users] rollback akun gagal:', e.message));
+      throw err;
+    }
   });
 
   r.put('/:id', async (req, res) => {
@@ -41,13 +64,12 @@ export function usersRoutes(db: Db): Router {
     const data = assertValid(validateUser(req.body, 'ubah'));
 
     const dupe = await db.get<{ id: number }>('SELECT id FROM users WHERE username = ?', data.username);
-    if (dupe && dupe.id !== id) throw badRequest('Username sudah dipakai', { username: 'Username sudah dipakai' });
+    if (dupe && dupe.id !== id) throw badRequest('Email sudah dipakai', { username: 'Email sudah dipakai' });
 
     if (id === me.id && (data.role !== 'admin' || !data.aktif)) {
       throw conflict('Anda tidak dapat menurunkan peran atau menonaktifkan akun Anda sendiri');
     }
-    const lamaAktif = lama.aktif === true || (lama.aktif as unknown as number) === 1;
-    if (lama.role === 'admin' && lamaAktif && (data.role !== 'admin' || !data.aktif)) {
+    if (lama.role === 'admin' && lama.aktif && (data.role !== 'admin' || !data.aktif)) {
       const adminLain = (await db.get<{ c: number }>(
         `SELECT COUNT(*)::int AS c FROM users WHERE role = 'admin' AND aktif = true AND id <> ?`,
         id,
@@ -56,8 +78,19 @@ export function usersRoutes(db: Db): Router {
     }
 
     await db.tx(async (txDb) => {
+      let authId = lama.auth_id;
+      if (!authId) {
+        const ada = await auth.cariByEmail(lama.username);
+        if (!ada) {
+          throw conflict('Akun login untuk email ini belum ada. Buat akunnya di Supabase Authentication lebih dulu.');
+        }
+        authId = ada.id;
+      }
+      if (data.username !== lama.username) await auth.ubahEmail(authId, data.username);
+      if (data.password) await auth.ubahPassword(authId, data.password);
       await txDb.run(
-        'UPDATE users SET username = ?, nama = ?, role = ?, aktif = ?, updated_at = ? WHERE id = ?',
+        'UPDATE users SET auth_id = ?, username = ?, nama = ?, role = ?, aktif = ?, updated_at = ? WHERE id = ?',
+        authId,
         data.username,
         data.nama,
         data.role,
@@ -65,7 +98,6 @@ export function usersRoutes(db: Db): Router {
         nowIso(),
         id,
       );
-      if (data.password) await txDb.run('UPDATE users SET password_hash = ? WHERE id = ?', hashPassword(data.password), id);
       if (data.password || !data.aktif || data.role !== lama.role) {
         if (id !== me.id) await deleteUserSessions(txDb, id);
       }

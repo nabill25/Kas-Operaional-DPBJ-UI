@@ -23,7 +23,8 @@ if not exist "node_modules" (
 echo.
 echo  Kas Operasional DPBJ UI
 echo  Aplikasi : http://localhost:5210
-echo  Akun demo: operator / operator123  -  mdk / mdk123  -  admin / admin123
+echo  Masuk dengan email + password akun Supabase Auth (profil dibuat admin).
+echo  Butuh file .env berisi DATABASE_URL dan kunci Supabase (lihat .env.example).
 echo  Tekan Ctrl+C untuk menghentikan server.
 echo.
 

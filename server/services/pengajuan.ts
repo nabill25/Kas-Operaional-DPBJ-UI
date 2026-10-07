@@ -1,8 +1,6 @@
 // Logika inti pengajuan: query, simpan, alur status (PUM), centang berkas, riwayat, notifikasi.
 // Semua aturan bisnis mengacu ke CLAUDE.md §3–§5.
 // === ASYNC VERSION untuk Supabase/PostgreSQL ===
-import fs from 'node:fs';
-import path from 'node:path';
 import {
   BERKAS_WAJIB,
   JENIS_BERKAS_LABEL,
@@ -43,6 +41,7 @@ import {
 } from '../../shared/validation';
 import { nowIso, type Db, type SqlParam } from '../db-pg';
 import { badRequest, conflict, forbidden, notFound } from '../http';
+import type { StorageProvider } from '../providers';
 import type { SessionUser } from '../types';
 
 // ───────────────────────────── Hak akses ─────────────────────────────
@@ -535,7 +534,7 @@ export async function buatPengajuan(db: Db, user: SessionUser, data: PengajuanBe
       `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang,
          lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, uang_siapa_id, total, catatan,
          berkas_na, berkas_terpenuhi, berkas_wajib, status, created_by, updated_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
       kode,
       data.kategori,
       data.nama_kegiatan,
@@ -618,16 +617,17 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
   });
 }
 
-export async function hapusPengajuan(db: Db, user: SessionUser, id: number, uploadDir: string): Promise<void> {
+/** Hapus pengajuan beserta berkasnya di database. Mengembalikan kunci objek storage yang harus dihapus. */
+export async function hapusPengajuan(db: Db, user: SessionUser, id: number): Promise<string[]> {
   const files = await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
     pastikanBisaEdit(user, row);
     const daftar = await txDb.all<{ nama_file: string }>('SELECT nama_file FROM berkas WHERE pengajuan_id = ?', id);
-    await catatRiwayat(txDb, row, user.id, 'berkas_dihapus', `${row.nama_kegiatan} · ${formatRupiah(Number(row.total))}`);
+    await catatRiwayat(txDb, row, user.id, 'dihapus', `${row.nama_kegiatan} · ${formatRupiah(Number(row.total))}`);
     await txDb.run('DELETE FROM pengajuan WHERE id = ?', id);
     return daftar;
   });
-  for (const f of files) hapusFileAman(uploadDir, f.nama_file);
+  return files.map((f) => f.nama_file);
 }
 
 // ───────────────────────────── Alur status ─────────────────────────────
@@ -706,7 +706,7 @@ export async function cekBerkas(db: Db, user: SessionUser, id: number, data: Cek
     const waktu = nowIso();
     if (!data.status) {
       await txDb.run('DELETE FROM cek_berkas WHERE pengajuan_id = ? AND jenis = ?', id, data.jenis);
-      await catatRiwayat(txDb, row, user.id, 'berkas_dicek', label, waktu);
+      await catatRiwayat(txDb, row, user.id, 'berkas_cek_batal', label, waktu);
     } else {
       await txDb.run(
         `INSERT INTO cek_berkas (pengajuan_id, jenis, status, catatan, diperiksa_by, diperiksa_at) VALUES (?, ?, ?, ?, ?, ?)
@@ -936,7 +936,7 @@ export async function batalkanSelesai(db: Db, user: SessionUser, id: number, ala
       {
         pengajuan_id: id,
         kode: row.kode,
-        jenis: 'dikembalikan',
+        jenis: 'selesai_dibatalkan',
         judul: 'Status selesai dibatalkan PUM',
         pesan: alasan,
       },
@@ -975,7 +975,7 @@ export async function tambahBerkas(
     const waktu = nowIso();
     const { lastInsertRowid: id } = await txDb.run(
       `INSERT INTO berkas (pengajuan_id, jenis, nama_berkas, nama_asli, nama_file, mime, ukuran, uploaded_by, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       pengajuanId,
       b.jenis,
       b.nama_berkas,
@@ -1015,8 +1015,9 @@ export async function ambilBerkas(db: Db, user: SessionUser, berkasId: number): 
   return b;
 }
 
-export async function hapusBerkas(db: Db, user: SessionUser, berkasId: number, uploadDir: string): Promise<number> {
-  const { pengajuanId, namaFile } = await db.tx(async (txDb) => {
+/** Hapus satu berkas dari database. Pemanggil bertanggung jawab menghapus objek storage `namaFile`. */
+export async function hapusBerkas(db: Db, user: SessionUser, berkasId: number): Promise<{ pengajuanId: number; namaFile: string }> {
+  return db.tx(async (txDb) => {
     const b = await ambilBerkas(txDb, user, berkasId);
     const row = await pastikanBisaKelolaBerkas(txDb, user, Number(b.pengajuan_id));
     const waktu = nowIso();
@@ -1028,8 +1029,6 @@ export async function hapusBerkas(db: Db, user: SessionUser, berkasId: number, u
     await catatRiwayat(txDb, row, user.id, 'berkas_dihapus', `${label}: ${b.nama_asli}`, waktu);
     return { pengajuanId: Number(b.pengajuan_id), namaFile: b.nama_file };
   });
-  hapusFileAman(uploadDir, namaFile);
-  return pengajuanId;
 }
 
 export async function setBerkasNa(db: Db, user: SessionUser, pengajuanId: number, jenis: string, na: boolean): Promise<void> {
@@ -1061,16 +1060,16 @@ export async function setBerkasNa(db: Db, user: SessionUser, pengajuanId: number
     );
     await resetCek(txDb, pengajuanId, jenis);
     await segarkanKelengkapan(txDb, pengajuanId);
-    await catatRiwayat(txDb, row, user.id, na ? 'berkas_na' : 'berkas_na', label, waktu);
+    await catatRiwayat(txDb, row, user.id, na ? 'berkas_na' : 'berkas_na_batal', label, waktu);
   });
 }
 
-export function hapusFileAman(uploadDir: string, namaFile: string): void {
-  const base = path.basename(namaFile);
-  if (!base || base !== namaFile) return;
+/** Hapus objek di storage; kegagalan hanya dicatat karena data database sudah berubah. */
+export async function hapusObjekAman(storage: StorageProvider, keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
   try {
-    fs.rmSync(path.join(uploadDir, base), { force: true });
+    await storage.hapus(keys);
   } catch (err) {
-    console.warn(`[berkas] Gagal menghapus file ${base}:`, (err as Error).message);
+    console.warn(`[berkas] Gagal menghapus ${keys.length} objek storage:`, (err as Error).message);
   }
 }

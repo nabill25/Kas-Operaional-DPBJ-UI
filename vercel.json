@@ -1,6 +1,9 @@
 {
   "framework": "vite",
   "buildCommand": "npm run build",
+  "regions": [
+    "syd1"
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

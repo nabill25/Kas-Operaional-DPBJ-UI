@@ -10,13 +10,6 @@ import { Field, Input } from '../components/ui/Field';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../lib/api';
 
-const AKUN_DEMO = [
-  { label: 'Operator', username: 'operator', password: 'operator123' },
-  { label: 'PUM', username: 'pum', password: 'pum123' },
-  { label: 'Pimpinan', username: 'pimpinan', password: 'pimpinan123' },
-  { label: 'Admin', username: 'admin', password: 'admin123' },
-];
-
 const LANGKAH = [
   { ikon: FilePlus, judul: 'Input pengajuan', teks: 'Operator membuat draft konsumsi/transport & mengunggah berkas' },
   { ikon: Send, judul: 'Diajukan ke PUM', teks: 'PUM mencentang berkas, mengembalikan bila perlu revisi' },
@@ -41,7 +34,7 @@ export function LoginPage() {
 
   const prosesMasuk = async (u: string, p: string) => {
     const err: Record<string, string> = {};
-    if (!u.trim()) err.username = 'Username wajib diisi';
+    if (!u.trim()) err.username = 'Email wajib diisi';
     if (!p) err.password = 'Password wajib diisi';
     setErrors(err);
     setPesan('');
@@ -160,18 +153,19 @@ export function LoginPage() {
             <p className="mt-1 text-sm text-fg-muted">Gunakan akun yang diberikan administrator.</p>
 
             <form onSubmit={kirim} className="mt-7 space-y-4" noValidate>
-              <Field label="Username" htmlFor="username" error={errors.username}>
+              <Field label="Email" htmlFor="username" error={errors.username}>
                 <div className="relative">
                   <User className="pointer-events-none absolute top-1/2 z-10 left-3.5 size-4 -translate-y-1/2 text-fg-muted" />
                   <Input
                     id="username"
-                    autoComplete="username"
+                    autoComplete="email"
+                    inputMode="email"
                     autoFocus
                     value={username}
                     invalid={!!errors.username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="h-12 pl-10"
-                    placeholder="mis. operator"
+                    placeholder="nama@instansi.go.id"
                   />
                 </div>
               </Field>
@@ -217,28 +211,6 @@ export function LoginPage() {
               </Button>
             </form>
 
-            {import.meta.env.DEV && (
-              <div className="mt-7 border-t border-line pt-5">
-                <p className="text-xs font-semibold text-fg-muted">Akun demo (mode pengembangan)</p>
-                <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {AKUN_DEMO.map((a) => (
-                    <button
-                      key={a.username}
-                      type="button"
-                      disabled={memuat}
-                      onClick={() => {
-                        setUsername(a.username);
-                        setPassword(a.password);
-                        void prosesMasuk(a.username, a.password);
-                      }}
-                      className="glass rounded-xl px-2 py-2.5 text-xs font-bold text-fg transition hover:-translate-y-0.5 disabled:opacity-50"
-                    >
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
           <p className="mt-6 text-center text-xs text-fg-subtle">
             © {new Date().getFullYear()} DPBJ Universitas Indonesia · Kas Operasional

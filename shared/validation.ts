@@ -15,9 +15,9 @@ import {
   type Mekanisme,
   type Role,
   type StatusCek,
-} from './constants';
-import { lamaHari } from './format';
-import type { PesertaInput } from './types';
+} from './constants.js';
+import { lamaHari } from './format.js';
+import type { PesertaInput } from './types.js';
 
 export type FieldErrors = Record<string, string>;
 export type Hasil<T> = { ok: true; data: T } | { ok: false; errors: FieldErrors };
@@ -254,13 +254,16 @@ export interface UserBersih {
   aktif: boolean;
 }
 
+/** Email = username login (akun dikelola di Supabase Auth). */
+export const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+
 export function validateUser(raw: unknown, mode: 'buat' | 'ubah'): Hasil<UserBersih> {
   const r = objek(raw);
   const e: FieldErrors = {};
   const username = teks(r.username).toLowerCase();
-  if (!username) e.username = 'Username wajib diisi';
-  else if (!/^[a-z0-9._-]{3,32}$/.test(username))
-    e.username = 'Username 3–32 karakter: huruf kecil, angka, titik, minus, atau garis bawah';
+  if (!username) e.username = 'Email wajib diisi';
+  else if (username.length > 254 || !EMAIL_RE.test(username))
+    e.username = 'Format email tidak valid (contoh: nama@instansi.go.id)';
 
   const nama = teks(r.nama);
   if (!nama) e.nama = 'Nama wajib diisi';

@@ -119,7 +119,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             <MenuLabel>
               <p className="truncate text-sm font-bold text-fg">{user.nama}</p>
               <p className="truncate text-xs text-fg-muted">
-                @{user.username} · {ROLE_LABEL[user.role]}
+                {user.username} · {ROLE_LABEL[user.role]}
               </p>
             </MenuLabel>
             <MenuPemisah />
