@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { Router, type Request } from 'express';
-import { MAX_UPLOAD_MB, UPLOAD_DIIZINKAN, type Kategori } from '../../shared/constants';
+import { JENIS_BERKAS_LAINNYA, MAX_UPLOAD_MB, UPLOAD_DIIZINKAN } from '../../shared/constants';
 import {
   validateCatatanWajib,
   validateCekBerkas,
@@ -15,6 +15,7 @@ import { requireRole, userOf } from '../auth';
 import type { Db } from '../db-pg';
 import { HttpError, assertValid, badRequest, conflict, parseId, q } from '../http';
 import type { StorageProvider } from '../providers';
+import { ambilJenisPengajuan } from '../services/master';
 import {
   ajukan,
   ajukanMdk,
@@ -41,6 +42,7 @@ import {
   ubahPengajuan,
   verifikasi,
   type FilterPengajuan,
+  type PengajuanRow,
 } from '../services/pengajuan';
 
 const BATAS_BYTE = MAX_UPLOAD_MB * 1024 * 1024;
@@ -78,13 +80,13 @@ function kunciBerkasValid(pengajuanId: number, key: string, ext: string): boolea
 }
 
 /** Validasi jenis, nama dokumen, dan nama file. Dipakai saat menyiapkan unggahan dan saat mengonfirmasinya. */
-function bacaInputBerkas(kategori: Kategori, body: Record<string, unknown>) {
+async function bacaInputBerkas(db: Db, row: PengajuanRow, body: Record<string, unknown>) {
   const jenis = typeof body.jenis === 'string' ? body.jenis : '';
-  if (!jenisBerkasValid(kategori, jenis)) {
-    throw badRequest('Jenis berkas tidak sesuai kategori pengajuan', { jenis: 'Jenis berkas tidak valid' });
+  if (!(await jenisBerkasValid(db, row, jenis))) {
+    throw badRequest('Jenis berkas tidak termasuk berkas pengajuan ini', { jenis: 'Jenis berkas tidak valid' });
   }
   const namaBerkas = typeof body.nama_berkas === 'string' ? body.nama_berkas.trim().replace(/\s+/g, ' ') : '';
-  if (jenis === 'lainnya' && namaBerkas.length < 2) {
+  if (jenis === JENIS_BERKAS_LAINNYA && namaBerkas.length < 2) {
     throw badRequest('Beri nama dokumen lainnya', { nama_berkas: 'Nama dokumen wajib diisi (min. 2 karakter)' });
   }
   if (namaBerkas.length > 120) {
@@ -99,7 +101,7 @@ function bacaInputBerkas(kategori: Kategori, body: Record<string, unknown>) {
   }
   return {
     jenis,
-    namaBerkas: jenis === 'lainnya' ? namaBerkas : null,
+    namaBerkas: jenis === JENIS_BERKAS_LAINNYA ? namaBerkas : null,
     namaAsli,
     ext,
     mime: UPLOAD_DIIZINKAN[ext][0],
@@ -136,8 +138,9 @@ export function pengajuanRoutes(db: Db, storage: StorageProvider): Router {
 
   r.post('/', async (req, res) => {
     const user = userOf(req);
-    const data = assertValid(validatePengajuan(req.body));
-    const id = await buatPengajuan(db, user, data);
+    const jenis = await ambilJenisPengajuan(db, (req.body as Record<string, unknown> | undefined)?.kategori);
+    const data = assertValid(validatePengajuan(req.body, jenis));
+    const id = await buatPengajuan(db, user, data, jenis!);
     res.status(201).json(await getDetail(db, user, id));
   });
 
@@ -148,7 +151,8 @@ export function pengajuanRoutes(db: Db, storage: StorageProvider): Router {
   r.put('/:id', async (req, res) => {
     const user = userOf(req);
     const id = parseId(req.params.id, 'Pengajuan');
-    const data = assertValid(validatePengajuan(req.body));
+    const jenis = await ambilJenisPengajuan(db, (req.body as Record<string, unknown> | undefined)?.kategori);
+    const data = assertValid(validatePengajuan(req.body, jenis));
     await ubahPengajuan(db, user, id, data);
     res.json(await getDetail(db, user, id));
   });
@@ -259,7 +263,7 @@ export function pengajuanRoutes(db: Db, storage: StorageProvider): Router {
     const id = parseId(req.params.id, 'Pengajuan');
     const row = await pastikanBisaKelolaBerkas(db, user, id);
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const input = bacaInputBerkas(row.kategori, body);
+    const input = await bacaInputBerkas(db, row, body);
     const ukuran = typeof body.ukuran === 'number' ? body.ukuran : Number.NaN;
     if (!Number.isFinite(ukuran) || ukuran <= 0) {
       throw badRequest('Ukuran file tidak valid', { file: 'Pilih file yang valid' });
@@ -277,7 +281,7 @@ export function pengajuanRoutes(db: Db, storage: StorageProvider): Router {
     const id = parseId(req.params.id, 'Pengajuan');
     const row = await pastikanBisaKelolaBerkas(db, user, id);
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const input = bacaInputBerkas(row.kategori, body);
+    const input = await bacaInputBerkas(db, row, body);
     const key = typeof body.key === 'string' ? body.key : '';
     if (!kunciBerkasValid(id, key, input.ext)) throw badRequest('Kunci berkas tidak valid. Unggah ulang file.');
 

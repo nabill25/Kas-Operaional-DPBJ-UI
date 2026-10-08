@@ -55,10 +55,13 @@ export function pegawaiRoutes(db: Db): Router {
     await cekNipUnik(db, data.nip);
     const waktu = nowIso();
     const { lastInsertRowid } = await db.run(
-      'INSERT INTO pegawai (nama, nip, jabatan, aktif, created_at, updated_at) VALUES (?, ?, ?, true, ?, ?) RETURNING id',
+      `INSERT INTO pegawai (nama, nip, jabatan, rekening_bank, rekening_nomor, aktif, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, true, ?, ?) RETURNING id`,
       data.nama,
       data.nip,
       data.jabatan,
+      data.rekening_bank,
+      data.rekening_nomor,
       waktu,
       waktu,
     );
@@ -71,10 +74,12 @@ export function pegawaiRoutes(db: Db): Router {
     const data = assertValid(validatePegawai(req.body));
     await cekNipUnik(db, data.nip, id);
     await db.run(
-      'UPDATE pegawai SET nama = ?, nip = ?, jabatan = ?, updated_at = ? WHERE id = ?',
+      'UPDATE pegawai SET nama = ?, nip = ?, jabatan = ?, rekening_bank = ?, rekening_nomor = ?, updated_at = ? WHERE id = ?',
       data.nama,
       data.nip,
       data.jabatan,
+      data.rekening_bank,
+      data.rekening_nomor,
       nowIso(),
       id,
     );

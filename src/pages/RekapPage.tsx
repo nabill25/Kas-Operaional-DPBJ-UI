@@ -3,12 +3,14 @@ import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
-import { KATEGORI_INFO, KATEGORI_LIST, MEKANISME_LIST, ROLE_LIHAT_DRAFT, STATUS_INFO, STATUS_LIST } from '../../shared/constants';
+import { MEKANISME_LIST, ROLE_LIHAT_DRAFT, STATUS_INFO, STATUS_LIST, type Kategori } from '../../shared/constants';
+import type { Kamus } from '../../shared/konfig';
 import { formatAngka, formatRentangTanggal, formatRupiah, formatRupiahRingkas } from '../../shared/format';
-import type { RekapFilter, RekapPegawaiRow } from '../../shared/types';
+import type { RekapFilter, RekapPegawaiData, RekapPegawaiRow } from '../../shared/types';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { Avatar } from '../components/ui/Avatar';
-import { Chip, KategoriBadge, MekanismeBadge, StatusBadge, WARNA_KATEGORI } from '../components/ui/Badge';
+import { Chip, KategoriBadge, MekanismeBadge, StatusBadge } from '../components/ui/Badge';
+import { useWarnaKategori } from '../components/dashboard/palet';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Field';
 import { GlassCard } from '../components/ui/GlassCard';
@@ -17,6 +19,7 @@ import { Modal } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Segmented } from '../components/ui/Segmented';
 import { useUser } from '../context/AuthContext';
+import { useKamus } from '../context/KonfigContext';
 import { cn } from '../lib/cn';
 import { hitungPeriode, LABEL_PRESET, type PresetPeriode } from '../lib/periode';
 import { useRekapPegawai, useRekapPegawaiDetail, useRekapPengajuan } from '../lib/queries';
@@ -25,8 +28,23 @@ import type { KeteranganFilter } from '../lib/pdf/laporan';
 type Tab = 'pengajuan' | 'pegawai';
 const PRESET: PresetPeriode[] = ['bulan_ini', 'bulan_lalu', 'tahun_ini', 'tahun_lalu', 'semua', 'kustom'];
 
+/** Jenis yang tampil di rekap: jenis aktif + jenis lain yang punya data (urut master; kode tak dikenal di akhir). */
+function jenisRekap(kamus: Kamus, ada: (k: Kategori) => boolean, semuaKode: Kategori[] = []): Kategori[] {
+  return [...kamus.jenisTampil(ada).map((j) => j.kode), ...semuaKode.filter((k) => !kamus.dikenal(k) && ada(k))];
+}
+
+/** Kolom per jenis pada rekap per pegawai: semua jenis aktif (walau 0) + jenis lain yang punya nilai (urut master). */
+function jenisPegawai(kamus: Kamus, data: RekapPegawaiData): Kategori[] {
+  const total = (k: Kategori) => data.rows.reduce((s, r) => s + (r.perKategori[k] ?? 0), 0);
+  const semua = [...new Set(data.rows.flatMap((r) => Object.keys(r.perKategori)))];
+  return jenisRekap(kamus, (k) => total(k) > 0, semua);
+}
+
+const GRID_STAT: Record<number, string> = { 2: 'xl:grid-cols-2', 3: 'xl:grid-cols-3', 4: 'xl:grid-cols-4', 5: 'xl:grid-cols-5' };
+
 export default function RekapPage() {
   const user = useUser();
+  const kamus = useKamus();
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get('tab') === 'pegawai' ? 'pegawai' : 'pengajuan';
   const preset = (PRESET.includes(params.get('periode') as PresetPeriode) ? params.get('periode') : 'tahun_ini') as PresetPeriode;
@@ -57,11 +75,11 @@ export default function RekapPage() {
 
   const rincian = useMemo(() => {
     const r: string[] = [];
-    if (filter.kategori) r.push(`Kategori: ${KATEGORI_INFO[filter.kategori].label}`);
+    if (filter.kategori) r.push(`Kategori: ${kamus.jenis(filter.kategori).label}`);
     if (filter.mekanisme) r.push(`Mekanisme: ${filter.mekanisme}`);
     r.push(`Status: ${filter.status && filter.status !== 'semua' ? STATUS_INFO[filter.status].label : 'semua (selain draft)'}`);
     return r;
-  }, [filter]);
+  }, [filter, kamus]);
   const ket: KeteranganFilter = { periode: rentang.label, rincian };
 
   const qPengajuan = useRekapPengajuan(filter);
@@ -76,10 +94,10 @@ export default function RekapPage() {
       const pdf = await import('../lib/pdf/laporan');
       if (tab === 'pengajuan') {
         if (!qPengajuan.data) return;
-        pdf.pdfRekapPengajuan(qPengajuan.data, ket, user.nama);
+        pdf.pdfRekapPengajuan(qPengajuan.data, ket, user.nama, kamus);
       } else {
         if (!qPegawai.data) return;
-        pdf.pdfRekapPegawai(qPegawai.data, ket, user.nama);
+        pdf.pdfRekapPegawai(qPegawai.data, ket, user.nama, kamus);
       }
       toast.success('Laporan PDF berhasil dibuat');
     } catch (err) {
@@ -130,7 +148,7 @@ export default function RekapPage() {
               p.kode,
               p.tanggal_kegiatan,
               p.tanggal_selesai,
-              KATEGORI_INFO[p.kategori].label,
+              kamus.jenis(p.kategori).label,
               p.nama_kegiatan,
               p.lokasi_tujuan,
               p.penerima,
@@ -151,6 +169,7 @@ export default function RekapPage() {
         );
       } else if (tab === 'pegawai' && qPegawai.data) {
         const d = qPegawai.data;
+        const kode = jenisPegawai(kamus, d);
         unduhXlsx(
           {
             nama: 'Rekap Pegawai',
@@ -161,21 +180,17 @@ export default function RekapPage() {
               { header: 'NIP/NUP', lebar: 22, tipe: 'teks' },
               { header: 'Jabatan', lebar: 26, tipe: 'teks' },
               { header: 'Jumlah Pengajuan', lebar: 10, tipe: 'angka' },
-              { header: 'Konsumsi (Rp)', lebar: 15, tipe: 'angka' },
-              { header: 'Transport RT (Rp)', lebar: 16, tipe: 'angka' },
-              { header: 'Perjadin (Rp)', lebar: 15, tipe: 'angka' },
+              ...kode.map((k) => ({ header: `${kamus.jenis(k).label_pendek} (Rp)`, lebar: 16, tipe: 'angka' as const })),
               { header: 'Total (Rp)', lebar: 16, tipe: 'angka' },
             ],
-            baris: d.rows.map((r, i) => [i + 1, r.nama, r.nip, r.jabatan, r.jumlah, r.konsumsi, r.rumah_tangga, r.perjadin, r.total]),
+            baris: d.rows.map((r, i) => [i + 1, r.nama, r.nip, r.jabatan, r.jumlah, ...kode.map((k) => r.perKategori[k] ?? 0), r.total]),
             total: [
               null,
               'TOTAL',
               '',
               '',
               null,
-              d.rows.reduce((s, r) => s + r.konsumsi, 0),
-              d.rows.reduce((s, r) => s + r.rumah_tangga, 0),
-              d.rows.reduce((s, r) => s + r.perjadin, 0),
+              ...kode.map((k) => d.rows.reduce((s, r) => s + (r.perKategori[k] ?? 0), 0)),
               d.total,
             ],
           },
@@ -260,9 +275,10 @@ export default function RekapPage() {
               <span className="text-xs font-semibold text-fg-muted">Kategori</span>
               <Select className="h-10" aria-label="Filter kategori" value={filter.kategori} onChange={(e) => set('kategori', e.target.value)}>
                 <option value="">Semua kategori</option>
-                {KATEGORI_LIST.map((k) => (
-                  <option key={k} value={k}>
-                    {KATEGORI_INFO[k].label}
+                {kamus.jenisTampil(() => true).map((j) => (
+                  <option key={j.kode} value={j.kode}>
+                    {j.label}
+                    {j.aktif ? '' : ' (nonaktif)'}
                   </option>
                 ))}
               </Select>
@@ -352,21 +368,24 @@ function StatKecil({ label, nilai, sub, warna, indeks }: { label: string; nilai:
 }
 
 function RekapPengajuanView({ q, tampilDraft }: { q: ReturnType<typeof useRekapPengajuan>; tampilDraft: boolean }) {
+  const kamus = useKamus();
+  const warna = useWarnaKategori();
   if (q.isLoading) return <Skeleton className="h-96 rounded-3xl" />;
   if (!q.data) return null;
   const { rows, ringkasan: r } = q.data;
+  const kode = jenisRekap(kamus, (k) => (r.perKategori[k]?.jumlah ?? 0) > 0, Object.keys(r.perKategori));
   return (
     <div className={cn('space-y-5 transition-opacity', q.isFetching && 'opacity-60')}>
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className={cn('grid grid-cols-2 gap-3', GRID_STAT[kode.length + 1] ?? 'xl:grid-cols-4')}>
         <StatKecil indeks={0} label="Total nilai" nilai={r.nilai} sub={`${formatAngka(r.jumlah)} pengajuan`} />
-        {KATEGORI_LIST.map((k, i) => (
+        {kode.map((k, i) => (
           <StatKecil
             key={k}
             indeks={i + 1}
-            label={KATEGORI_INFO[k].labelPendek}
-            nilai={r.perKategori[k].nilai}
-            sub={`${r.perKategori[k].jumlah} pengajuan`}
-            warna={WARNA_KATEGORI[k]}
+            label={kamus.jenis(k).label_pendek}
+            nilai={r.perKategori[k]?.nilai ?? 0}
+            sub={`${r.perKategori[k]?.jumlah ?? 0} pengajuan`}
+            warna={warna(k)}
           />
         ))}
       </div>
@@ -503,22 +522,28 @@ function RekapPengajuanView({ q, tampilDraft }: { q: ReturnType<typeof useRekapP
 }
 
 function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai>; onPilih: (r: RekapPegawaiRow) => void }) {
+  const kamus = useKamus();
+  const warna = useWarnaKategori();
   if (q.isLoading) return <Skeleton className="h-96 rounded-3xl" />;
   if (!q.data) return null;
   const { rows, total } = q.data;
   const maks = Math.max(1, ...rows.map((r) => r.total));
+  const kode = jenisPegawai(kamus, q.data);
+  const totalJenis = (k: Kategori) => rows.reduce((s, r) => s + (r.perKategori[k] ?? 0), 0);
+  // Tabel lebar: kolom per jenis 130px (+ No, Pegawai, Jml, Total).
+  const lebarMin = 560 + kode.length * 130;
   return (
     <div className={cn('space-y-5 transition-opacity', q.isFetching && 'opacity-60')}>
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className={cn('grid grid-cols-2 gap-3', GRID_STAT[kode.length + 1] ?? 'xl:grid-cols-4')}>
         <StatKecil indeks={0} label="Total seluruh pegawai" nilai={total} sub={`${rows.length} pegawai`} />
-        {KATEGORI_LIST.map((k, i) => (
+        {kode.map((k, i) => (
           <StatKecil
             key={k}
             indeks={i + 1}
-            label={KATEGORI_INFO[k].labelPendek}
-            nilai={rows.reduce((s, r) => s + r[k], 0)}
-            sub={k === 'konsumsi' ? 'dari "uang siapa"' : 'dari nilai per orang'}
-            warna={WARNA_KATEGORI[k]}
+            label={kamus.jenis(k).label_pendek}
+            nilai={totalJenis(k)}
+            sub={kamus.jenis(k).model === 'konsumsi' ? 'dari "uang siapa"' : 'dari nilai per orang'}
+            warna={warna(k)}
           />
         ))}
       </div>
@@ -528,10 +553,10 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
             <Users className="size-4 text-fg-muted" /> Rekap per pegawai
           </p>
           <ul className="ml-auto flex flex-wrap gap-3" aria-label="Legenda kategori">
-            {KATEGORI_LIST.map((k) => (
+            {kode.map((k) => (
               <li key={k} className="flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
-                <span className="size-2.5 rounded-[3px]" style={{ background: WARNA_KATEGORI[k] }} aria-hidden />
-                {KATEGORI_INFO[k].labelPendek}
+                <span className="size-2.5 rounded-[3px]" style={{ background: warna(k) }} aria-hidden />
+                {kamus.jenis(k).label_pendek}
               </li>
             ))}
           </ul>
@@ -555,15 +580,15 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
                     </span>
                   </span>
                   <span className="mt-2 ml-8 flex h-1.5 gap-[2px] overflow-hidden rounded-r-[3px]" aria-hidden>
-                    {KATEGORI_LIST.filter((k) => r[k] > 0).map((k) => (
-                      <span key={k} className="h-full" style={{ width: `${(r[k] / maks) * 100}%`, background: WARNA_KATEGORI[k] }} />
+                    {kode.filter((k) => (r.perKategori[k] ?? 0) > 0).map((k) => (
+                      <span key={k} className="h-full" style={{ width: `${((r.perKategori[k] ?? 0) / maks) * 100}%`, background: warna(k) }} />
                     ))}
                   </span>
                   <span className="mt-1.5 ml-8 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-fg-muted">
-                    {KATEGORI_LIST.filter((k) => r[k] > 0).map((k) => (
+                    {kode.filter((k) => (r.perKategori[k] ?? 0) > 0).map((k) => (
                       <span key={k} className="flex items-center gap-1">
-                        <span className="size-2 rounded-[2px]" style={{ background: WARNA_KATEGORI[k] }} aria-hidden />
-                        {KATEGORI_INFO[k].labelPendek} Rp {formatRupiahRingkas(r[k])}
+                        <span className="size-2 rounded-[2px]" style={{ background: warna(k) }} aria-hidden />
+                        {kamus.jenis(k).label_pendek} Rp {formatRupiahRingkas(r.perKategori[k] ?? 0)}
                       </span>
                     ))}
                   </span>
@@ -576,14 +601,14 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
             </li>
           </ul>
           <div className="hidden overflow-x-auto xl:block">
-            <table className="w-full min-w-[860px] table-fixed text-left text-sm">
+            <table className="w-full table-fixed text-left text-sm" style={{ minWidth: lebarMin }}>
               <colgroup>
                 <col className="w-14" />
                 <col />
                 <col className="w-16" />
-                <col className="w-[120px]" />
-                <col className="w-[130px]" />
-                <col className="w-[120px]" />
+                {kode.map((k) => (
+                  <col key={k} className="w-[130px]" />
+                ))}
                 <col className="w-[150px]" />
               </colgroup>
               <thead>
@@ -591,9 +616,11 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
                   <th className="py-3 pr-2 pl-5">#</th>
                   <th className="px-3 py-3">Pegawai</th>
                   <th className="px-3 py-3 text-center">Jml</th>
-                  <th className="px-3 py-3 text-right">Konsumsi</th>
-                  <th className="px-3 py-3 text-right">Rumah Tangga</th>
-                  <th className="px-3 py-3 text-right">Perjadin</th>
+                  {kode.map((k) => (
+                    <th key={k} className="truncate px-3 py-3 text-right" title={kamus.jenis(k).label}>
+                      {kamus.jenis(k).label_pendek}
+                    </th>
+                  ))}
                   <th className="py-3 pr-5 pl-3 text-right">Total</th>
                 </tr>
               </thead>
@@ -619,15 +646,17 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
                         </span>
                       </button>
                       <div className="mt-2 ml-[2.6rem] flex h-1.5 max-w-[260px] gap-[2px] overflow-hidden rounded-r-[3px]" aria-hidden>
-                        {KATEGORI_LIST.filter((k) => r[k] > 0).map((k) => (
-                          <span key={k} className="h-full" style={{ width: `${(r[k] / maks) * 100}%`, background: WARNA_KATEGORI[k] }} />
+                        {kode.filter((k) => (r.perKategori[k] ?? 0) > 0).map((k) => (
+                          <span key={k} className="h-full" style={{ width: `${((r.perKategori[k] ?? 0) / maks) * 100}%`, background: warna(k) }} />
                         ))}
                       </div>
                     </td>
                     <td className="px-3 py-3 text-center font-semibold text-fg">{r.jumlah}</td>
-                    <td className="angka px-3 py-3 text-right text-fg-muted">{formatAngka(r.konsumsi)}</td>
-                    <td className="angka px-3 py-3 text-right text-fg-muted">{formatAngka(r.rumah_tangga)}</td>
-                    <td className="angka px-3 py-3 text-right text-fg-muted">{formatAngka(r.perjadin)}</td>
+                    {kode.map((k) => (
+                      <td key={k} className="angka px-3 py-3 text-right text-fg-muted">
+                        {formatAngka(r.perKategori[k] ?? 0)}
+                      </td>
+                    ))}
                     <td className="angka py-3 pr-5 pl-3 text-right font-extrabold text-fg">{formatRupiah(r.total)}</td>
                   </motion.tr>
                 ))}
@@ -637,9 +666,11 @@ function RekapPegawaiView({ q, onPilih }: { q: ReturnType<typeof useRekapPegawai
                   <td className="py-3 pl-5" colSpan={3}>
                     TOTAL
                   </td>
-                  <td className="angka px-3 py-3 text-right">{formatAngka(rows.reduce((s, r) => s + r.konsumsi, 0))}</td>
-                  <td className="angka px-3 py-3 text-right">{formatAngka(rows.reduce((s, r) => s + r.rumah_tangga, 0))}</td>
-                  <td className="angka px-3 py-3 text-right">{formatAngka(rows.reduce((s, r) => s + r.perjadin, 0))}</td>
+                  {kode.map((k) => (
+                    <td key={k} className="angka px-3 py-3 text-right">
+                      {formatAngka(totalJenis(k))}
+                    </td>
+                  ))}
                   <td className="angka py-3 pr-5 text-right">{formatRupiah(total)}</td>
                 </tr>
               </tfoot>
@@ -668,7 +699,13 @@ function DetailPegawaiModal({
   onOpenChange: (o: boolean) => void;
 }) {
   const { data, isLoading } = useRekapPegawaiDetail(baris.pegawai_id, filter);
+  const kamus = useKamus();
+  const warna = useWarnaKategori();
   const [sibuk, setSibuk] = useState(false);
+  // Sama dengan tabel rekap: semua jenis aktif (walau 0) + jenis lain yang punya data.
+  const kodeDetail = data
+    ? jenisRekap(kamus, (k) => data.items.some((i) => i.kategori === k), [...new Set(data.items.map((i) => i.kategori))])
+    : [];
   return (
     <Modal
       open={open}
@@ -687,7 +724,7 @@ function DetailPegawaiModal({
             setSibuk(true);
             try {
               const { pdfRekapPegawaiDetail } = await import('../lib/pdf/laporan');
-              pdfRekapPegawaiDetail(data, ket, dicetakOleh);
+              pdfRekapPegawaiDetail(data, ket, dicetakOleh, kamus);
               toast.success('PDF rekap pegawai dibuat');
             } catch {
               toast.error('Gagal membuat PDF');
@@ -713,11 +750,11 @@ function DetailPegawaiModal({
               <p className="text-[11px] font-semibold text-navy-200">Total diterima</p>
               <p className="angka mt-0.5 text-lg font-extrabold text-kuning-300">{formatRupiah(data.total)}</p>
             </div>
-            {KATEGORI_LIST.map((k) => (
+            {kodeDetail.map((k) => (
               <div key={k} className="rounded-2xl bg-fg/[0.04] p-3.5 ring-1 ring-fg/[0.06]">
                 <p className="flex items-center gap-1.5 text-[11px] font-semibold text-fg-muted">
-                  <span className="size-2 rounded-sm" style={{ background: WARNA_KATEGORI[k] }} aria-hidden />
-                  {KATEGORI_INFO[k].labelPendek}
+                  <span className="size-2 rounded-sm" style={{ background: warna(k) }} aria-hidden />
+                  {kamus.jenis(k).label_pendek}
                 </p>
                 <p className="angka mt-0.5 text-base font-bold text-fg">
                   {formatRupiah(data.items.filter((i) => i.kategori === k).reduce((s, i) => s + i.nilai, 0))}

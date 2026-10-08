@@ -1,17 +1,13 @@
-import type { Kategori } from '../../../shared/constants';
+import type { Kategori, WarnaJenis } from '../../../shared/constants';
+import { useKamus } from '../../context/KonfigContext';
 import { useTema, type Tema, type Warna } from '../../context/ThemeContext';
 
 /**
- * Warna chart per mode (nilai sama dengan token CSS di index.css).
- * Palet kategori tervalidasi skrip dataviz (CVD & normal-vision, all-pairs) — lihat CLAUDE.md §10 —
- * dan SENGAJA sama di semua tema warna agar arti warna data tidak berubah.
- * Dipakai di atribut SVG (Recharts), karena var() CSS tidak andal di atribut presentasi SVG.
+ * Warna netral chart per mode (nilai sama dengan token CSS di index.css). Dipakai di atribut SVG (Recharts),
+ * karena var() CSS tidak andal di atribut presentasi SVG.
  */
 export const PALET = {
   terang: {
-    konsumsi: '#eda100',
-    rumah_tangga: '#2a78d6',
-    perjadin: '#1baf7a',
     netral: '#6b7590',
     jalur: '#dfe4ef',
     grid: 'rgba(10, 26, 63, 0.08)',
@@ -20,9 +16,6 @@ export const PALET = {
     kursor: 'rgba(10, 26, 63, 0.05)',
   },
   gelap: {
-    konsumsi: '#c98500',
-    rumah_tangga: '#3987e5',
-    perjadin: '#199e70',
     netral: '#8a93ab',
     jalur: '#1f2b4a',
     grid: 'rgba(255, 255, 255, 0.07)',
@@ -32,9 +25,25 @@ export const PALET = {
   },
 } as const satisfies Record<Tema, Record<string, string>>;
 
+/**
+ * Warna seri jenis pengajuan (dipilih admin di master Jenis Pengajuan). Kuning/biru/hijau = palet lama Konsumsi,
+ * Rumah Tangga, Perjadin (tervalidasi skrip dataviz, lihat CLAUDE.md §10); sisanya diambil dari palet ramah buta warna
+ * (Okabe–Ito: vermilion, ungu kemerahan) + toska & abu-abu, kontras penanda ≥ 3:1 terhadap latar terang & gelap.
+ * SENGAJA sama di semua tema warna agar arti warna data tidak berubah. Teks tidak pernah memakai warna seri.
+ */
+export const WARNA_SERI: Record<WarnaJenis, Record<Tema, string>> = {
+  kuning: { terang: '#eda100', gelap: '#c98500' },
+  biru: { terang: '#2a78d6', gelap: '#3987e5' },
+  hijau: { terang: '#1baf7a', gelap: '#199e70' },
+  merah: { terang: '#c8521a', gelap: '#e0703a' },
+  ungu: { terang: '#a8558a', gelap: '#c77aa8' },
+  toska: { terang: '#0b8fa3', gelap: '#1fb3c4' },
+  abu: { terang: '#64748b', gelap: '#94a3b8' },
+};
+
 type Palet = { readonly [K in keyof (typeof PALET)['terang']]: string };
 
-/** Tema "Kuning UI": netral hangat (hitam arang) & aksen kuning resmi; warna kategori tidak berubah. */
+/** Tema "Kuning UI": netral hangat (hitam arang) & aksen kuning resmi; warna seri tidak berubah. */
 const NETRAL_UI: Record<Tema, Partial<Palet>> = {
   terang: {
     netral: '#6f6c63',
@@ -58,12 +67,20 @@ export function paletChart(tema: Tema, warna: Warna): Palet {
   return warna === 'ui' ? { ...PALET[tema], ...NETRAL_UI[tema] } : PALET[tema];
 }
 
-/** Palet chart untuk mode & tema warna yang sedang aktif. */
+/** Palet chart (warna netral) untuk mode & tema warna yang sedang aktif. */
 export function usePaletChart(): Palet {
   const { tema, warna } = useTema();
   return paletChart(tema, warna);
 }
 
-export function warnaKategori(tema: Tema, k: Kategori): string {
-  return PALET[tema][k];
+/** Warna seri satu jenis pengajuan untuk mode terang/gelap. */
+export function warnaSeri(tema: Tema, warna: WarnaJenis): string {
+  return (WARNA_SERI[warna] ?? WARNA_SERI.abu)[tema];
+}
+
+/** Warna seri per kode jenis pengajuan (mengikuti master & mode tampilan aktif). */
+export function useWarnaKategori(): (kategori: Kategori) => string {
+  const { tema } = useTema();
+  const kamus = useKamus();
+  return (k) => warnaSeri(tema, kamus.jenis(k).warna);
 }

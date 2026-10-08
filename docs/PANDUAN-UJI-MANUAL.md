@@ -157,6 +157,7 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
 | J1 | ☐ Login `admin` → **Pegawai** → **Tambah Pegawai** (isi NIP dengan spasi) | NIP disimpan tanpa spasi |
+| J1a | ☐ Ubah pegawai → isi **Rekening** bank (pilih dari saran) + nomor "0341 0100 0999 307" | Kartu pegawai menampilkan "BRI · 034101000999307"; bank tanpa nomor (atau sebaliknya) ditolak |
 | J2 | ☐ Tambah pegawai lain dengan NIP yang sama | Ditolak: "NIP/NUP sudah dipakai oleh …" |
 | J3 | ☐ Menu **⋯** pegawai yang sudah dipakai → **Hapus** | Tidak bisa (disarankan Nonaktifkan) |
 | J4 | ☐ **Nonaktifkan** pegawai → buat pengajuan baru | Pegawai nonaktif tidak muncul di pilihan; pengajuan lama tetap utuh |
@@ -176,6 +177,25 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | K4 | ☐ Daftar pengajuan: filter status (6 status), urutan, paginasi | Hasil & jumlah total menyesuaikan; tombol **Reset** mengosongkan filter |
 | K5 | ☐ Toast muncul di tengah atas (di bawah topbar) | Tidak menutupi lonceng, menu akun, maupun tombol aksi halaman |
 | K6 | ☐ (Windows) Pengaturan → Aksesibilitas → Efek visual → matikan **Efek animasi** | Animasi diminimalkan (menghormati preferensi kurangi gerak) |
+
+## L. Admin — Master Data (Jenis Pengajuan, Jenis Berkas, Project & Task, Bank)
+
+| # | Langkah | Hasil yang diharapkan |
+|---|---|---|
+| L1 | ☐ Login `operator`/`pum`/`pimpinan` → lihat menu **Master Data** | Hanya **Pegawai** (dan Pengguna untuk admin); membuka `/master/jenis-pengajuan` → "Tidak memiliki akses" |
+| L2 | ☐ Login `admin` → **Jenis Pengajuan** | 3 jenis bawaan (Konsumsi KSM, Rumah Tangga TRT, Perjadin TPD) beserta berkas wajib berurutan, model form, jumlah pengajuan |
+| L3 | ☐ **Jenis Berkas** → **Tambah Jenis Berkas** (mis. "Kuitansi", keterangan opsional) | Muncul di daftar; nama yang sama / "Dokumen Lainnya" ditolak |
+| L4 | ☐ Menu ⋯ **Notula** → Nonaktifkan / Hapus | Tidak bisa: masih wajib pada Konsumsi / jenis bawaan |
+| L5 | ☐ **Jenis Pengajuan** → **Tambah Jenis Pengajuan**: "Kontrak Borongan", singkat "Borongan", awalan **KBR**, model **Umum**, batas 3 orang, berkas wajib Laporan Pekerjaan, Presensi, Kontrak (atur urutan dengan ↑↓), kata kunci "tenaga lepas", warna & ikon | Tersimpan; kartu menampilkan KBR-YYYY-NNNN, model, maks. 3 orang, berkas wajib berurutan |
+| L6 | ☐ Coba awalan yang sudah dipakai (mis. KSM) / nama yang sama | Ditolak dengan pesan pada isian terkait |
+| L7 | ☐ Login operator → **Buat Pengajuan** | Ada kartu **Kontrak Borongan** (UMUM, maks. 3 orang, berkas wajibnya) |
+| L8 | ☐ Pilih Kontrak Borongan: isi nama, **Tanggal / mulai periode** + **Sampai (opsional)**, mekanisme, 1–3 penerima + nilai → Simpan draft | Tidak ada isian lokasi; tombol tambah orang berhenti di 3; kode **KBR-YYYY-0001**; tabel berkas berisi 3 berkas wajib tadi; total = jumlah nilai |
+| L9 | ☐ Admin ubah berkas wajib Kontrak Borongan (tambah "Kuitansi") | Toast "1 pengajuan Draft/Dikembalikan ikut …"; draft tadi menampilkan Kuitansi + riwayat "Berkas wajib mengikuti master"; pengajuan yang sudah diajukan ke PUM tidak berubah |
+| L10 | ☐ PUM memproses pengajuan Kontrak Borongan sampai **Selesai (Paid)** | Alur sama dengan jenis lain; muncul di dashboard (warna sendiri), rekap per pengajuan & per pegawai, filter kategori (dropdown), PDF/Excel |
+| L11 | ☐ Nonaktifkan Kontrak Borongan | Hilang dari Buat Pengajuan; pengajuan lama tetap bisa dibuka & diproses; awalan kode terkunci bila sudah dipakai |
+| L12 | ☐ **Project & Task** → tab **Task Name** → tambah task (kode tanpa "_"); tab **Project Costing** → tambah project + centang task | Muncul di kotak cari PUM (Verifikasi / Ubah project costing); task terisi otomatis bila satu-satunya yang cocok kata kunci jenis |
+| L13 | ☐ **Bank** → tambah "Bank Nagari", lalu nonaktifkan | Muncul / hilang dari saran isian Bank pada form Konsumsi & Pegawai; rekening yang sudah tersimpan tidak berubah |
+| L14 | ☐ Operator → Konsumsi → pilih "uang siapa" pegawai yang punya rekening | Bank & No. Rekening terisi otomatis ("diisi otomatis dari data pegawai"); ganti pegawai → ikut berganti; isian yang diubah manual tidak ditimpa |
 
 ---
 

@@ -18,18 +18,31 @@ import {
   STATUS_LIST,
   isBankMandiri,
 } from '../../shared/constants';
-import { hitungKelengkapan, parseBerkasNa } from '../../shared/kelengkapan';
-import { DAFTAR_PROJECT, DAFTAR_PROJECT_TASK, DAFTAR_TASK, cariProject, taskOtomatis, taskSesuaiKategori } from '../../shared/project-task';
+import { hitungKelengkapan, parseBerkasDaftar, parseBerkasNa } from '../../shared/kelengkapan';
+import { buatKamus, kodeDariLabel, maksPeserta } from '../../shared/konfig';
+import { cariProject, cocokKataKunci, susunProjectTask, taskOtomatis } from '../../shared/project-task';
 import {
   isTanggalValid,
+  validateBank,
   validateCekBerkas,
   validateDataPum,
   validateInvoice,
+  validateJenisBerkas,
+  validateJenisPengajuan,
   validatePegawai,
-  validatePengajuan,
+  validatePengajuan as validatePengajuanJenis,
+  validateProject,
+  validateTask,
   validateUser,
   validateVerifikasi,
 } from '../../shared/validation';
+import { JENIS_BORONGAN_UJI, KONFIG_UJI, KONFIG_UJI_BORONGAN, jenisUji, masterProjectTaskUji } from '../support/konfig-uji';
+
+/** Validasi pengajuan dengan jenis dari master uji (kategori tak dikenal → undefined). */
+const validatePengajuan = (raw: Record<string, unknown>) => validatePengajuanJenis(raw, jenisUji(String(raw.kategori)));
+const kamus = buatKamus(KONFIG_UJI);
+const label = (k: string) => kamus.labelBerkas(k);
+const wajib = (kategori: string) => kamus.jenis(kategori).berkas;
 
 describe('format', () => {
   it('angka & rupiah', () => {
@@ -264,38 +277,165 @@ describe('validasi', () => {
     expect(h.errors.tanggal_selesai).toContain('366');
   });
 
-  it('master project costing & task name dari Kasubdit', () => {
-    expect(DAFTAR_PROJECT_TASK).toHaveLength(38);
-    expect(DAFTAR_PROJECT).toHaveLength(15);
-    expect(DAFTAR_TASK).toHaveLength(18);
-    expect(DAFTAR_PROJECT_TASK[0]).toEqual({
-      project: 'D0030.07.01.6.001:Sosialisasi Revisi PRPBJ dan E-Proc',
-      projectKode: 'D0030.07.01.6.001',
-      projectNama: 'Sosialisasi Revisi PRPBJ dan E-Proc',
-      task: '723207_Beban Konsumsi',
-      taskKode: '723207',
-      taskNama: 'Beban Konsumsi',
-    });
+  it('master project costing & task name (dari database) disusun & dicari', () => {
+    const daftar = susunProjectTask(masterProjectTaskUji());
+    expect(daftar.project).toHaveLength(15);
+    expect(daftar.task).toHaveLength(18);
+    expect(daftar.project[0]).toMatchObject({ project: 'D0030.06.01.6.001:Penguatan Manajemen Kontrak', kode: 'D0030.06.01.6.001' });
+    expect(daftar.task[0]).toEqual({ task: '721702_Honor Moderator/Pembicara/Fasilitator', kode: '721702', nama: 'Honor Moderator/Pembicara/Fasilitator' });
     // Nama project boleh berisi "&" dan koma
-    expect(cariProject('D0030.10.01.6.005:Undangan, penugasan, koordinasi kelembagaan & temuan')?.tasks.map((t) => t.taskKode)).toEqual([
+    expect(cariProject(daftar, 'D0030.10.01.6.005:Undangan, penugasan, koordinasi kelembagaan & temuan')?.tasks.map((t) => t.kode)).toEqual([
       '723216',
     ]);
-    // Task terisi otomatis hanya bila tepat satu task sesuai kategori
+    // Task terisi otomatis hanya bila tepat satu task cocok dengan kata kunci jenis pengajuan
     const koordinasi = 'D0030.09.01.6.002:Koordinasi Tata Kelola Pengadaan';
-    expect(taskOtomatis('konsumsi', koordinasi)).toBe('723207_Beban Konsumsi');
-    expect(taskOtomatis('rumah_tangga', koordinasi)).toBe('723216_Beban Transportasi Rumah Tangga');
-    expect(taskOtomatis('perjadin', koordinasi)).toBeNull();
-    expect(taskOtomatis('konsumsi', 'D0030.06.01.6.001:Penguatan Manajemen Kontrak')).toBeNull();
-    expect(taskOtomatis('konsumsi', 'Project lain')).toBeNull();
-    expect(taskSesuaiKategori('perjadin', 'Beban Tiket - Perjadin Luar Negeri')).toBe(true);
-    expect(taskSesuaiKategori('konsumsi', 'Beban Transportasi Rumah Tangga')).toBe(false);
+    expect(taskOtomatis(daftar, 'konsumsi', koordinasi)).toBe('723207_Beban Konsumsi');
+    expect(taskOtomatis(daftar, 'transportasi rumah tangga', koordinasi)).toBe('723216_Beban Transportasi Rumah Tangga');
+    expect(taskOtomatis(daftar, 'perjadin', koordinasi)).toBeNull();
+    expect(taskOtomatis(daftar, 'konsumsi', 'D0030.06.01.6.001:Penguatan Manajemen Kontrak')).toBeNull();
+    expect(taskOtomatis(daftar, 'konsumsi', 'Project lain')).toBeNull();
+    expect(taskOtomatis(daftar, null, koordinasi)).toBeNull();
+    // Kata kunci: tanpa membedakan huruf besar/kecil, beberapa dipisah koma
+    expect(cocokKataKunci('perjadin', 'Beban Tiket - Perjadin Luar Negeri')).toBe(true);
+    expect(cocokKataKunci('konsumsi', 'Beban Transportasi Rumah Tangga')).toBe(false);
+    expect(cocokKataKunci(' honor narasumber , TENAGA LEPAS', 'Honor Tenaga Lepas')).toBe(true);
+    expect(cocokKataKunci(' , ', 'Honor Tenaga Lepas')).toBe(false);
+    // Task/project nonaktif tidak ditawarkan
+    const m = masterProjectTaskUji();
+    m.task[0].aktif = false;
+    m.project[0].aktif = false;
+    const tanpa = susunProjectTask(m);
+    expect(tanpa.project).toHaveLength(14);
+    expect(tanpa.task.some((t) => t.kode === m.task[0].kode)).toBe(false);
+  });
+
+  it('jenis pengajuan model Umum: tanpa lokasi, periode opsional, batas orang dari master', () => {
+    const dasar = {
+      kategori: 'kontrak_borongan',
+      nama_kegiatan: 'Honor Borongan',
+      tanggal_kegiatan: '2026-09-01',
+      mekanisme: 'LS',
+      lokasi_tujuan: 'diabaikan',
+      jenis_transport: 'luar_kota',
+      peserta: [{ pegawai_id: 1, nilai: '1500000', uang_harian: 9 }],
+    };
+    expect(validatePengajuan(dasar)).toMatchObject({
+      ok: true,
+      data: { lokasi_tujuan: null, tanggal_selesai: null, jenis_transport: null, total: 1_500_000, peserta: [{ pegawai_id: 1, nilai: 1_500_000, uang_harian: null }] },
+    });
+    expect(validatePengajuan({ ...dasar, tanggal_selesai: '2026-09-30' })).toMatchObject({ ok: true, data: { tanggal_selesai: '2026-09-30' } });
+    expect(validatePengajuan({ ...dasar, tanggal_selesai: '2026-08-01' })).toMatchObject({
+      ok: false,
+      errors: { tanggal_selesai: 'Tanggal selesai tidak boleh sebelum tanggal mulai' },
+    });
+    expect(validatePengajuan({ ...dasar, tanggal_kegiatan: '' })).toMatchObject({ ok: false, errors: { tanggal_kegiatan: 'Tanggal wajib diisi' } });
+    const empat = [1, 2, 3, 4].map((id) => ({ pegawai_id: id, nilai: 1 }));
+    expect(validatePengajuan({ ...dasar, peserta: empat })).toMatchObject({ ok: false, errors: { peserta: 'Maksimal 3 orang per pengajuan' } });
+    expect(maksPeserta(JENIS_BORONGAN_UJI)).toBe(3);
+    expect(maksPeserta(KONFIG_UJI.jenisPengajuan[0])).toBe(0);
+    // Kategori tak dikenal / jenis tidak cocok
+    expect(validatePengajuan({ ...dasar, kategori: 'tidak_ada' })).toEqual({ ok: false, errors: { kategori: 'Jenis pengajuan tidak valid' } });
+    expect(validatePengajuanJenis({ ...dasar, kategori: 'konsumsi' }, JENIS_BORONGAN_UJI)).toEqual({
+      ok: false,
+      errors: { kategori: 'Jenis pengajuan tidak valid' },
+    });
+  });
+
+  it('kamus master: label, jenis cadangan, jenis yang ditampilkan', () => {
+    const k = buatKamus({
+      ...KONFIG_UJI_BORONGAN,
+      jenisPengajuan: KONFIG_UJI_BORONGAN.jenisPengajuan.map((j) => (j.kode === 'perjadin' ? { ...j, aktif: false } : j)),
+    });
+    expect(k.labelBerkas('notulen')).toBe('Notula');
+    expect(k.labelBerkas('lainnya')).toBe('Dokumen Lainnya');
+    expect(k.labelBerkas('kode_lama')).toBe('kode_lama');
+    expect(k.jenis('tidak_ada')).toMatchObject({ kode: 'tidak_ada', label: 'tidak_ada', model: 'umum', warna: 'abu', berkas: [] });
+    expect(k.dikenal('tidak_ada')).toBe(false);
+    expect(k.grup('perjadin')).toBe('Transport');
+    expect(k.grup('kontrak_borongan')).toBe('Umum');
+    expect(k.jenisTampil().map((j) => j.kode)).toEqual(['konsumsi', 'rumah_tangga', 'kontrak_borongan']);
+    expect(k.jenisTampil((kode) => kode === 'perjadin').map((j) => j.kode)).toEqual(['konsumsi', 'rumah_tangga', 'perjadin', 'kontrak_borongan']);
+  });
+
+  it('kode master dari nama', () => {
+    expect(kodeDariLabel('Kontrak Borongan')).toBe('kontrak_borongan');
+    expect(kodeDariLabel('  Honor (Narasumber) & Moderator ')).toBe('honor_narasumber_moderator');
+    expect(kodeDariLabel('Kontrak Borongan', ['kontrak_borongan', 'kontrak_borongan_2'])).toBe('kontrak_borongan_3');
+    expect(kodeDariLabel('123 Arsip')).toBe('arsip');
+    expect(kodeDariLabel('Lainnya')).toBe('lainnya_2');
+    expect(kodeDariLabel('Ç')).toBe('c_x');
+    expect(kodeDariLabel('!!!')).toBe('jenis');
+    expect(kodeDariLabel('x'.repeat(80))).toMatch(/^x{36}$/);
+  });
+
+  it('validasi master data', () => {
+    const jp = {
+      label: ' Kontrak  Borongan ',
+      prefix: 'kbr',
+      model: 'umum',
+      maks_peserta: '5',
+      warna: 'ungu',
+      ikon: 'hard-hat',
+      berkas: ['presensi', 'kontrak'],
+    };
+    expect(validateJenisPengajuan(jp)).toEqual({
+      ok: true,
+      data: {
+        label: 'Kontrak Borongan',
+        label_pendek: 'Kontrak Borongan',
+        prefix: 'KBR',
+        deskripsi: null,
+        model: 'umum',
+        maks_peserta: 5,
+        kata_kunci_task: null,
+        warna: 'ungu',
+        ikon: 'hard-hat',
+        aktif: true,
+        berkas: ['presensi', 'kontrak'],
+      },
+    });
+    expect(validateJenisPengajuan({ ...jp, model: 'perjadin' }, 'konsumsi')).toMatchObject({ ok: true, data: { model: 'konsumsi', maks_peserta: null } });
+    expect(validateJenisPengajuan({ ...jp, label: 'Nama Jenis Pengajuan Yang Sangat Panjang' })).toMatchObject({
+      ok: false,
+      errors: { label_pendek: expect.any(String) },
+    });
+    expect(validateJenisPengajuan({ ...jp, berkas: ['presensi', 'presensi'] })).toMatchObject({ ok: false, errors: { berkas: expect.stringContaining('dua kali') } });
+    expect(validateJenisPengajuan({ ...jp, prefix: 'KB1', aktif: 'ya' })).toMatchObject({
+      ok: false,
+      errors: { prefix: expect.any(String), aktif: expect.any(String) },
+    });
+    expect(validateJenisPengajuan({ ...jp, maks_peserta: 51 })).toMatchObject({ ok: false, errors: { maks_peserta: 'Batas jumlah orang 1–50' } });
+
+    expect(validateJenisBerkas({ label: ' Presensi  Bulanan ', keterangan: '' })).toEqual({
+      ok: true,
+      data: { label: 'Presensi Bulanan', keterangan: null, aktif: true },
+    });
+    expect(validateJenisBerkas({ label: 'dokumen lainnya' })).toMatchObject({ ok: false });
+    expect(validateBank({ nama: ' Bank  Jago ', aktif: false })).toEqual({ ok: true, data: { nama: 'Bank Jago', aktif: false } });
+    expect(validateBank({ nama: 'B' })).toMatchObject({ ok: false });
+
+    expect(validateProject({ kode: ' D0030.07.01.6.001 ', nama: 'Sosialisasi', task_ids: ['3', 3, 4] })).toEqual({
+      ok: true,
+      data: { kode: 'D0030.07.01.6.001', nama: 'Sosialisasi', aktif: true, task_ids: [3, 4] },
+    });
+    expect(validateProject({ kode: 'D1:2', nama: 'X Y' })).toMatchObject({ ok: false, errors: { kode: expect.any(String) } });
+    expect(validateProject({ kode: 'D1', nama: 'Proyek', task_ids: [0] })).toMatchObject({ ok: false, errors: { task_ids: expect.any(String) } });
+    expect(validateTask({ kode: '723207', nama: 'Beban Konsumsi' })).toEqual({ ok: true, data: { kode: '723207', nama: 'Beban Konsumsi', aktif: true } });
+    expect(validateTask({ kode: '7232_07', nama: 'Beban' })).toMatchObject({ ok: false, errors: { kode: expect.any(String) } });
+    expect(validateTask({ kode: '1', nama: 'x'.repeat(120) })).toMatchObject({ ok: true });
+    expect(validateTask({ kode: 'x'.repeat(30), nama: 'y'.repeat(120) })).toMatchObject({ ok: false, errors: { nama: expect.stringContaining('150') } });
   });
 
   it('pegawai, user, invoice', () => {
     expect(validatePegawai({ nama: 'Budi', nip: '19870101 201001 1 001' })).toMatchObject({
       ok: true,
-      data: { nip: '198701012010011001' },
+      data: { nip: '198701012010011001', rekening_bank: null, rekening_nomor: null },
     });
+    expect(validatePegawai({ nama: 'Budi', rekening_bank: ' BNI ', rekening_nomor: '0123.456-789' })).toMatchObject({
+      ok: true,
+      data: { rekening_bank: 'BNI', rekening_nomor: '0123456789' },
+    });
+    expect(validatePegawai({ nama: 'Budi', rekening_nomor: '0123456789' })).toEqual({ ok: false, errors: { rekening_bank: 'Isi nama bank' } });
     // Username = email login (Supabase Auth)
     expect(validateUser({ username: 'ab', nama: 'X', role: 'admin' }, 'ubah').ok).toBe(false);
     expect(validateUser({ username: 'budi.s', nama: 'Budi', role: 'pum' }, 'ubah').ok).toBe(false);
@@ -360,10 +500,12 @@ describe('validasi PUM', () => {
 describe('kelengkapan', () => {
   it('menghitung terpenuhi dari file & N/A', () => {
     const k = hitungKelengkapan(
-      'perjadin',
+      wajib('perjadin'),
+      label,
       [{ jenis: 'surat_tugas' }, { jenis: 'surat_tugas' }, { jenis: 'lainnya' }],
       ['invoice_hotel', 'surat_tugas'],
     );
+    expect(k.items.map((i) => i.label)).toEqual(['Surat Tugas', 'Laporan Kegiatan', 'Invoice Hotel', 'Invoice Tiket']);
     expect(k.total).toBe(4);
     expect(k.terpenuhi).toBe(2);
     expect(k.persen).toBe(50);
@@ -376,7 +518,8 @@ describe('kelengkapan', () => {
   it('menghitung hasil centang PUM', () => {
     const cekDasar = { catatan: null, diperiksa_by: 1, diperiksa_by_nama: 'PUM', diperiksa_at: '2026-10-06T00:00:00Z' };
     const k = hitungKelengkapan(
-      'rumah_tangga',
+      wajib('rumah_tangga'),
+      label,
       [{ jenis: 'surat_tugas' }, { jenis: 'laporan_kegiatan' }],
       [],
       [
@@ -386,12 +529,14 @@ describe('kelengkapan', () => {
     );
     expect(k).toMatchObject({ sesuai: 1, revisi: 1, semuaSesuai: false, lengkap: true });
     expect(k.items[1].cek).toMatchObject({ status: 'revisi', catatan: 'Tanda tangan kurang' });
-    const semua = hitungKelengkapan('rumah_tangga', [], ['surat_tugas', 'laporan_kegiatan'], [
+    const semua = hitungKelengkapan(wajib('rumah_tangga'), label, [], ['surat_tugas', 'laporan_kegiatan'], [
       { ...cekDasar, jenis: 'surat_tugas', status: 'sesuai' },
       { ...cekDasar, jenis: 'laporan_kegiatan', status: 'sesuai' },
     ]);
     expect(semua).toMatchObject({ sesuai: 2, semuaSesuai: true, lengkap: true });
-    expect(hitungKelengkapan('konsumsi', [], [])).toMatchObject({ sesuai: 0, revisi: 0, semuaSesuai: false });
+    expect(hitungKelengkapan(wajib('konsumsi'), label, [], [])).toMatchObject({ sesuai: 0, revisi: 0, semuaSesuai: false });
+    // Jenis tanpa berkas wajib: lengkap & boleh diverifikasi tanpa centang.
+    expect(hitungKelengkapan([], label, [{ jenis: 'lainnya' }], [])).toMatchObject({ total: 0, persen: 100, lengkap: true, semuaSesuai: true });
   });
 
   it('parse JSON N/A dengan aman', () => {
@@ -399,5 +544,10 @@ describe('kelengkapan', () => {
     expect(parseBerkasNa('rusak')).toEqual([]);
     expect(parseBerkasNa(null)).toEqual([]);
     expect(parseBerkasNa('{"a":1}')).toEqual([]);
+    // Daftar berkas wajib per pengajuan: null = belum tercatat (ikut master)
+    expect(parseBerkasDaftar('["notulen","undangan"]')).toEqual(['notulen', 'undangan']);
+    expect(parseBerkasDaftar('[]')).toEqual([]);
+    expect(parseBerkasDaftar(null)).toBeNull();
+    expect(parseBerkasDaftar('rusak')).toBeNull();
   });
 });

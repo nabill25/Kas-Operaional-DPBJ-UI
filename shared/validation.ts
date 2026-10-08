@@ -1,24 +1,33 @@
 // Validasi input — dipakai server (otoritatif) dan client (umpan balik instan).
 // Pesan error berbahasa Indonesia; key error = nama field (peserta: "peserta.<i>.<field>").
 import {
+  IKON_JENIS_LIST,
+  JENIS_BERKAS_LAINNYA,
   JENIS_TRANSPORT_LIST,
   JENIS_KONSUMSI_LIST,
-  KATEGORI_LIST,
+  LABEL_BERKAS_LAINNYA,
+  MAKS_PESERTA_BATAS,
   MAX_NILAI,
-  MAX_PESERTA_TRANSPORT,
   MEKANISME_LIST,
+  MODEL_FORM_LIST,
   ROLE_LIST,
   STATUS_CEK_LIST,
+  WARNA_JENIS_PILIHAN,
+  modelPeserta,
+  type IkonJenis,
   type JenisTransport,
   type JenisKonsumsi,
   type JenisUang,
   type Kategori,
   type Mekanisme,
+  type ModelForm,
   type Role,
   type StatusCek,
+  type WarnaJenis,
 } from './constants.js';
 import { lamaHari } from './format.js';
-import type { PesertaInput } from './types.js';
+import { maksPeserta } from './konfig.js';
+import type { JenisPengajuan, PesertaInput } from './types.js';
 
 export type FieldErrors = Record<string, string>;
 export type Hasil<T> = { ok: true; data: T } | { ok: false; errors: FieldErrors };
@@ -85,14 +94,43 @@ function termasuk<T extends string>(daftar: readonly T[], v: unknown): v is T {
   return typeof v === 'string' && (daftar as readonly string[]).includes(v);
 }
 
-export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
+/** Rekening (bank + nomor): opsional, tetapi harus diisi berpasangan. Spasi/titik/strip pada nomor dibuang. */
+function validasiRekening(
+  bankRaw: unknown,
+  nomorRaw: unknown,
+  e: FieldErrors,
+  kunci: { bank: string; nomor: string } = { bank: 'rekening_bank', nomor: 'rekening_nomor' },
+): { bank: string | null; nomor: string | null } {
+  const bank = teks(bankRaw);
+  const nomor = teks(nomorRaw).replace(/[\s.-]/g, '');
+  if (!bank && !nomor) return { bank: null, nomor: null };
+  let hasilBank: string | null = null;
+  let hasilNomor: string | null = null;
+  if (!bank) e[kunci.bank] = 'Isi nama bank';
+  else if (bank.length < 2) e[kunci.bank] = 'Nama bank minimal 2 karakter';
+  else if (bank.length > 60) e[kunci.bank] = 'Nama bank maksimal 60 karakter';
+  else hasilBank = bank;
+
+  if (!nomor) e[kunci.nomor] = 'Isi nomor rekening';
+  else if (!/^\d+$/.test(nomor)) e[kunci.nomor] = 'Nomor rekening hanya boleh berisi angka';
+  else if (nomor.length < 5 || nomor.length > 30) e[kunci.nomor] = 'Nomor rekening harus 5–30 digit';
+  else hasilNomor = nomor;
+  return { bank: hasilBank, nomor: hasilNomor };
+}
+
+/**
+ * Validasi pengajuan sesuai model form jenis pengajuannya (master Jenis Pengajuan).
+ * `jenis` = info jenis pengajuan untuk `kategori` yang dikirim (undefined → kategori tidak dikenal).
+ */
+export function validatePengajuan(raw: unknown, jenis: JenisPengajuan | undefined | null): Hasil<PengajuanBersih> {
   const r = objek(raw);
   const e: FieldErrors = {};
 
-  if (!termasuk(KATEGORI_LIST, r.kategori)) {
-    return { ok: false, errors: { kategori: 'Kategori tidak valid' } };
+  if (typeof r.kategori !== 'string' || !jenis || jenis.kode !== r.kategori) {
+    return { ok: false, errors: { kategori: 'Jenis pengajuan tidak valid' } };
   }
-  const kategori = r.kategori;
+  const kategori = jenis.kode;
+  const model = jenis.model;
 
   const nama_kegiatan = teks(r.nama_kegiatan);
   if (!nama_kegiatan) e.nama_kegiatan = 'Nama kegiatan wajib diisi';
@@ -102,7 +140,7 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
   const tanggal_kegiatan = r.tanggal_kegiatan;
   if (tanggal_kegiatan === undefined || tanggal_kegiatan === null || tanggal_kegiatan === '') {
     e.tanggal_kegiatan =
-      kategori === 'perjadin' ? 'Tanggal mulai (dari) wajib diisi' : 'Tanggal kegiatan wajib diisi';
+      model === 'perjadin' ? 'Tanggal mulai (dari) wajib diisi' : model === 'umum' ? 'Tanggal wajib diisi' : 'Tanggal kegiatan wajib diisi';
   } else if (!isTanggalValid(tanggal_kegiatan)) {
     e.tanggal_kegiatan = 'Tanggal tidak valid';
   }
@@ -125,7 +163,7 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
   let jenis_konsumsi: JenisKonsumsi | null = null;
   const peserta: PesertaInput[] = [];
 
-  if (kategori === 'konsumsi') {
+  if (model === 'konsumsi') {
     if (!termasuk(JENIS_KONSUMSI_LIST, r.jenis_konsumsi)) e.jenis_konsumsi = 'Pilih jenis konsumsi';
     else jenis_konsumsi = r.jenis_konsumsi;
 
@@ -146,34 +184,27 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
     else uang_siapa_id = us;
 
     // Rekening pemilik uang: opsional, tetapi bank & nomor harus diisi berpasangan.
-    const bank = teks(r.rekening_bank);
-    const nomor = teks(r.rekening_nomor).replace(/[\s.-]/g, '');
-    if (bank || nomor) {
-      if (!bank) e.rekening_bank = 'Isi nama bank';
-      else if (bank.length < 2) e.rekening_bank = 'Nama bank minimal 2 karakter';
-      else if (bank.length > 60) e.rekening_bank = 'Nama bank maksimal 60 karakter';
-      else rekening_bank = bank;
-
-      if (!nomor) e.rekening_nomor = 'Isi nomor rekening';
-      else if (!/^\d+$/.test(nomor)) e.rekening_nomor = 'Nomor rekening hanya boleh berisi angka';
-      else if (nomor.length < 5 || nomor.length > 30) e.rekening_nomor = 'Nomor rekening harus 5–30 digit';
-      else rekening_nomor = nomor;
-    }
+    const rek = validasiRekening(r.rekening_bank, r.rekening_nomor, e);
+    rekening_bank = rek.bank;
+    rekening_nomor = rek.nomor;
   } else {
-    const lok = teks(r.lokasi_tujuan);
-    if (!lok) e.lokasi_tujuan = 'Lokasi tujuan wajib diisi';
-    else if (lok.length < 2) e.lokasi_tujuan = 'Lokasi tujuan minimal 2 karakter';
-    else if (lok.length > 200) e.lokasi_tujuan = 'Lokasi tujuan maksimal 200 karakter';
-    else lokasi_tujuan = lok;
+    if (model === 'rumah_tangga' || model === 'perjadin') {
+      const lok = teks(r.lokasi_tujuan);
+      if (!lok) e.lokasi_tujuan = 'Lokasi tujuan wajib diisi';
+      else if (lok.length < 2) e.lokasi_tujuan = 'Lokasi tujuan minimal 2 karakter';
+      else if (lok.length > 200) e.lokasi_tujuan = 'Lokasi tujuan maksimal 200 karakter';
+      else lokasi_tujuan = lok;
+    }
 
+    const maks = maksPeserta(jenis);
     const daftar = Array.isArray(r.peserta) ? r.peserta : [];
     if (daftar.length === 0) {
       e.peserta = 'Tambahkan minimal 1 orang';
-    } else if (daftar.length > MAX_PESERTA_TRANSPORT) {
-      e.peserta = `Maksimal ${MAX_PESERTA_TRANSPORT} orang per pengajuan`;
+    } else if (daftar.length > maks) {
+      e.peserta = `Maksimal ${maks} orang per pengajuan`;
     } else {
       const sudah = new Set<number>();
-      const perjadin = kategori === 'perjadin';
+      const perjadin = model === 'perjadin';
       daftar.forEach((item, i) => {
         const o = objek(item);
         const pid = keInteger(o.pegawai_id);
@@ -235,20 +266,24 @@ export function validatePengajuan(raw: unknown): Hasil<PengajuanBersih> {
       if (total > MAX_NILAI) e.peserta = 'Total nilai melebihi batas maksimal';
     }
 
-    if (kategori === 'perjadin') {
+    // Perjadin: tanggal sampai wajib. Umum: boleh berupa periode (sampai opsional).
+    if (model === 'perjadin' || model === 'umum') {
       const ts = r.tanggal_selesai;
-      if (ts === undefined || ts === null || ts === '') {
-        e.tanggal_selesai = 'Tanggal selesai (sampai) wajib diisi';
+      const kosong = ts === undefined || ts === null || ts === '';
+      if (kosong) {
+        if (model === 'perjadin') e.tanggal_selesai = 'Tanggal selesai (sampai) wajib diisi';
       } else if (!isTanggalValid(ts)) {
         e.tanggal_selesai = 'Tanggal tidak valid';
       } else if (isTanggalValid(tanggal_kegiatan) && ts < tanggal_kegiatan) {
         e.tanggal_selesai = 'Tanggal selesai tidak boleh sebelum tanggal mulai';
       } else if (isTanggalValid(tanggal_kegiatan) && lamaHari(tanggal_kegiatan, ts) > 366) {
-        e.tanggal_selesai = 'Lama kegiatan maksimal 366 hari';
+        e.tanggal_selesai = model === 'perjadin' ? 'Lama kegiatan maksimal 366 hari' : 'Periode maksimal 366 hari';
       } else {
         tanggal_selesai = ts;
       }
+    }
 
+    if (model === 'perjadin') {
       if (!termasuk(JENIS_TRANSPORT_LIST, r.jenis_transport)) e.jenis_transport = 'Pilih jenis transport';
       else jenis_transport = r.jenis_transport;
     }
@@ -283,6 +318,8 @@ export interface PegawaiBersih {
   nama: string;
   nip: string | null;
   jabatan: string | null;
+  rekening_bank: string | null;
+  rekening_nomor: string | null;
 }
 
 export function validatePegawai(raw: unknown): Hasil<PegawaiBersih> {
@@ -299,8 +336,13 @@ export function validatePegawai(raw: unknown): Hasil<PegawaiBersih> {
   const jabatan = teks(r.jabatan);
   if (jabatan.length > 120) e.jabatan = 'Jabatan maksimal 120 karakter';
 
+  const rek = validasiRekening(r.rekening_bank, r.rekening_nomor, e);
+
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
-  return { ok: true, data: { nama, nip: nip || null, jabatan: jabatan || null } };
+  return {
+    ok: true,
+    data: { nama, nip: nip || null, jabatan: jabatan || null, rekening_bank: rek.bank, rekening_nomor: rek.nomor },
+  };
 }
 
 export interface UserBersih {
@@ -491,4 +533,222 @@ export function validateDibayarkan(raw: unknown): Hasil<{ dibayarkan: boolean }>
   const r = objek(raw);
   if (typeof r.dibayarkan !== 'boolean') return { ok: false, errors: { dibayarkan: 'Nilai dibayarkan harus true atau false' } };
   return { ok: true, data: { dibayarkan: r.dibayarkan } };
+}
+
+// ───────────────────────────── Master data (hanya admin) ─────────────────────────────
+
+/** Nilai boolean opsional (default true); selain true/false dianggap tidak valid. */
+function bacaAktif(v: unknown, e: FieldErrors): boolean {
+  if (v === undefined) return true;
+  if (typeof v !== 'boolean') {
+    e.aktif = 'Nilai aktif harus true/false';
+    return true;
+  }
+  return v;
+}
+
+export interface JenisPengajuanBersih {
+  label: string;
+  label_pendek: string;
+  prefix: string;
+  deskripsi: string | null;
+  model: ModelForm;
+  maks_peserta: number | null;
+  kata_kunci_task: string | null;
+  warna: WarnaJenis;
+  ikon: IkonJenis;
+  aktif: boolean;
+  /** Kode jenis berkas wajib, urut tampil. */
+  berkas: string[];
+}
+
+/**
+ * Jenis pengajuan (master). `modelTetap` = model jenis yang sudah ada saat diubah: model form tidak dapat diganti
+ * setelah dibuat (data pengajuan lama mengikuti model itu).
+ */
+export function validateJenisPengajuan(raw: unknown, modelTetap?: ModelForm): Hasil<JenisPengajuanBersih> {
+  const r = objek(raw);
+  const e: FieldErrors = {};
+  const label = teks(r.label);
+  if (!label) e.label = 'Nama jenis pengajuan wajib diisi';
+  else if (label.length < 3) e.label = 'Nama minimal 3 karakter';
+  else if (label.length > 60) e.label = 'Nama maksimal 60 karakter';
+
+  let label_pendek = teks(r.label_pendek);
+  if (!label_pendek && label.length >= 2 && label.length <= 24) label_pendek = label;
+  if (!label_pendek) e.label_pendek = 'Nama singkat wajib diisi (maks. 24 karakter)';
+  else if (label_pendek.length < 2) e.label_pendek = 'Nama singkat minimal 2 karakter';
+  else if (label_pendek.length > 24) e.label_pendek = 'Nama singkat maksimal 24 karakter';
+
+  const prefix = teks(r.prefix).toUpperCase();
+  if (!prefix) e.prefix = 'Awalan kode wajib diisi';
+  else if (!/^[A-Z]{2,5}$/.test(prefix)) e.prefix = 'Awalan kode 2–5 huruf A–Z, mis. KBR';
+
+  const deskripsi = teks(r.deskripsi);
+  if (deskripsi.length > 160) e.deskripsi = 'Deskripsi maksimal 160 karakter';
+
+  let model: ModelForm = 'umum';
+  if (modelTetap) model = modelTetap;
+  else if (termasuk(MODEL_FORM_LIST, r.model)) model = r.model;
+  else e.model = 'Pilih model form';
+
+  let maks_peserta: number | null = null;
+  if (modelPeserta(model)) {
+    const m = keInteger(r.maks_peserta);
+    if (m === null) e.maks_peserta = 'Isi batas jumlah orang per pengajuan';
+    else if (Number.isNaN(m) || m < 1 || m > MAKS_PESERTA_BATAS) e.maks_peserta = `Batas jumlah orang 1–${MAKS_PESERTA_BATAS}`;
+    else maks_peserta = m;
+  }
+
+  const kata_kunci_task = teks(r.kata_kunci_task);
+  if (kata_kunci_task.length > 100) e.kata_kunci_task = 'Kata kunci maksimal 100 karakter';
+
+  let warna: WarnaJenis = 'abu';
+  if (termasuk(WARNA_JENIS_PILIHAN, r.warna)) warna = r.warna;
+  else e.warna = 'Pilih warna';
+  let ikon: IkonJenis = 'file-text';
+  if (termasuk(IKON_JENIS_LIST, r.ikon)) ikon = r.ikon;
+  else e.ikon = 'Pilih ikon';
+
+  const aktif = bacaAktif(r.aktif, e);
+
+  const berkas: string[] = [];
+  const daftar = r.berkas === undefined ? [] : r.berkas;
+  if (!Array.isArray(daftar)) {
+    e.berkas = 'Daftar berkas wajib tidak valid';
+  } else {
+    for (const b of daftar) {
+      if (typeof b !== 'string' || !b.trim()) {
+        e.berkas = 'Daftar berkas wajib tidak valid';
+        break;
+      }
+      if (b === JENIS_BERKAS_LAINNYA) {
+        e.berkas = 'Dokumen Lainnya selalu tersedia sebagai berkas opsional, tidak perlu dipilih';
+        break;
+      }
+      if (berkas.includes(b)) {
+        e.berkas = 'Ada jenis berkas yang dipilih dua kali';
+        break;
+      }
+      berkas.push(b);
+    }
+    if (!e.berkas && berkas.length > 20) e.berkas = 'Maksimal 20 berkas wajib';
+  }
+
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return {
+    ok: true,
+    data: {
+      label,
+      label_pendek,
+      prefix,
+      deskripsi: deskripsi || null,
+      model,
+      maks_peserta,
+      kata_kunci_task: kata_kunci_task || null,
+      warna,
+      ikon,
+      aktif,
+      berkas,
+    },
+  };
+}
+
+export interface JenisBerkasBersih {
+  label: string;
+  keterangan: string | null;
+  aktif: boolean;
+}
+
+export function validateJenisBerkas(raw: unknown): Hasil<JenisBerkasBersih> {
+  const r = objek(raw);
+  const e: FieldErrors = {};
+  const label = teks(r.label);
+  if (!label) e.label = 'Nama jenis berkas wajib diisi';
+  else if (label.length < 2) e.label = 'Nama minimal 2 karakter';
+  else if (label.length > 60) e.label = 'Nama maksimal 60 karakter';
+  else if (label.toLowerCase() === LABEL_BERKAS_LAINNYA.toLowerCase()) e.label = `"${LABEL_BERKAS_LAINNYA}" sudah tersedia untuk semua pengajuan`;
+  const keterangan = teks(r.keterangan);
+  if (keterangan.length > 200) e.keterangan = 'Keterangan maksimal 200 karakter';
+  const aktif = bacaAktif(r.aktif, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { label, keterangan: keterangan || null, aktif } };
+}
+
+export interface BankBersih {
+  nama: string;
+  aktif: boolean;
+}
+
+export function validateBank(raw: unknown): Hasil<BankBersih> {
+  const r = objek(raw);
+  const e: FieldErrors = {};
+  const nama = teks(r.nama);
+  if (!nama) e.nama = 'Nama bank wajib diisi';
+  else if (nama.length < 2) e.nama = 'Nama bank minimal 2 karakter';
+  else if (nama.length > 60) e.nama = 'Nama bank maksimal 60 karakter';
+  const aktif = bacaAktif(r.aktif, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { nama, aktif } };
+}
+
+export interface ProjectBersih {
+  kode: string;
+  nama: string;
+  aktif: boolean;
+  task_ids: number[];
+}
+
+/** Project Costing: disimpan di pengajuan sebagai "<kode>:<nama>" (maks. 150) — kode tidak boleh memuat ":". */
+export function validateProject(raw: unknown): Hasil<ProjectBersih> {
+  const r = objek(raw);
+  const e: FieldErrors = {};
+  const kode = teks(r.kode).replace(/\s+/g, '');
+  if (!kode) e.kode = 'Kode project wajib diisi';
+  else if (!/^[A-Za-z0-9][A-Za-z0-9./-]{0,39}$/.test(kode)) e.kode = 'Kode project hanya huruf, angka, titik, strip, atau garis miring (maks. 40)';
+  const nama = teks(r.nama);
+  if (!nama) e.nama = 'Nama project wajib diisi';
+  else if (nama.length < 2) e.nama = 'Nama project minimal 2 karakter';
+  else if (nama.length > 120) e.nama = 'Nama project maksimal 120 karakter';
+  else if (!e.kode && kode.length + 1 + nama.length > 150) e.nama = 'Kode + nama project maksimal 150 karakter';
+  const aktif = bacaAktif(r.aktif, e);
+  const task_ids: number[] = [];
+  const daftar = r.task_ids === undefined ? [] : r.task_ids;
+  if (!Array.isArray(daftar)) e.task_ids = 'Daftar task tidak valid';
+  else {
+    for (const v of daftar) {
+      const id = keInteger(v);
+      if (id === null || Number.isNaN(id) || id <= 0) {
+        e.task_ids = 'Daftar task tidak valid';
+        break;
+      }
+      if (!task_ids.includes(id)) task_ids.push(id);
+    }
+    if (!e.task_ids && task_ids.length > 200) e.task_ids = 'Terlalu banyak task';
+  }
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { kode, nama, aktif, task_ids } };
+}
+
+export interface TaskBersih {
+  kode: string;
+  nama: string;
+  aktif: boolean;
+}
+
+/** Task Name: disimpan di pengajuan sebagai "<kode>_<nama>" (maks. 150) — kode tidak boleh memuat "_". */
+export function validateTask(raw: unknown): Hasil<TaskBersih> {
+  const r = objek(raw);
+  const e: FieldErrors = {};
+  const kode = teks(r.kode).replace(/\s+/g, '');
+  if (!kode) e.kode = 'Kode task wajib diisi';
+  else if (!/^[A-Za-z0-9][A-Za-z0-9./-]{0,29}$/.test(kode)) e.kode = 'Kode task hanya huruf, angka, titik, strip, atau garis miring (maks. 30)';
+  const nama = teks(r.nama);
+  if (!nama) e.nama = 'Nama task wajib diisi';
+  else if (nama.length < 2) e.nama = 'Nama task minimal 2 karakter';
+  else if (nama.length > 120) e.nama = 'Nama task maksimal 120 karakter';
+  else if (!e.kode && kode.length + 1 + nama.length > 150) e.nama = 'Kode + nama task maksimal 150 karakter';
+  const aktif = bacaAktif(r.aktif, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { kode, nama, aktif } };
 }

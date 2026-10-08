@@ -13,7 +13,9 @@ Sistem web untuk **mencatat dan melacak (tracking) kas operasional DPBJ Universi
 pengajuan biaya **Konsumsi** (rapat) dan **Transport** (Rumah Tangga & Perjadin), kelengkapan
 berkasnya, **pemeriksaan & verifikasi berkas oleh PUM**, pengajuan ke **MDK (di luar sistem)** dengan input
 **No. Invoice MDK** oleh PUM, hingga PUM menandai **selesai (paid)** setelah proses MDK selesai, notifikasi otomatis,
-serta **rekap & laporan PDF/Excel**.
+serta **rekap & laporan PDF/Excel**. Jenis pengajuan beserta berkas wajibnya, jenis berkas, Project Costing & Task Name,
+dan daftar bank adalah **master data** yang dikelola admin (menu Master Data), sehingga jenis pengajuan baru
+(mis. **Kontrak Borongan**) bisa ditambahkan tanpa mengubah kode.
 
 Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liquid glass, kuning–biru dongker UI).
 
@@ -22,7 +24,10 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 | Istilah | Arti dalam sistem |
 |---|---|
 | Pengajuan | Satu catatan biaya (Konsumsi / Transport RT / Transport Perjadin) |
-| Kategori | `konsumsi`, `rumah_tangga`, `perjadin` (dua terakhir = jenis Transport) |
+| Kategori / Jenis pengajuan | Kode jenis pengajuan dari **master Jenis Pengajuan** (tabel `jenis_pengajuan`). Bawaan: `konsumsi`, `rumah_tangga`, `perjadin` (dua terakhir = Transport); admin bisa menambah jenis baru |
+| Model form | Bentuk isian & aturan validasi jenis pengajuan: `konsumsi`, `rumah_tangga`, `perjadin`, atau `umum` (pegawai + nilai per orang). Tetap setelah jenis dibuat |
+| Jenis berkas | Master dokumen kelengkapan (tabel `jenis_berkas`, kunci = kode). Berkas wajib tiap jenis pengajuan diatur di master Jenis Pengajuan. "Dokumen Lainnya" (`lainnya`) bukan bagian master: selalu opsional |
+| Daftar berkas wajib pengajuan | `pengajuan.berkas_daftar`: salinan berkas wajib jenisnya — mengikuti master selama Draft/Dikembalikan, dibekukan sejak diajukan ke PUM (lihat §4) |
 | KO / LS | Dropdown mekanisme pembayaran, disimpan apa adanya `KO` / `LS` (kepanjangan belum dikonfirmasi — lihat §12) |
 | Operator / Pengaju | Pembuat pengajuan: mengisi data, mengunggah berkas, mengajukan ke PUM |
 | PUM | Pemeriksa di dalam sistem: mencentang berkas, mengembalikan, **memverifikasi**, menginput No. Invoice MDK (= mengajukan ke MDK), menekan **Selesai** setelah proses MDK selesai |
@@ -30,16 +35,20 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 | Verifikasi PUM | Persetujuan PUM setelah semua berkas wajib dicentang sesuai → status `diverifikasi_pum` (label "Diverifikasi PUM"; tahap stepper "Verifikasi PUM") |
 | Pimpinan | Pemantau (hanya lihat): dashboard, daftar, detail, rekap & laporan |
 | Centang berkas | Hasil pemeriksaan PUM per berkas wajib: `sesuai` atau `revisi` (+ catatan) — tabel `cek_berkas` |
-| Project Costing / Task Name | Dua isian (opsional, maks. 150; kolom/API tetap `project_hosting` & `task_name`) yang diisi PUM saat/setelah verifikasi. Dipilih lewat kotak cari dari **master Kasubdit** (`shared/project-task.ts`): project `<kode>:<nama>`, task `<kode>_<nama>`; teks lain tetap diterima |
-| Rekening | Bank & No. Rekening milik "uang siapa" (konsumsi, opsional) — tujuan pembayaran oleh PUM |
+| Project Costing / Task Name | Dua isian (opsional, maks. 150; kolom/API tetap `project_hosting` & `task_name`) yang diisi PUM saat/setelah verifikasi. Dipilih lewat kotak cari dari **master Project & Task** (Master Data; tabel `master_project`, `master_task`, `master_project_task`; data awal = daftar Kasubdit): project `<kode>:<nama>`, task `<kode>_<nama>`; teks lain tetap diterima |
+| Rekening | Bank & No. Rekening milik "uang siapa" (konsumsi, opsional) — tujuan pembayaran oleh PUM. Terisi otomatis dari rekening pegawai (master Pegawai); nama bank disarankan dari **master Bank** (isian tetap bebas) |
 | Sudah dibayarkan | Tanda PUM bahwa uang konsumsi sudah dibayarkan ke pemilik uang (`dibayar_at`/`dibayar_by`) |
-| Pegawai | Master data orang (punya `id` sendiri) → dipakai untuk "Uang siapa" & peserta transport, agar bisa **direkap per orang** |
-| Peserta | Orang yang menerima nilai uang pada pengajuan transport (maks. 2). Perjadin: uang harian + uang transport per orang |
+| Pegawai | Master data orang (punya `id` sendiri, NIP, jabatan, **rekening** opsional) → dipakai untuk "Uang siapa" & penerima per orang, agar bisa **direkap per orang** |
+| Peserta | Orang yang menerima nilai uang pada pengajuan bermodel selain Konsumsi (batas orang dari master jenis; bawaan Transport 2). Perjadin: uang harian + uang transport per orang |
 | Berkas | Dokumen unggahan (PDF/gambar/Office) per jenis kelengkapan |
 | N/A berkas | Berkas wajib yang ditandai "tidak diperlukan" oleh pengaju (dianggap terpenuhi; tetap dicentang PUM) |
 | Notifikasi | Pemberitahuan otomatis di aplikasi (lonceng + toast) — tabel `notifikasi` |
 
 ## 3. Aturan Bisnis per Kategori (dari kebutuhan pemilik project)
+
+§3.1–§3.3 adalah **jenis bawaan** (master Jenis Pengajuan, `bawaan = true`, tidak dapat dihapus; kode & model form tetap).
+Label, deskripsi, awalan kode (selama belum ada pengajuan), batas orang, kata kunci task, warna, ikon, aktif/nonaktif, dan
+**berkas wajibnya** diatur admin; berkas wajib yang tertulis di bawah adalah data awal. Jenis tambahan: §3.5.
 
 ### 3.1 Konsumsi (kode `KSM-YYYY-NNNN`)
 Field: nama kegiatan*, tanggal kegiatan*, **jenis konsumsi*** (`kudapan` | `makan_siang` | `kudapan_makan_siang` —
@@ -73,8 +82,24 @@ Berkas wajib: **Surat Tugas, Laporan Kegiatan, Invoice Hotel, Invoice Tiket**.
 ### 3.4 Aturan umum
 - Uang disimpan sebagai **INTEGER Rupiah** (tanpa desimal). Maks. Rp 1.000.000.000.000.
 - Tanggal disimpan `YYYY-MM-DD`; timestamp ISO-8601 UTC (dibuat di JS, bukan `datetime('now')`).
-- Konstanta maks peserta: `MAX_PESERTA_TRANSPORT = 2` di `shared/constants.ts`.
+- Batas orang per pengajuan = `maks_peserta` master jenis (bawaan Transport 2; jenis baru bawaan 10; 1–50).
+  `MAX_PESERTA_TRANSPORT = 2` hanya cadangan bila master tidak mengaturnya.
 - Validasi **otoritatif di server** (`shared/validation.ts` dipakai server & client, pesan berbahasa Indonesia).
+
+### 3.5 Jenis pengajuan tambahan (master data, mis. Kontrak Borongan)
+Admin menambah jenis di **Master Data → Jenis Pengajuan**: nama, nama singkat (grafik/filter/badge), **awalan kode**
+(2–5 huruf A–Z, unik → kode `<AWALAN>-YYYY-NNNN`), deskripsi, **model form**, batas orang, **berkas wajib** (urut, dari
+master Jenis Berkas), kata kunci Task Name, warna, ikon. Kode internal dibuat dari nama (`Kontrak Borongan` → `kontrak_borongan`).
+- **Model Umum**: nama kegiatan*, tanggal* (+ "sampai" opsional = periode, ≥ tanggal, maks. 366 hari), mekanisme*,
+  penerima 1..batas orang (pegawai + nilai > 0, tidak dobel), catatan; tanpa lokasi. Total = jumlah nilai; rekap per orang lewat peserta.
+- Jenis baru boleh memakai model Konsumsi/Rumah Tangga/Perjadin (aturan isian sama dengan jenis bawaannya;
+  "Sudah dibayarkan" hanya untuk model Konsumsi; filter `kategori=transport` = semua jenis bermodel Rumah Tangga/Perjadin).
+- **Model form tidak dapat diganti** setelah jenis dibuat. **Awalan kode** tidak dapat diubah setelah ada pengajuan.
+- **Nonaktif** = tidak muncul di Buat Pengajuan (pengajuan lama tetap bisa diedit & diproses); minimal satu jenis aktif.
+  **Hapus** hanya jenis tambahan yang belum pernah dipakai.
+- Jenis berkas: nama unik, keterangan opsional (petunjuk di tabel berkas). Tidak dapat dinonaktifkan selama masih wajib pada
+  suatu jenis; tidak dapat dihapus bila bawaan atau sudah tercatat di pengajuan (file, centang, atau daftar berkas wajib).
+  Data awal menyertakan contoh Laporan Pekerjaan, Presensi, Kontrak (belum dipakai jenis mana pun).
 
 ## 4. Alur (Workflow) & Status
 
@@ -114,11 +139,16 @@ Data lama (alur 4 tahap sebelum Okt 2026, migrasi `2026-10-08-alur-verifikasi-md
 Selesai lama tetap Selesai (invoice dulu langsung menjadikan selesai; `diajukan_mdk_*` diisi dari `diproses_*`).
 
 Aturan centang berkas (`cek_berkas`):
-- Hanya PUM/admin, hanya saat status `diajukan_pum`, hanya jenis berkas **wajib** kategori tsb.
+- Hanya PUM/admin, hanya saat status `diajukan_pum`, hanya berkas **wajib pengajuan itu** (`berkas_daftar`).
 - `revisi` wajib catatan (3–500 karakter); `null` = batalkan centang.
 - **Mengunggah/menghapus berkas atau mengubah tanda N/A suatu jenis menghapus centangnya** (harus diperiksa ulang).
   Centang jenis lain tetap tersimpan saat dikembalikan & diajukan ulang.
 - Berkas wajib tanpa file boleh dicentang sesuai (berkas fisik) — UI memberi peringatan.
+- **Daftar berkas wajib per pengajuan** (`berkas_daftar`) = salinan dari master jenisnya saat dibuat. Bila admin mengubah
+  berkas wajib suatu jenis, pengajuan berstatus Draft/Dikembalikan langsung mengikuti (riwayat `diubah` "Berkas wajib mengikuti
+  master — wajib baru: … · tidak wajib lagi: …"; centang & tanda N/A berkas yang tidak wajib lagi dihapus, file-nya tetap tampil
+  sebagai "Berkas di luar daftar wajib"); disamakan sekali lagi saat diajukan, lalu **dibekukan** sejak Diajukan ke PUM
+  (pengajuan yang sudah diajukan/diverifikasi/selesai tidak ikut berubah). `null` (data dari kode lama) = ikut master.
 - Mengajukan dengan berkas belum lengkap **diperbolehkan dengan konfirmasi** (berkas fisik kadang menyusul).
 - Setiap aksi dicatat di tabel `riwayat` (audit trail + timeline + aktivitas dashboard).
 - Draft/dikembalikan boleh dihapus (operator/admin); penghapusan tetap tercatat di `riwayat` (kode disimpan).
@@ -149,8 +179,10 @@ otomatis menandai notifikasi pengajuan itu dibaca. Pimpinan tidak menerima notif
 | Input No. Invoice MDK (ajukan ke MDK), ubah invoice, tandai **Selesai**, batalkan selesai | ✗ | ✓ | ✗ | ✓ |
 | Tandai uang konsumsi "sudah dibayarkan" / batalkan | ✗ | ✓ | ✗ | ✓ |
 | Master Pegawai: lihat | ✓ | ✓ | ✓ | ✓ |
-| Master Pegawai: tambah/ubah | ✓ | ✗ | ✗ | ✓ |
+| Master Pegawai: tambah/ubah (termasuk rekening pegawai) | ✓ | ✗ | ✗ | ✓ |
 | Master Pegawai: hapus (hanya jika belum dipakai) / nonaktifkan | ✗ | ✗ | ✗ | ✓ |
+| Master Jenis Pengajuan, Jenis Berkas, Project & Task, Bank: dibaca (form, tampilan, kotak cari) | ✓ | ✓ | ✓ | ✓ |
+| Master Jenis Pengajuan, Jenis Berkas, Project & Task, Bank: menu & tambah/ubah/nonaktifkan/hapus | ✗ | ✗ | ✗ | ✓ |
 | Kelola Pengguna, setujui/tolak pendaftaran | ✗ | ✗ | ✗ | ✓ |
 | Halaman Pengaturan (tema warna, info akun, ganti password) | ✓ | ✓ | ✓ | ✓ |
 
@@ -172,12 +204,17 @@ Perubahan skema berikutnya = **file baru di `supabase/migrasi/`** (idempoten, ha
 - `users` (id, `auth_id` → auth.users, username = **email** unik huruf kecil, nama, role
   `operator|pum|pimpinan|admin`, aktif, `menunggu_persetujuan`) — **tanpa password**: password dikelola Supabase Auth.
 - `sessions` (token_hash sha256, user_id, expires_at) — cookie httpOnly `kas_sid`, 7 hari (Secure di Vercel)
-- `pegawai` (id, nama, nip opsional unik, jabatan, aktif)
+- `pegawai` (id, nama, nip opsional unik, jabatan, **rekening_bank, rekening_nomor** (opsional, berpasangan), aktif)
+- Master data (admin): `jenis_pengajuan` (kode PK, label, label_pendek, prefix unik, deskripsi, model, maks_peserta,
+  kata_kunci_task, warna, ikon, aktif, bawaan, urutan) + `jenis_pengajuan_berkas` (jenis_pengajuan, jenis_berkas, urutan);
+  `jenis_berkas` (kode PK ≠ `lainnya`, label unik, keterangan, aktif, bawaan, urutan); `bank` (nama unik, aktif);
+  `master_project` / `master_task` (kode unik, nama, aktif) + `master_project_task`. Data awal = blok
+  `[SEED-MASTER]` di `schema.sql` (sama dengan migrasi `2026-10-08-master-data.sql`; diisi hanya bila tabel kosong).
 - `kode_counter` (prefix, tahun, terakhir) — nomor urut kode pengajuan, tidak pernah dipakai ulang
-- `pengajuan` (kode, kategori, nama_kegiatan, tanggal_kegiatan DATE, tanggal_selesai, jumlah_orang,
+- `pengajuan` (kode, **kategori → jenis_pengajuan(kode)** (teks, bukan enum lagi), nama_kegiatan, tanggal_kegiatan DATE, tanggal_selesai, jumlah_orang,
   lokasi_tujuan, mekanisme, jenis_uang (data lama), jenis_transport, **jenis_konsumsi**, uang_siapa_id→pegawai,
   **rekening_bank, rekening_nomor, dibayar_at, dibayar_by**→users, total BIGINT, catatan,
-  berkas_na JSONB, berkas_terpenuhi/berkas_wajib (denormalisasi), status, no_invoice_mdk, tanggal_invoice_mdk,
+  berkas_na JSONB, **berkas_daftar JSONB** (berkas wajib pengajuan ini), berkas_terpenuhi/berkas_wajib (denormalisasi), status, no_invoice_mdk, tanggal_invoice_mdk,
   catatan_pum, project_hosting, task_name, created_by, updated_by, diajukan_at, **diverifikasi_by/at, diajukan_mdk_by/at**,
   diproses_by/at (dikembalikan / selesai), diteruskan_by/at (data lama), …)
 - `pengajuan_peserta` (pengajuan_id, pegawai_id, nilai, **uang_harian, uang_transport** (Perjadin; Rumah Tangga `null`), urutan)
@@ -192,7 +229,8 @@ Perubahan skema berikutnya = **file baru di `supabase/migrasi/`** (idempoten, ha
   yang bisa membaca/menulis. Bucket Storage **`berkas`** privat, maks. 10 MB, MIME sesuai `UPLOAD_DIIZINKAN`.
 
 `berkas_sesuai` (jumlah centang sesuai) dihitung lewat subquery di `SELECT_PENGAJUAN`.
-Rekap per pegawai = Konsumsi (via `uang_siapa_id`, nilai = total) **+** Transport (via peserta, nilai per orang).
+Rekap per pegawai = model Konsumsi (via `uang_siapa_id`, nilai = total) **+** model lain (via peserta, nilai per orang);
+rincian per jenis = `perKategori` (kode jenis → nilai) di dashboard, rekap pegawai, & top pegawai.
 Jumlah seluruh rekap per pegawai = jumlah total seluruh pengajuan (konsisten, diuji di test).
 
 ## 7. Tech Stack
@@ -211,7 +249,7 @@ Jumlah seluruh rekap per pegawai = jumlah total seluruh pengajuan (konsisten, di
 ## 8. Struktur Folder
 
 ```
-shared/        konstanta, tipe, validasi, format, kelengkapan, project-task (master Kasubdit) — dipakai server & client
+shared/        konstanta, tipe, validasi, format, kelengkapan, konfig (kamus master), project-task — dipakai server & client
 server/        Express API: app.ts (createApp), db-pg.ts, auth.ts (sesi), supabase.ts + providers.ts (Auth/Storage),
                env.ts (baca env toleran), routes/*, services/*, vercel.ts (entry Vercel), index.ts (entry lokal)
 api/           bundle.mjs — HASIL BUILD (npm run build), di-commit; satu-satunya fungsi Vercel
@@ -229,6 +267,11 @@ Endpoint alur (semua `/api/pengajuan/:id/...`): `POST ajukan`, `POST tarik`, `PU
 Berkas: `POST berkas/siapkan` {jenis, nama_berkas?, nama_asli, ukuran} → URL unggah bertanda tangan; browser `PUT` file
 langsung ke Storage; `POST berkas/konfirmasi` {key, …} (server cek isi & ukuran lalu mencatat). `GET /api/berkas/:id/file`
 → 302 ke URL sementara (`?unduh=1` = attachment dengan nama asli).
+Master data (`/api/master/...`; GET semua peran, tulis hanya admin): `GET konfig` (jenis pengajuan + berkas wajibnya & jenis
+berkas — dimuat client sekali setelah login, `KonfigProvider`), `GET|POST jenis-pengajuan`, `PUT|DELETE jenis-pengajuan/:kode`
+(PUT mengembalikan `disinkron` = jumlah draft/dikembalikan yang ikut berubah), `GET|POST jenis-berkas`, `PUT|DELETE jenis-berkas/:kode`,
+`GET|POST bank`, `PUT|DELETE bank/:id`, `GET project-task`, `POST project`, `PUT|DELETE project/:id` {kode, nama, aktif, task_ids},
+`POST task`, `PUT|DELETE task/:id`. Pegawai: `POST|PUT /api/pegawai` menerima `rekening_bank`, `rekening_nomor`.
 Akun: `POST /api/auth/login` {username=email, password}, `POST /api/auth/daftar` {nama, username, password},
 `POST /api/users/:id/setujui` {role}, `DELETE /api/users/:id` (tolak pendaftaran). Lainnya: `GET /api/pengajuan/saran-pum`,
 `GET /api/notifikasi` (antrian incl. `pendaftar` untuk admin), `POST /api/notifikasi/baca` {id?}, `GET /api/health`
@@ -262,12 +305,17 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 - Test API memakai `await buatKonteks()` (`tests/api/helpers.ts`): satu database PostgreSQL per file test (dari template
   `supabase/schema.sql` + stub `tests/support/supabase-stubs.sql`), dikosongkan tiap test; Auth & Storage tiruan.
   `masuk(ctx, 'operator'|'pum'|'pimpinan'|'admin')` (email `<peran>@dpbj.test`), unggah lewat `unggah(ctx, agent, …)`.
+  Master data ikut dikosongkan lalu diisi ulang dari blok `[SEED-MASTER]` `schema.sql` setiap `buatKonteks()`.
+  Unit/komponen memakai konfigurasi master uji `tests/support/konfig-uji.ts` (`KonfigTetap` untuk komponen);
+  daftar asli Kasubdit di `tests/support/project-task-awal.ts` (dicocokkan dengan seed master).
   **Jangan jalankan Vitest bersamaan dengan server E2E** — setup global menghapus database `kas_test_*`.
 - Fixture E2E (`tests/e2e/fixtures.ts`) **menggagalkan test bila ada `console.error`/error JS** di browser.
   Respons 4xx yang disengaja ikut tercatat browser sebagai error → kosongkan `galat` setelahnya.
 - Kait test di UI: `data-berkas` + `data-keadaan` + `data-cek` (baris berkas), `data-kode` (kartu Verifikasi PUM),
   `data-testid="kartu-pum" | "aksi-pum" | "catatan-pengembalian"`, stepper = list "Tahapan pengajuan" + `aria-current="step"`,
-  `data-pendaftar` (baris pendaftar),
+  `data-pendaftar` (baris pendaftar), master: `data-jenis-pengajuan`, `data-jenis-berkas`, `data-bank`, `data-project`, `data-task`,
+  `data-jenis` (kartu Buat Pengajuan), `data-model` (pilihan model form), `data-testid="pratinjau-jenis" | "sumber-rekening" |
+  "rekening-pegawai" | "rekening-peserta"`, `data-berkas="di-luar-daftar"`,
   `data-warna-opsi` + `data-terpilih` (tema), `data-jenis-konsumsi` (pilihan jenis konsumsi), `data-testid="uang-siapa"`
   (nama, rekening, tombol "Sudah dibayarkan"), `data-peserta` (rincian per orang di detail),
   id stabil pada input form (mis. `#peserta-0-nilai`, `#peserta-0-uang_harian`, `#peserta-0-uang_transport`,
@@ -285,9 +333,14 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 - Gaya **liquid glass**: kelas `.glass` (backdrop blur + saturate, highlight specular, border gradien),
   latar gradien bergerak (blob) agar efek kaca terlihat. Hormati `prefers-reduced-motion` (`MotionConfig reducedMotion="user"`).
 - Font: Plus Jakarta Sans Variable (offline via @fontsource).
-- Warna seri chart (tervalidasi skrip dataviz, all-pairs, light & dark):
-  Konsumsi `#eda100`/`#c98500`, Rumah Tangga `#2a78d6`/`#3987e5`, Perjadin `#1baf7a`/`#199e70` (light/dark).
-  Kontras < 3:1 di light → wajib ada legenda + tampilan tabel (sudah ada). Teks tidak pernah memakai warna seri.
+- Warna seri chart = warna master jenis pengajuan (`WARNA_SERI` di `src/components/dashboard/palet.ts`, light/dark):
+  kuning `#eda100`/`#c98500` (Konsumsi), biru `#2a78d6`/`#3987e5` (Rumah Tangga), hijau `#1baf7a`/`#199e70` (Perjadin) —
+  tervalidasi skrip dataviz; pilihan tambahan merah bata `#c8521a`/`#e0703a`, ungu `#a8558a`/`#c77aa8`, toska `#0b8fa3`/`#1fb3c4`
+  (Okabe–Ito; kontras penanda ≥ 3,4:1, ΔE antar-warna ≥ 10 pada simulasi protan/deutan/tritan). `abu` hanya cadangan kode tak dikenal
+  (tidak bisa dipilih: terlalu mirip warna lain bagi buta warna). Kontras < 3:1 di light → wajib ada legenda + tampilan tabel
+  (sudah ada). Teks tidak pernah memakai warna seri.
+- Jenis pengajuan di dashboard/rekap/PDF/Excel mengikuti master: jenis **aktif selalu tampil** (walau 0) + jenis nonaktif yang
+  punya data, urut master. Filter kategori di Daftar Pengajuan berupa segmen bila ≤ 3 jenis, dropdown bila lebih.
 - Status selalu **ikon + label** (bukan warna saja): Draft (abu), Diajukan ke PUM (biru), Dikembalikan (amber),
   Diverifikasi PUM (cyan), Diajukan ke MDK (ungu), Selesai (Paid) (hijau). Bahasa UI: **Indonesia**.
 - Dashboard: baris KPI atas = urutan alur (Diajukan ke PUM → Diverifikasi PUM → Diajukan ke MDK → Selesai), baris bawah
@@ -334,6 +387,10 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
   Pendaftaran: maks. 10 / jam / IP.
 - Rekap default = semua status **kecuali draft**; PUM & pimpinan tidak pernah melihat draft (daftar, detail, rekap, dashboard).
 - Data demo: tanggal relatif terhadap hari ini (±11 bulan ke belakang), waktu aktivitas di jam kerja (Sen–Jum 08.00–16.30).
+- Master data dibaca server per permintaan (tanpa cache) & client lewat `useKamus()` (KonfigProvider, staleTime 5 menit,
+  disegarkan setelah admin mengubah master). Kode jenis yang tak dikenal tetap tampil dengan tampilan cadangan.
+- Rekening "uang siapa" diisi otomatis saat memilih pegawai yang punya rekening, hanya bila isian masih kosong atau sebelumnya
+  terisi otomatis (isian manual tidak ditimpa; tombol "Pakai rekening data pegawai" tersedia).
 - PegawaiPicker tidak menawarkan "Tambah … sebagai pegawai baru" bila nama persis sudah terdaftar; pegawai yang sudah
   dipilih di baris lain diberi keterangan "sudah dipilih di baris lain".
 
@@ -354,6 +411,11 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 13. **Alur 5 tahap** (Okt 2026) — asumsi: label status "Diverifikasi PUM" (tahap stepper "Verifikasi PUM"), status
     "Selesai (Paid)" (tahap stepper "Paid"); Kembalikan dari Diajukan ke MDK menghapus No. Invoice (tercatat di riwayat);
     Batalkan selesai → kembali Diajukan ke MDK dengan invoice tetap; pengajuan yang sudah Selesai pada alur lama tetap Selesai.
+14. **Master Data** (Okt 2026) — asumsi: hanya **admin** yang mengelola master Jenis Pengajuan, Jenis Berkas, Project & Task,
+    Bank (dikonfirmasi pemilik project) dan menunya hanya tampil untuk admin; rekening pegawai mengikuti aturan Pegawai
+    (operator & admin). **Kontrak Borongan** belum dibuat — mekanismenya belum pasti; disiapkan model **Umum** (pegawai + nilai
+    per orang, periode opsional) dan contoh jenis berkas Laporan Pekerjaan, Presensi, Kontrak. Perlu kolom/isian khusus lain
+    (mis. nomor kontrak, volume pekerjaan)? Perlu rekening per penerima di PDF?
 8. **Verifikasi** (dulu "Teruskan ke MDK") diasumsikan hanya boleh bila **semua berkas wajib dicentang sesuai**. Benar?
 9. **Notifikasi** saat ini hanya di dalam aplikasi (lonceng + toast). Perlu email/WhatsApp? Perlu notifikasi untuk pimpinan?
 10. **Pimpinan** diasumsikan hanya memantau (tanpa aksi & tanpa melihat draft). Perlu persetujuan pimpinan di alur?

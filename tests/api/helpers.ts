@@ -1,5 +1,7 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { expect } from 'vitest';
 import type { Role } from '../../shared/constants';
@@ -37,13 +39,34 @@ const TABEL_APLIKASI = [
   'sessions',
   'pegawai',
   'users',
+  // Master data: dikosongkan lalu diisi ulang dari blok seed supabase/schema.sql.
+  'jenis_pengajuan_berkas',
+  'jenis_pengajuan',
+  'jenis_berkas',
+  'bank',
+  'master_project_task',
+  'master_project',
+  'master_task',
 ];
+
+let seedMaster: string | null = null;
+
+/** Blok seed master data di supabase/schema.sql (di antara penanda SEED-MASTER). */
+export function sqlSeedMaster(): string {
+  if (seedMaster) return seedMaster;
+  const schema = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../supabase/schema.sql'), 'utf8');
+  const m = /-- \[SEED-MASTER:MULAI\]\r?\n([\s\S]*?)-- \[SEED-MASTER:SELESAI\]/.exec(schema);
+  if (!m) throw new Error('Blok SEED-MASTER tidak ditemukan di supabase/schema.sql');
+  seedMaster = m[1];
+  return seedMaster;
+}
 
 /** App + DB bersih. `demo: true` → data demo lengkap; selain itu 4 akun + 5 pegawai. */
 export async function buatKonteks(opsi: { demo?: boolean } = {}): Promise<Konteks> {
   urlDb ??= await buatDatabaseTest();
   const db = buatDb(urlDb, false);
   await db.exec(`TRUNCATE ${TABEL_APLIKASI.join(', ')}, auth.users RESTART IDENTITY CASCADE`);
+  await db.exec(sqlSeedMaster());
   const auth = new AuthPalsu(db);
   const storage = new StoragePalsu();
   const cfg: AppConfig = {

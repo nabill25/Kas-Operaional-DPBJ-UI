@@ -60,6 +60,8 @@ test('pencarian dari topbar menuju daftar', async ({ page }) => {
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/pengajuan\?q=Rapat/);
   await expect(page.getByPlaceholder('Cari kode, kegiatan, lokasi, nama pegawai, no. invoice, project/task…')).toHaveValue('Rapat');
+  // Tunggu hasil pencarian tampil sebelum membaca baris (allTextContents tidak menunggu).
+  await expect(page.locator('tbody tr').first()).toBeVisible();
   const teksBaris = await page.locator('tbody tr').allTextContents();
   expect(teksBaris.length).toBeGreaterThan(0);
   expect(teksBaris.some((t) => t.toLowerCase().includes('rapat'))).toBe(true);

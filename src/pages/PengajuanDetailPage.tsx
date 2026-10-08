@@ -34,10 +34,10 @@ import {
   CATATAN_BIAYA_TRANSFER,
   JENIS_KONSUMSI_LABEL,
   JENIS_TRANSPORT_LABEL,
-  KATEGORI_INFO,
   STATUS_BISA_DIBAYARKAN,
   STATUS_LEWAT_VERIFIKASI,
   isBankMandiri,
+  modelPeserta,
 } from '../../shared/constants';
 import { formatAngka, formatRentangTanggal, formatRupiah, formatTanggal, formatWaktu, lamaHari, selisihHari } from '../../shared/format';
 import type { PengajuanDetail, Peserta } from '../../shared/types';
@@ -56,6 +56,7 @@ import { MuatHalaman } from '../components/ui/MuatHalaman';
 import { PageHeader } from '../components/ui/PageHeader';
 import { ProgressRing } from '../components/ui/ProgressRing';
 import { useAuth, useUser } from '../context/AuthContext';
+import { useKamus } from '../context/KonfigContext';
 import { useKonfirmasi } from '../context/KonfirmasiContext';
 import { ApiError } from '../lib/api';
 import { cn } from '../lib/cn';
@@ -184,6 +185,36 @@ function UangSiapa({
   );
 }
 
+/** Rekening pegawai saat ini (master Pegawai) pada daftar penerima — tujuan pembayaran per orang. */
+function RekeningPeserta({ ps }: { ps: Peserta }) {
+  if (!ps.rekening_bank || !ps.rekening_nomor) return null;
+  const salin = async () => {
+    try {
+      await navigator.clipboard.writeText(ps.rekening_nomor ?? '');
+      toast.success(`Nomor rekening ${ps.nama} disalin`);
+    } catch {
+      toast.error('Gagal menyalin nomor rekening');
+    }
+  };
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted sm:ml-13" data-testid="rekening-peserta">
+      <Landmark className="size-3.5 shrink-0" aria-hidden />
+      <span className="font-semibold text-fg">{ps.rekening_bank}</span>
+      <span aria-hidden>·</span>
+      <span className="angka font-semibold tracking-wide text-fg">{ps.rekening_nomor}</span>
+      <button
+        type="button"
+        onClick={() => void salin()}
+        className="grid size-6 place-items-center rounded-lg text-fg-muted transition hover:bg-fg/[0.06] hover:text-fg"
+        aria-label={`Salin nomor rekening ${ps.nama}`}
+        title="Salin nomor rekening"
+      >
+        <Copy className="size-3" />
+      </button>
+    </p>
+  );
+}
+
 /** Notifikasi milik user tentang pengajuan ini otomatis ditandai dibaca saat detailnya dibuka. */
 function useTandaiNotifikasiDibaca(pengajuanId: number) {
   const { data } = useNotifikasi();
@@ -227,6 +258,9 @@ export default function PengajuanDetailPage() {
 
 function Detail({ p }: { p: PengajuanDetail }) {
   const user = useUser();
+  const kamus = useKamus();
+  const jenis = kamus.jenis(p.kategori);
+  const model = jenis.model;
   const { punyaPeran } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -244,11 +278,13 @@ function Detail({ p }: { p: PengajuanDetail }) {
   const bisaCek = pum && p.status === 'diajukan_pum';
   const lewatVerifikasi = STATUS_LEWAT_VERIFIKASI.includes(p.status);
   const bisaDataPum = pum && (p.status === 'diajukan_pum' || lewatVerifikasi);
-  const transport = p.kategori !== 'konsumsi';
+  const transport = modelPeserta(model);
   const k = p.kelengkapan;
   const revisi = k.items.filter((i) => i.cek?.status === 'revisi');
-  const bisaTandaiBayar = pum && p.kategori === 'konsumsi' && STATUS_BISA_DIBAYARKAN.includes(p.status);
-  const lama = p.kategori === 'perjadin' ? lamaHari(p.tanggal_kegiatan, p.tanggal_selesai) : 1;
+  const bisaTandaiBayar = pum && model === 'konsumsi' && STATUS_BISA_DIBAYARKAN.includes(p.status);
+  const lama = model === 'perjadin' ? lamaHari(p.tanggal_kegiatan, p.tanggal_selesai) : 1;
+  // Perjadin selalu punya rentang; model Umum bila diisi periode.
+  const rentang = model === 'perjadin' || (model === 'umum' && !!p.tanggal_selesai);
 
   const jalankan = async (fn: () => Promise<unknown>, sukses: string, deskripsi?: string) => {
     try {
@@ -338,7 +374,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
     setUnduhPdf(true);
     try {
       const { pdfBuktiPengajuan } = await import('../lib/pdf/laporan');
-      await pdfBuktiPengajuan(p, user.nama);
+      await pdfBuktiPengajuan(p, user.nama, kamus);
       toast.success('PDF berhasil dibuat');
     } catch (err) {
       console.error(err);
@@ -605,17 +641,17 @@ function Detail({ p }: { p: PengajuanDetail }) {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5 lg:col-span-2 lg:[&>:last-child]:flex-1">
           <GlassCard className="p-5 sm:p-6" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <JudulKartu ikon={<ClipboardList className="size-4.5" />} judul="Informasi kegiatan" deskripsi={KATEGORI_INFO[p.kategori].deskripsi} />
+            <JudulKartu ikon={<ClipboardList className="size-4.5" />} judul="Informasi kegiatan" deskripsi={jenis.deskripsi ?? jenis.label} />
             <dl className="mt-5 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-              <Info2 label={p.kategori === 'perjadin' ? 'Lama kegiatan' : 'Tanggal kegiatan'}>
+              <Info2 label={model === 'perjadin' ? 'Lama kegiatan' : rentang ? 'Periode' : model === 'umum' ? 'Tanggal' : 'Tanggal kegiatan'}>
                 <span className="inline-flex items-center gap-1.5">
                   <CalendarDays className="size-4 text-fg-muted" />
-                  {p.kategori === 'perjadin'
+                  {rentang
                     ? `${formatRentangTanggal(p.tanggal_kegiatan, p.tanggal_selesai)} (${lamaHari(p.tanggal_kegiatan, p.tanggal_selesai)} hari)`
                     : formatTanggal(p.tanggal_kegiatan)}
                 </span>
               </Info2>
-              {transport && (
+              {(model === 'rumah_tangga' || model === 'perjadin') && (
                 <Info2 label="Lokasi tujuan">
                   <span className="inline-flex items-center gap-1.5">
                     <MapPin className="size-4 text-fg-muted" /> {p.lokasi_tujuan}
@@ -630,13 +666,13 @@ function Detail({ p }: { p: PengajuanDetail }) {
               <Info2 label="Mekanisme">
                 <MekanismeBadge mekanisme={p.mekanisme} />
               </Info2>
-              {p.kategori === 'perjadin' && (
+              {model === 'perjadin' && (
                 <Info2 label="Jenis transport">{p.jenis_transport ? JENIS_TRANSPORT_LABEL[p.jenis_transport] : '-'}</Info2>
               )}
-              {p.kategori === 'konsumsi' && (
+              {model === 'konsumsi' && (
                 <Info2 label="Jenis konsumsi">{p.jenis_konsumsi ? JENIS_KONSUMSI_LABEL[p.jenis_konsumsi] : '-'}</Info2>
               )}
-              {p.kategori === 'konsumsi' && (
+              {model === 'konsumsi' && (
                 <Info2 label="Uang siapa" className="sm:col-span-2">
                   <UangSiapa
                     p={p}
@@ -669,7 +705,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                 ikon={<Users className="size-4.5" />}
                 judul="Penerima & nilai uang"
                 deskripsi={
-                  p.kategori === 'perjadin'
+                  model === 'perjadin'
                     ? 'Uang harian + uang transport per orang — dijumlahkan menjadi total pengajuan'
                     : 'Nilai per orang — dijumlahkan menjadi total pengajuan'
                 }
@@ -696,7 +732,8 @@ function Detail({ p }: { p: PengajuanDetail }) {
                         </div>
                         <p className="angka text-right font-extrabold text-fg">{formatRupiah(ps.nilai)}</p>
                       </div>
-                      {p.kategori === 'perjadin' && (
+                      <RekeningPeserta ps={ps} />
+                      {model === 'perjadin' && (
                         <dl className="mt-2.5 grid grid-cols-2 gap-2 text-xs sm:ml-13 sm:max-w-md">
                           <div className="rounded-xl bg-fg/[0.04] px-3 py-2 ring-1 ring-fg/[0.06]">
                             <dt className="text-fg-subtle">Uang harian</dt>
@@ -718,7 +755,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
               <div className="mt-2 flex items-center justify-between rounded-2xl bg-navy-900 px-4 py-3 text-white dark:bg-white/[0.07]">
                 <span className="min-w-0 text-sm font-semibold">
                   Total ({p.peserta.length} orang)
-                  {p.kategori === 'perjadin' && (
+                  {model === 'perjadin' && (
                     <span className="block text-[11px] font-normal text-white/70">
                       Harian {formatRupiah(p.peserta.reduce((a, ps) => a + rincianUang(p, ps).harian, 0))} · Transport{' '}
                       {formatRupiah(p.peserta.reduce((a, ps) => a + rincianUang(p, ps).transport, 0))}

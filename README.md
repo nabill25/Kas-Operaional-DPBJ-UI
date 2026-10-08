@@ -10,17 +10,20 @@ hingga **Selesai (Paid)** setelah proses MDK selesai, notifikasi otomatis, dashb
 
 ## Fitur
 
-- **3 jenis pengajuan**: Konsumsi, Transport Rumah Tangga, Transport Perjadin, dengan validasi lengkap.
+- **Jenis pengajuan dari master data**: bawaan Konsumsi, Transport Rumah Tangga, Transport Perjadin; admin dapat menambah jenis baru
+  (mis. Kontrak Borongan) dengan model form **Umum** (pegawai + nilai per orang), awalan kode, dan berkas wajib sendiri.
+- **Master Data (admin)**: Jenis Pengajuan (berkas wajib, batas orang, warna, ikon), Jenis Berkas, Project Costing & Task Name,
+  Bank; **rekening pegawai** di master Pegawai mengisi otomatis rekening "uang siapa".
 - **Konsumsi**: jenis konsumsi (Kudapan / Makan Siang / keduanya), "uang siapa" + **rekening (bank & no. rekening)**
   dengan catatan biaya transfer non-Mandiri; PUM menandai **Sudah dibayarkan**.
-- **Transport per orang** (maks. 2 orang, ID pegawai sendiri): Rumah Tangga = nilai uang; Perjadin = **uang harian + uang transport**.
+- **Transport per orang** (batas orang dari master, bawaan 2; ID pegawai sendiri): Rumah Tangga = nilai uang; Perjadin = **uang harian + uang transport**.
   Total dijumlahkan otomatis & bisa direkap per orang.
 - **Kelengkapan berkas** dalam bentuk tabel (berkas & file · pemeriksaan PUM · aksi): unggah (klik / seret-lepas) PDF,
   gambar, Word, Excel; pratinjau; tandai "tidak diperlukan"; dokumen tambahan bebas.
 - **Alur status** (stepper 5 tahap): Draft → **Diajukan ke PUM** → (Dikembalikan → Diajukan ulang) → **Diverifikasi PUM** →
   **Diajukan ke MDK** (No. Invoice diinput, menunggu verifikasi MDK) → **Selesai (Paid)**. Riwayat (audit trail) lengkap.
 - **Verifikasi PUM**: centang tiap berkas wajib (*Sesuai* / *Revisi* + catatan), kembalikan dengan alasan, **Verifikasi**
-  (hanya bila semua berkas sesuai) sambil memilih **Project Costing** & **Task Name** dari kotak cari (master Kasubdit),
+  (hanya bila semua berkas sesuai) sambil memilih **Project Costing** & **Task Name** dari kotak cari (master Project & Task),
   input No. Invoice MDK (= diajukan ke MDK), lalu tekan **Selesai** setelah proses di MDK selesai.
 - **Notifikasi otomatis** di aplikasi (lonceng + toast).
 - **Peran**: Operator/Pengaju, PUM, Pimpinan (hanya memantau), Administrator. Pendaftaran akun mandiri dengan persetujuan admin.
@@ -69,7 +72,7 @@ Laporan HTML E2E: `npx playwright show-report`.
 ## Struktur folder
 
 ```
-shared/    konstanta, tipe, validasi, format, master project/task (dipakai server & frontend)
+shared/    konstanta, tipe, validasi, format, kamus master data, project/task (dipakai server & frontend)
 server/    Express API (Supabase: database, Auth, Storage), entry lokal & Vercel
 api/       bundle.mjs — hasil build server untuk Vercel (di-commit)
 supabase/  schema.sql + migrasi/

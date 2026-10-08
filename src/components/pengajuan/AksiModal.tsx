@@ -1,21 +1,21 @@
 import { Ban, BadgeCheck, CircleAlert, CircleCheck, CircleX, ClipboardCheck, FolderKanban, Hourglass, Info, ReceiptText, Undo2 } from 'lucide-react';
 import { useId, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { KATEGORI_INFO, type Kategori } from '../../../shared/constants';
+import type { Kategori } from '../../../shared/constants';
 import { formatRupiah, formatTanggal, formatWaktu, tanggalLokalIso } from '../../../shared/format';
 import {
-  DAFTAR_PROJECT,
-  DAFTAR_TASK,
   cariProject,
+  cocokKataKunci,
+  susunProjectTask,
   taskOtomatis,
-  taskSesuaiKategori,
-  type ProjectMaster,
-  type ProjectTask,
+  type OpsiProject,
+  type OpsiTask,
 } from '../../../shared/project-task';
 import type { PengajuanDetail, PengajuanRingkas } from '../../../shared/types';
 import { validateCatatanWajib, validateDataPum, validateInvoice, validateVerifikasi } from '../../../shared/validation';
 import { ApiError } from '../../lib/api';
-import { useAksiPengajuan, useSaranPum } from '../../lib/queries';
+import { useKamus } from '../../context/KonfigContext';
+import { useAksiPengajuan, useProjectTask, useSaranPum } from '../../lib/queries';
 import { Chip } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Field, Input, Textarea } from '../ui/Field';
@@ -46,8 +46,9 @@ interface PropsModal {
 type MutasiAksi = ReturnType<typeof useAksiPengajuan>;
 
 /**
- * Project costing & task name: kotak cari dari master Kasubdit (shared/project-task.ts) + nilai yang pernah dipakai.
- * Memilih project otomatis mengisi task bila project itu hanya punya satu task yang sesuai kategori.
+ * Project costing & task name: kotak cari dari master Project & Task (Master Data) + nilai yang pernah dipakai.
+ * Memilih project otomatis mengisi task bila project itu hanya punya satu task yang cocok dengan kata kunci
+ * jenis pengajuannya (master Jenis Pengajuan).
  */
 function IsianPum({
   kategori,
@@ -66,44 +67,50 @@ function IsianPum({
 }) {
   const id = useId().replace(/:/g, '');
   const { data: saran } = useSaranPum(true);
+  const { data: masterPt } = useProjectTask();
+  const kamus = useKamus();
   const [otomatis, setOtomatis] = useState(false);
-  const label = KATEGORI_INFO[kategori].labelPendek;
-  const master = cariProject(project);
+  const jenis = kamus.jenis(kategori);
+  const label = jenis.label_pendek;
+  const kataKunci = jenis.kata_kunci_task;
+  const daftar = useMemo(() => susunProjectTask(masterPt ?? { project: [], task: [] }), [masterPt]);
+  const master = cariProject(daftar, project);
 
   const opsiProject = useMemo<OpsiCari[]>(() => {
-    const relevan = (pr: ProjectMaster) => pr.tasks.some((t) => taskSesuaiKategori(kategori, t.taskNama));
-    const keOpsi = (pr: ProjectMaster, grup: string): OpsiCari => ({ value: pr.project, kode: pr.kode, label: pr.nama, grup });
-    const lama = (saran?.project_hosting ?? []).filter((v) => !cariProject(v));
+    const relevan = (pr: OpsiProject) => pr.tasks.some((t) => cocokKataKunci(kataKunci, t.nama));
+    const keOpsi = (pr: OpsiProject, grup: string): OpsiCari => ({ value: pr.project, kode: pr.kode, label: pr.nama, grup });
+    const lama = (saran?.project_hosting ?? []).filter((v) => !cariProject(daftar, v));
     return [
-      ...DAFTAR_PROJECT.filter(relevan).map((pr) => keOpsi(pr, `Punya task ${label}`)),
-      ...DAFTAR_PROJECT.filter((pr) => !relevan(pr)).map((pr) => keOpsi(pr, 'Project lainnya')),
+      ...daftar.project.filter(relevan).map((pr) => keOpsi(pr, `Punya task ${label}`)),
+      ...daftar.project.filter((pr) => !relevan(pr)).map((pr) => keOpsi(pr, kataKunci ? 'Project lainnya' : 'Project')),
       ...lama.map((v): OpsiCari => ({ value: v, label: v, grup: 'Pernah dipakai' })),
     ];
-  }, [kategori, label, saran]);
+  }, [daftar, kataKunci, label, saran]);
 
   const opsiTask = useMemo<OpsiCari[]>(() => {
-    const sumber = master ? master.tasks : DAFTAR_TASK;
-    const keOpsi = (t: ProjectTask, grup: string): OpsiCari => ({ value: t.task, kode: t.taskKode, label: t.taskNama, grup });
-    const dikenal = new Set(DAFTAR_TASK.map((t) => t.task));
+    const sumber = master ? master.tasks : daftar.task;
+    const keOpsi = (t: OpsiTask, grup: string): OpsiCari => ({ value: t.task, kode: t.kode, label: t.nama, grup });
+    const dikenal = new Set(daftar.task.map((t) => t.task));
     const lama = master ? [] : (saran?.task_name ?? []).filter((v) => !dikenal.has(v));
+    const cocok = (t: OpsiTask) => cocokKataKunci(kataKunci, t.nama);
     return [
-      ...sumber.filter((t) => taskSesuaiKategori(kategori, t.taskNama)).map((t) => keOpsi(t, `Sesuai kategori ${label}`)),
+      ...sumber.filter(cocok).map((t) => keOpsi(t, `Sesuai kategori ${label}`)),
       ...sumber
-        .filter((t) => !taskSesuaiKategori(kategori, t.taskNama))
-        .map((t) => keOpsi(t, master ? 'Task lain project ini' : 'Task lainnya')),
+        .filter((t) => !cocok(t))
+        .map((t) => keOpsi(t, master ? 'Task lain project ini' : kataKunci ? 'Task lainnya' : 'Task')),
       ...lama.map((v): OpsiCari => ({ value: v, label: v, grup: 'Pernah dipakai' })),
     ];
-  }, [kategori, label, master, saran]);
+  }, [daftar, kataKunci, label, master, saran]);
 
   const pilihProject = (v: string) => {
     setProject(v);
-    const pr = cariProject(v);
+    const pr = cariProject(daftar, v);
     // Task lama tetap dipakai bila masih sah untuk project baru; selain itu isi otomatis (atau kosongkan).
     if (!pr || pr.tasks.some((t) => t.task === task)) {
       setOtomatis(false);
       return;
     }
-    const t = taskOtomatis(kategori, v);
+    const t = taskOtomatis(daftar, kataKunci, v);
     setTask(t ?? '');
     setOtomatis(t !== null);
   };

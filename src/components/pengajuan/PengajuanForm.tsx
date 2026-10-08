@@ -17,24 +17,24 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import {
-  BANK_SARAN,
   CATATAN_BIAYA_TRANSFER,
   JENIS_KONSUMSI_LABEL,
   JENIS_KONSUMSI_LIST,
   JENIS_TRANSPORT_LABEL,
-  KATEGORI_INFO,
-  MAX_PESERTA_TRANSPORT,
   isBankMandiri,
+  modelPeserta,
   type JenisKonsumsi,
   type JenisTransport,
-  type Kategori,
   type Mekanisme,
+  type ModelForm,
 } from '../../../shared/constants';
 import { formatAngka, formatRupiah, lamaHari } from '../../../shared/format';
-import type { PengajuanDetail, PengajuanInput } from '../../../shared/types';
+import { maksPeserta } from '../../../shared/konfig';
+import type { JenisPengajuan, Pegawai, PengajuanDetail, PengajuanInput } from '../../../shared/types';
 import { isTanggalValid, validatePengajuan } from '../../../shared/validation';
 import { ApiError } from '../../lib/api';
 import { cn } from '../../lib/cn';
+import { useBank, usePegawai } from '../../lib/queries';
 import { AnimatedNumber } from '../ui/AnimatedNumber';
 import { Button } from '../ui/Button';
 import { CurrencyInput } from '../ui/CurrencyInput';
@@ -84,7 +84,7 @@ function kunciBaru() {
   return `p${++nomorKunci}`;
 }
 
-function stateAwal(kategori: Kategori, d?: PengajuanDetail): StateForm {
+function stateAwal(model: ModelForm, d?: PengajuanDetail): StateForm {
   if (d) {
     return {
       nama_kegiatan: d.nama_kegiatan,
@@ -94,8 +94,8 @@ function stateAwal(kategori: Kategori, d?: PengajuanDetail): StateForm {
       mekanisme: d.mekanisme,
       jenis_transport: d.jenis_transport ?? '',
       jenis_konsumsi: d.jenis_konsumsi ?? '',
-      jumlah_orang: d.kategori === 'konsumsi' ? String(d.jumlah_orang) : '',
-      total: d.kategori === 'konsumsi' ? d.total : null,
+      jumlah_orang: model === 'konsumsi' ? String(d.jumlah_orang) : '',
+      total: model === 'konsumsi' ? d.total : null,
       uang_siapa_id: d.uang_siapa_id,
       rekening_bank: d.rekening_bank ?? '',
       rekening_nomor: d.rekening_nomor ?? '',
@@ -104,7 +104,7 @@ function stateAwal(kategori: Kategori, d?: PengajuanDetail): StateForm {
         d.peserta.length > 0
           ? d.peserta.map((p) => {
               // Perjadin lama tanpa rincian: nilai masuk ke kolom sesuai jenis uang yang dulu dipilih.
-              const lama = d.kategori === 'perjadin' && p.uang_harian === null && p.uang_transport === null;
+              const lama = model === 'perjadin' && p.uang_harian === null && p.uang_transport === null;
               return {
                 kunci: kunciBaru(),
                 pegawai_id: p.pegawai_id,
@@ -130,24 +130,25 @@ function stateAwal(kategori: Kategori, d?: PengajuanDetail): StateForm {
     rekening_bank: '',
     rekening_nomor: '',
     catatan: '',
-    peserta: kategori === 'konsumsi' ? [] : [barisKosong()],
+    peserta: modelPeserta(model) ? [barisKosong()] : [],
   };
 }
 
-/** Nilai satu orang: Perjadin = uang harian + uang transport; Rumah Tangga = nilai uang. */
-function nilaiBaris(kategori: Kategori, p: BarisPeserta): number {
-  return kategori === 'perjadin' ? (p.uang_harian ?? 0) + (p.uang_transport ?? 0) : (p.nilai ?? 0);
+/** Nilai satu orang: Perjadin = uang harian + uang transport; model lain = nilai uang. */
+function nilaiBaris(model: ModelForm, p: BarisPeserta): number {
+  return model === 'perjadin' ? (p.uang_harian ?? 0) + (p.uang_transport ?? 0) : (p.nilai ?? 0);
 }
 
-function keInput(kategori: Kategori, s: StateForm): PengajuanInput {
+function keInput(jenis: JenisPengajuan, s: StateForm): PengajuanInput {
+  const model = jenis.model;
   const dasar = {
-    kategori,
+    kategori: jenis.kode,
     nama_kegiatan: s.nama_kegiatan,
     tanggal_kegiatan: s.tanggal_kegiatan,
     mekanisme: s.mekanisme as Mekanisme,
     catatan: s.catatan,
   };
-  if (kategori === 'konsumsi') {
+  if (model === 'konsumsi') {
     return {
       ...dasar,
       jenis_konsumsi: (s.jenis_konsumsi || null) as JenisKonsumsi | null,
@@ -158,16 +159,18 @@ function keInput(kategori: Kategori, s: StateForm): PengajuanInput {
       rekening_nomor: s.rekening_nomor,
     };
   }
-  if (kategori === 'rumah_tangga') {
+  if (model === 'rumah_tangga' || model === 'umum') {
     // Nilai kosong dikirim sebagai null agar validasi memberi pesan "wajib diisi" (bukan "harus > 0").
     // Setelah lolos validasi, keduanya dijamin berupa bilangan.
     const peserta = s.peserta.map((p) => ({ pegawai_id: p.pegawai_id as number, nilai: p.nilai as number }));
-    return { ...dasar, lokasi_tujuan: s.lokasi_tujuan, peserta };
+    return model === 'umum'
+      ? { ...dasar, peserta, tanggal_selesai: s.tanggal_selesai || null }
+      : { ...dasar, lokasi_tujuan: s.lokasi_tujuan, peserta };
   }
   // Perjadin: nilai per orang dihitung server dari uang harian + uang transport.
   const peserta = s.peserta.map((p) => ({
     pegawai_id: p.pegawai_id as number,
-    nilai: nilaiBaris(kategori, p),
+    nilai: nilaiBaris(model, p),
     uang_harian: p.uang_harian,
     uang_transport: p.uang_transport,
   }));
@@ -181,20 +184,26 @@ function keInput(kategori: Kategori, s: StateForm): PengajuanInput {
 }
 
 interface PengajuanFormProps {
-  kategori: Kategori;
+  /** Jenis pengajuan (master) — model form-nya menentukan isian. */
+  jenis: JenisPengajuan;
   awal?: PengajuanDetail;
   teksSimpan: string;
   onSimpan: (data: PengajuanInput) => Promise<void>;
   onBatal: () => void;
 }
 
-export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }: PengajuanFormProps) {
-  const [s, setS] = useState<StateForm>(() => stateAwal(kategori, awal));
+export function PengajuanForm({ jenis, awal, teksSimpan, onSimpan, onBatal }: PengajuanFormProps) {
+  const model = jenis.model;
+  const [s, setS] = useState<StateForm>(() => stateAwal(model, awal));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [memuat, setMemuat] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const transport = kategori !== 'konsumsi';
-  const info = KATEGORI_INFO[kategori];
+  const transport = modelPeserta(model);
+  const maks = maksPeserta(jenis);
+  const { data: daftarBank = [] } = useBank();
+  const { data: daftarPegawai = [] } = usePegawai();
+  // Rekening terakhir yang diisi otomatis dari data pegawai (boleh ditimpa saat "uang siapa" diganti).
+  const [rekOtomatis, setRekOtomatis] = useState<{ bank: string; nomor: string } | null>(null);
 
   const ubah = <K extends keyof StateForm>(k: K, v: StateForm[K]) => {
     setS((prev) => ({ ...prev, [k]: v }));
@@ -211,13 +220,44 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
     setErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith('peserta'))));
   };
 
-  const total = transport ? s.peserta.reduce((a, p) => a + nilaiBaris(kategori, p), 0) : (s.total ?? 0);
+  const total = transport ? s.peserta.reduce((a, p) => a + nilaiBaris(model, p), 0) : (s.total ?? 0);
   const bankBukanMandiri = s.rekening_bank.trim() !== '' && !isBankMandiri(s.rekening_bank);
   const jumlahOrangKonsumsi = Number(s.jumlah_orang) || 0;
+  const pakaiRentang = model === 'perjadin' || model === 'umum';
   const lama =
-    kategori === 'perjadin' && isTanggalValid(s.tanggal_kegiatan) && isTanggalValid(s.tanggal_selesai) && s.tanggal_selesai >= s.tanggal_kegiatan
+    pakaiRentang && isTanggalValid(s.tanggal_kegiatan) && isTanggalValid(s.tanggal_selesai) && s.tanggal_selesai >= s.tanggal_kegiatan
       ? lamaHari(s.tanggal_kegiatan, s.tanggal_selesai)
       : null;
+  const pemilikUang = daftarPegawai.find((p) => p.id === s.uang_siapa_id);
+  const rekPegawai =
+    pemilikUang?.rekening_bank && pemilikUang.rekening_nomor ? { bank: pemilikUang.rekening_bank, nomor: pemilikUang.rekening_nomor } : null;
+  const rekSamaPegawai =
+    !!rekPegawai && s.rekening_bank.trim() === rekPegawai.bank && s.rekening_nomor.replace(/[\s.-]/g, '') === rekPegawai.nomor;
+
+  /** Ganti "uang siapa": rekening ikut diisi dari data pegawai bila masih kosong atau sebelumnya diisi otomatis. */
+  const pilihUangSiapa = (id: number, pg: Pegawai) => {
+    const rek = pg.rekening_bank && pg.rekening_nomor ? { bank: pg.rekening_bank, nomor: pg.rekening_nomor } : null;
+    const kosong = !s.rekening_bank.trim() && !s.rekening_nomor.trim();
+    const dariOtomatis = !!rekOtomatis && s.rekening_bank === rekOtomatis.bank && s.rekening_nomor === rekOtomatis.nomor;
+    ubah('uang_siapa_id', id);
+    if (kosong || dariOtomatis) {
+      setS((prev) => ({ ...prev, rekening_bank: rek?.bank ?? '', rekening_nomor: rek?.nomor ?? '' }));
+      setErrors((prev) => {
+        const sisa = { ...prev };
+        delete sisa.rekening_bank;
+        delete sisa.rekening_nomor;
+        return sisa;
+      });
+      setRekOtomatis(rek);
+    }
+  };
+
+  const pakaiRekPegawai = () => {
+    if (!rekPegawai) return;
+    ubah('rekening_bank', rekPegawai.bank);
+    ubah('rekening_nomor', rekPegawai.nomor);
+    setRekOtomatis(rekPegawai);
+  };
   const dipilih = useMemo(() => s.peserta.map((p) => p.pegawai_id).filter((v): v is number => v !== null), [s.peserta]);
 
   const fokusErrorPertama = (errs: Record<string, string>) => {
@@ -233,8 +273,8 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
 
   const kirim = async (e: FormEvent) => {
     e.preventDefault();
-    const data = keInput(kategori, s);
-    const h = validatePengajuan(data);
+    const data = keInput(jenis, s);
+    const h = validatePengajuan(data, jenis);
     if (!h.ok) {
       setErrors(h.errors);
       fokusErrorPertama(h.errors);
@@ -271,7 +311,7 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
         <JudulKartu
           ikon={<NotebookPen className="size-4.5" />}
           judul="Informasi kegiatan"
-          deskripsi={`${info.label} — isi sesuai dokumen kegiatan`}
+          deskripsi={`${jenis.label} — isi sesuai dokumen kegiatan`}
         />
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Nama kegiatan" htmlFor="nama_kegiatan" error={errors.nama_kegiatan} wajib className="sm:col-span-2">
@@ -280,14 +320,25 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
               value={s.nama_kegiatan}
               invalid={!!errors.nama_kegiatan}
               maxLength={200}
-              placeholder={kategori === 'konsumsi' ? 'mis. Rapat Koordinasi Rencana Pengadaan' : 'mis. Pengantaran Dokumen Kontrak'}
+              placeholder={
+                model === 'konsumsi'
+                  ? 'mis. Rapat Koordinasi Rencana Pengadaan'
+                  : model === 'umum'
+                    ? `mis. ${jenis.label} bulan September`
+                    : 'mis. Pengantaran Dokumen Kontrak'
+              }
               onChange={(e) => ubah('nama_kegiatan', e.target.value)}
             />
           </Field>
 
-          {kategori === 'perjadin' ? (
+          {pakaiRentang ? (
             <>
-              <Field label="Lama kegiatan — dari" htmlFor="tanggal_kegiatan" error={errors.tanggal_kegiatan} wajib>
+              <Field
+                label={model === 'perjadin' ? 'Lama kegiatan — dari' : 'Tanggal / mulai periode'}
+                htmlFor="tanggal_kegiatan"
+                error={errors.tanggal_kegiatan}
+                wajib
+              >
                 <Input
                   id="tanggal_kegiatan"
                   type="date"
@@ -297,15 +348,17 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
                 />
               </Field>
               <Field
-                label="Sampai"
+                label={model === 'perjadin' ? 'Sampai' : 'Sampai (opsional)'}
                 htmlFor="tanggal_selesai"
                 error={errors.tanggal_selesai}
-                wajib
+                wajib={model === 'perjadin'}
                 hint={
                   lama ? (
                     <span className="inline-flex items-center gap-1 font-semibold text-fg">
-                      <CalendarRange className="size-3.5" /> Lama kegiatan {lama} hari
+                      <CalendarRange className="size-3.5" /> {model === 'perjadin' ? 'Lama kegiatan' : 'Periode'} {lama} hari
                     </span>
+                  ) : model === 'umum' ? (
+                    'Isi bila berupa periode, mis. satu bulan'
                   ) : undefined
                 }
               >
@@ -331,13 +384,13 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
             </Field>
           )}
 
-          {transport && (
+          {(model === 'rumah_tangga' || model === 'perjadin') && (
             <Field
               label="Lokasi tujuan"
               htmlFor="lokasi_tujuan"
               error={errors.lokasi_tujuan}
               wajib
-              className={kategori === 'perjadin' ? 'sm:col-span-2' : undefined}
+              className={model === 'perjadin' ? 'sm:col-span-2' : undefined}
             >
               <div className="relative">
                 <MapPin className="pointer-events-none absolute top-1/2 z-10 left-3.5 size-4 -translate-y-1/2 text-fg-muted" />
@@ -347,7 +400,7 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
                   value={s.lokasi_tujuan}
                   invalid={!!errors.lokasi_tujuan}
                   maxLength={200}
-                  placeholder={kategori === 'perjadin' ? 'mis. Bandung' : 'mis. Gedung Rektorat UI, Depok'}
+                  placeholder={model === 'perjadin' ? 'mis. Bandung' : 'mis. Gedung Rektorat UI, Depok'}
                   onChange={(e) => ubah('lokasi_tujuan', e.target.value)}
                 />
               </div>
@@ -371,7 +424,7 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
           </Field>
 
           {/* Perjadin: jenis transport di samping mekanisme */}
-          {kategori === 'perjadin' && (
+          {model === 'perjadin' && (
             <Field label="Jenis transport" htmlFor="jenis_transport" error={errors.jenis_transport} wajib>
               <Segmented
                 id="jenis_transport"
@@ -391,7 +444,7 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
         </div>
       </GlassCard>
 
-      {kategori === 'konsumsi' ? (
+      {model === 'konsumsi' ? (
         <GlassCard className="p-5 sm:p-6" {...kartu(1)}>
           <JudulKartu ikon={<Wallet className="size-4.5" />} judul="Rincian konsumsi" deskripsi="Peserta rapat dan uang yang digunakan" />
           <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -476,7 +529,7 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
                 id="uang_siapa_id"
                 value={s.uang_siapa_id}
                 invalid={!!errors.uang_siapa_id}
-                onChange={(id) => ubah('uang_siapa_id', id)}
+                onChange={pilihUangSiapa}
               />
             </Field>
             <div
@@ -489,7 +542,22 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
                 <Landmark className="size-4 text-fg-muted" aria-hidden />
                 Rekening uang siapa
               </p>
-              <p className="mt-0.5 pl-6 text-xs text-fg-subtle">Opsional — tujuan pembayaran oleh PUM</p>
+              <p className="mt-0.5 pl-6 text-xs text-fg-subtle" data-testid="sumber-rekening">
+                {rekSamaPegawai
+                  ? 'Opsional — diisi otomatis dari data pegawai (boleh diubah)'
+                  : pemilikUang && !rekPegawai
+                    ? 'Opsional — rekening pegawai ini belum tercatat di master Pegawai'
+                    : 'Opsional — tujuan pembayaran oleh PUM'}
+              </p>
+              {rekPegawai && !rekSamaPegawai && (
+                <button
+                  type="button"
+                  onClick={pakaiRekPegawai}
+                  className="mt-2 ml-6 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-navy-700 ring-1 ring-fg/10 transition hover:bg-fg/[0.05] dark:text-kuning-300"
+                >
+                  <Landmark className="size-3.5" aria-hidden /> Pakai rekening data pegawai: {rekPegawai.bank} {rekPegawai.nomor}
+                </button>
+              )}
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Bank" htmlFor="rekening_bank" error={errors.rekening_bank}>
                   <Input
@@ -503,9 +571,11 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
                     onChange={(e) => ubah('rekening_bank', e.target.value)}
                   />
                   <datalist id="saran-bank">
-                    {BANK_SARAN.map((b) => (
-                      <option key={b} value={b} />
-                    ))}
+                    {daftarBank
+                      .filter((b) => b.aktif)
+                      .map((b) => (
+                        <option key={b.id} value={b.nama} />
+                      ))}
                   </datalist>
                 </Field>
                 <Field label="No. Rekening" htmlFor="rekening_nomor" error={errors.rekening_nomor}>
@@ -553,13 +623,13 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
             ikon={<Users className="size-4.5" />}
             judul="Penerima & nilai uang"
             deskripsi={
-              kategori === 'perjadin'
-                ? `Isi uang harian dan/atau uang transport tiap orang · maks. ${MAX_PESERTA_TRANSPORT} orang`
-                : `Setiap orang tercatat terpisah untuk rekap per orang · maks. ${MAX_PESERTA_TRANSPORT} orang`
+              model === 'perjadin'
+                ? `Isi uang harian dan/atau uang transport tiap orang · maks. ${maks} orang`
+                : `Setiap orang tercatat terpisah untuk rekap per orang · maks. ${maks} orang`
             }
             aksi={
               <span className="rounded-full bg-fg/[0.06] px-2.5 py-1 text-xs font-bold text-fg-muted">
-                {s.peserta.length}/{MAX_PESERTA_TRANSPORT} orang
+                {s.peserta.length}/{maks} orang
               </span>
             }
           />
@@ -574,7 +644,7 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  {kategori === 'perjadin' ? (
+                  {model === 'perjadin' ? (
                     <div className="flex items-start gap-3 rounded-2xl bg-fg/[0.03] p-3 ring-1 ring-fg/[0.06] sm:p-4">
                       <span className="mt-7 hidden size-8 shrink-0 place-items-center rounded-full bg-navy-900 text-xs font-bold text-kuning-300 sm:grid dark:bg-kuning-400 dark:text-navy-950">
                         {i + 1}
@@ -615,7 +685,7 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
                         {(p.uang_harian ?? 0) > 0 && (p.uang_transport ?? 0) > 0 && (
                           <p className="text-right text-xs text-fg-muted @md:col-span-2 @3xl:col-span-3">
                             Jumlah orang {i + 1}:{' '}
-                            <span className="angka font-bold text-fg">{formatRupiah(nilaiBaris(kategori, p))}</span>
+                            <span className="angka font-bold text-fg">{formatRupiah(nilaiBaris(model, p))}</span>
                           </p>
                         )}
                       </div>
@@ -678,10 +748,10 @@ export function PengajuanForm({ kategori, awal, teksSimpan, onSimpan, onBatal }:
               varian="kedua"
               ukuran="sm"
               ikon={<Plus className="size-4" />}
-              disabled={s.peserta.length >= MAX_PESERTA_TRANSPORT}
+              disabled={s.peserta.length >= maks}
               onClick={() => setS((prev) => ({ ...prev, peserta: [...prev.peserta, barisKosong()] }))}
             >
-              {s.peserta.length >= MAX_PESERTA_TRANSPORT ? `Maksimal ${MAX_PESERTA_TRANSPORT} orang` : 'Tambah orang'}
+              {s.peserta.length >= maks ? `Maksimal ${maks} orang` : 'Tambah orang'}
             </Button>
           </div>
         </GlassCard>

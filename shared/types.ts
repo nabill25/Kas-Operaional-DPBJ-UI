@@ -1,17 +1,19 @@
 // Bentuk data yang dikirim API (server) dan dipakai client.
 import type {
   AksiRiwayat,
+  IkonJenis,
   JenisBerkas,
-  JenisBerkasWajib,
   JenisNotifikasi,
   JenisKonsumsi,
   JenisTransport,
   JenisUang,
   Kategori,
   Mekanisme,
+  ModelForm,
   Role,
   Status,
   StatusCek,
+  WarnaJenis,
 } from './constants';
 
 export interface User {
@@ -31,6 +33,9 @@ export interface Pegawai {
   nama: string;
   nip: string | null;
   jabatan: string | null;
+  /** Rekening pegawai (opsional, berpasangan) — mengisi otomatis rekening "uang siapa" di form Konsumsi. */
+  rekening_bank: string | null;
+  rekening_nomor: string | null;
   aktif: boolean;
   /** Jumlah pengajuan yang memakai pegawai ini (sebagai uang siapa / peserta). */
   dipakai: number;
@@ -58,6 +63,9 @@ export interface Peserta {
   uang_harian: number | null;
   uang_transport: number | null;
   urutan: number;
+  /** Rekening pegawai saat ini (dari master Pegawai), tujuan pembayaran per orang. */
+  rekening_bank: string | null;
+  rekening_nomor: string | null;
 }
 
 export interface Berkas {
@@ -75,7 +83,7 @@ export interface Berkas {
 
 /** Hasil centang/pemeriksaan satu jenis berkas wajib oleh PUM. */
 export interface CekBerkas {
-  jenis: JenisBerkasWajib;
+  jenis: JenisBerkas;
   status: StatusCek;
   catatan: string | null;
   diperiksa_by: number;
@@ -84,7 +92,7 @@ export interface CekBerkas {
 }
 
 export interface KelengkapanItem {
-  jenis: JenisBerkasWajib;
+  jenis: JenisBerkas;
   label: string;
   jumlah: number;
   na: boolean;
@@ -232,15 +240,16 @@ export interface DashboardData {
     /** Rata-rata hari dari diajukan ke PUM hingga selesai (paid). */
     rataProsesHari: number | null;
   };
-  perBulan: { bulan: number; konsumsi: number; rumah_tangga: number; perjadin: number; jumlah: number }[];
+  /** Nilai per bulan; `perKategori` berisi nilai per kode jenis pengajuan (hanya yang > 0). */
+  perBulan: { bulan: number; jumlah: number; nilai: number; perKategori: Record<Kategori, number> }[];
+  /** Urut master; berisi jenis aktif + jenis nonaktif yang punya data pada tahun itu. */
   perKategori: { kategori: Kategori; jumlah: number; nilai: number }[];
   perMekanisme: { mekanisme: Mekanisme; jumlah: number; nilai: number }[];
   topPegawai: {
     pegawai_id: number;
     nama: string;
-    konsumsi: number;
-    rumah_tangga: number;
-    perjadin: number;
+    /** Nilai per kode jenis pengajuan (hanya yang > 0). */
+    perKategori: Record<Kategori, number>;
     total: number;
     jumlah: number;
   }[];
@@ -261,6 +270,7 @@ export interface RekapPengajuanData {
   ringkasan: {
     jumlah: number;
     nilai: number;
+    /** Per kode jenis pengajuan: semua jenis di master + kode lain yang muncul di data. */
     perKategori: Record<Kategori, JumlahNilai>;
     perStatus: Record<Status, JumlahNilai>;
     perMekanisme: Record<Mekanisme, JumlahNilai>;
@@ -273,9 +283,8 @@ export interface RekapPegawaiRow {
   nip: string | null;
   jabatan: string | null;
   jumlah: number;
-  konsumsi: number;
-  rumah_tangga: number;
-  perjadin: number;
+  /** Nilai per kode jenis pengajuan (hanya yang > 0). Jumlahnya = total. */
+  perKategori: Record<Kategori, number>;
   total: number;
 }
 
@@ -333,6 +342,78 @@ export interface NotifikasiData {
 export interface SaranPum {
   project_hosting: string[];
   task_name: string[];
+}
+
+// ───────────── Master data ─────────────
+
+export interface JenisPengajuan {
+  kode: Kategori;
+  label: string;
+  label_pendek: string;
+  /** Awalan kode pengajuan, mis. "KSM" → KSM-2026-0001. */
+  prefix: string;
+  deskripsi: string | null;
+  model: ModelForm;
+  /** Batas orang per pengajuan (model selain konsumsi). */
+  maks_peserta: number | null;
+  /** Kata kunci nama task untuk saran Task Name otomatis, mis. "konsumsi". */
+  kata_kunci_task: string | null;
+  warna: WarnaJenis;
+  ikon: IkonJenis;
+  aktif: boolean;
+  /** Jenis bawaan sistem: tidak dapat dihapus, model & kode tetap. */
+  bawaan: boolean;
+  urutan: number;
+  /** Kode jenis berkas wajib, urut tampil. */
+  berkas: JenisBerkas[];
+  /** Jumlah pengajuan berjenis ini (hanya pada daftar master). */
+  dipakai?: number;
+}
+
+export interface JenisBerkasMaster {
+  kode: JenisBerkas;
+  label: string;
+  keterangan: string | null;
+  aktif: boolean;
+  bawaan: boolean;
+  urutan: number;
+  /** Pemakaian (hanya pada daftar master): jenis pengajuan yang mewajibkan & jumlah file terunggah. */
+  dipakai?: { jenis_pengajuan: string[]; berkas: number };
+}
+
+/** Konfigurasi master yang dibutuhkan semua halaman (dimuat sekali setelah login). */
+export interface Konfig {
+  jenisPengajuan: JenisPengajuan[];
+  jenisBerkas: JenisBerkasMaster[];
+}
+
+export interface Bank {
+  id: number;
+  nama: string;
+  aktif: boolean;
+  /** Jumlah pemakaian nama bank ini (rekening pengajuan & pegawai) — hanya informasi. */
+  dipakai: number;
+}
+
+export interface MasterProject {
+  id: number;
+  kode: string;
+  nama: string;
+  aktif: boolean;
+  /** Id task yang sah untuk project ini. */
+  task_ids: number[];
+}
+
+export interface MasterTask {
+  id: number;
+  kode: string;
+  nama: string;
+  aktif: boolean;
+}
+
+export interface MasterProjectTask {
+  project: MasterProject[];
+  task: MasterTask[];
 }
 
 export interface ApiErrorBody {

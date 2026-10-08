@@ -1,9 +1,8 @@
 import { ChartPie, Landmark } from 'lucide-react';
 import { motion } from 'motion/react';
-import { KATEGORI_INFO } from '../../../shared/constants';
 import { formatAngka, formatRupiah } from '../../../shared/format';
 import type { DashboardData } from '../../../shared/types';
-import { IKON_KATEGORI } from '../ui/Badge';
+import { useTampilanJenis } from '../ui/Badge';
 import { GlassCard, JudulKartu } from '../ui/GlassCard';
 import { usePaletChart } from './palet';
 
@@ -27,6 +26,7 @@ export function Komposisi({
   redup?: boolean;
 }) {
   const w = usePaletChart();
+  const t = useTampilanJenis();
   const total = perKategori.reduce((s, k) => s + k.nilai, 0);
   const totalMek = perMekanisme.reduce((s, m) => s + m.nilai, 0);
 
@@ -40,20 +40,20 @@ export function Komposisi({
       <JudulKartu ikon={<ChartPie className="size-4.5" />} judul="Komposisi kategori" deskripsi="Porsi nilai pengajuan per kategori" />
       <ul className={`mt-5 space-y-4 transition-opacity ${redup ? 'opacity-60' : ''}`}>
         {perKategori.map((k, i) => {
-          const Ikon = IKON_KATEGORI[k.kategori];
+          const Ikon = t.ikon(k.kategori);
           return (
             <li key={k.kategori}>
               <div className="flex items-center gap-2.5">
-                <span className="grid size-7 place-items-center rounded-lg text-white" style={{ background: w[k.kategori] }} aria-hidden>
+                <span className="grid size-7 place-items-center rounded-lg text-white" style={{ background: t.warna(k.kategori) }} aria-hidden>
                   <Ikon className="size-3.5" />
                 </span>
-                <span className="flex-1 text-sm font-semibold text-fg">{KATEGORI_INFO[k.kategori].labelPendek}</span>
+                <span className="flex-1 text-sm font-semibold text-fg">{t.info(k.kategori).label_pendek}</span>
                 <span className="angka text-sm font-bold text-fg">{teksPersen(k.nilai, total)}</span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full" style={{ background: w.jalur }}>
                 <motion.div
                   className="h-full rounded-full"
-                  style={{ background: w[k.kategori] }}
+                  style={{ background: t.warna(k.kategori) }}
                   initial={{ width: 0 }}
                   animate={{ width: `${persen(k.nilai, total)}%` }}
                   transition={{ delay: 0.25 + i * 0.1, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}

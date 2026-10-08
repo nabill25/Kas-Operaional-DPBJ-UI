@@ -3,17 +3,18 @@ import { jsPDF } from 'jspdf';
 import { autoTable, type RowInput, type UserOptions } from 'jspdf-autotable';
 import {
   CATATAN_BIAYA_TRANSFER,
-  JENIS_BERKAS_LABEL,
+  JENIS_BERKAS_LAINNYA,
   JENIS_KONSUMSI_LABEL,
   JENIS_TRANSPORT_LABEL,
-  KATEGORI_INFO,
-  KATEGORI_LIST,
+  LABEL_BERKAS_LAINNYA,
   MEKANISME_LIST,
   STATUS_INFO,
   STATUS_LEWAT_VERIFIKASI,
   STATUS_LIST,
   AKSI_RIWAYAT_LABEL,
   isBankMandiri,
+  modelPeserta,
+  type Kategori,
 } from '../../../shared/constants';
 import {
   formatAngka,
@@ -24,6 +25,7 @@ import {
   lamaHari,
   tanggalLokalIso,
 } from '../../../shared/format';
+import type { Kamus } from '../../../shared/konfig';
 import type {
   PengajuanDetail,
   RekapPegawaiData,
@@ -201,6 +203,35 @@ function judulDokumen(doc: jsPDF, judul: string, baris: string[]): number {
   return y + 2;
 }
 
+/**
+ * Jenis yang ditampilkan di laporan (sama dengan layar): semua jenis aktif (walau 0) + jenis nonaktif yang punya data,
+ * urut master; kode yang tidak dikenal (punya data) di akhir.
+ */
+function jenisBerdata(kamus: Kamus, ada: (k: Kategori) => boolean, semuaKode: Kategori[] = []): Kategori[] {
+  return [...kamus.jenisTampil(ada).map((j) => j.kode), ...semuaKode.filter((k) => !kamus.dikenal(k) && ada(k))];
+}
+
+/** Kotak ringkasan per jenis: maks. `maks` jenis, sisanya digabung "Lainnya". */
+function kotakJenis(
+  kamus: Kamus,
+  kode: Kategori[],
+  nilai: (k: Kategori) => number,
+  sub: (k: Kategori) => string | undefined,
+  maks: number,
+): { label: string; nilai: string; sub?: string }[] {
+  const utama = kode.length > maks ? kode.slice(0, maks - 1) : kode;
+  const sisa = kode.slice(utama.length);
+  const isi = utama.map((k) => ({ label: kamus.jenis(k).label_pendek, nilai: formatRupiah(nilai(k)), sub: sub(k) }));
+  if (sisa.length) {
+    isi.push({
+      label: `Lainnya (${sisa.length} jenis)`,
+      nilai: formatRupiah(sisa.reduce((a, k) => a + nilai(k), 0)),
+      sub: sisa.map((k) => kamus.jenis(k).label_pendek).join(', '),
+    });
+  }
+  return isi;
+}
+
 export interface KeteranganFilter {
   periode: string;
   rincian: string[];
@@ -208,7 +239,7 @@ export interface KeteranganFilter {
 
 // ───────────────────────────── Rekap pengajuan ─────────────────────────────
 
-export function pdfRekapPengajuan(data: RekapPengajuanData, filter: KeteranganFilter, dicetakOleh: string): void {
+export function pdfRekapPengajuan(data: RekapPengajuanData, filter: KeteranganFilter, dicetakOleh: string, kamus: Kamus): void {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const r = data.ringkasan;
   let y = judulDokumen(doc, 'Laporan Rekap Pengajuan Kas Operasional', [
@@ -218,11 +249,13 @@ export function pdfRekapPengajuan(data: RekapPengajuanData, filter: KeteranganFi
 
   y = kotakRingkasan(doc, y, [
     { label: 'Total nilai', nilai: formatRupiah(r.nilai), sub: `${formatAngka(r.jumlah)} pengajuan` },
-    ...KATEGORI_LIST.map((k) => ({
-      label: KATEGORI_INFO[k].labelPendek,
-      nilai: formatRupiah(r.perKategori[k].nilai),
-      sub: `${r.perKategori[k].jumlah} pengajuan`,
-    })),
+    ...kotakJenis(
+      kamus,
+      jenisBerdata(kamus, (k) => (r.perKategori[k]?.jumlah ?? 0) > 0, Object.keys(r.perKategori)),
+      (k) => r.perKategori[k]?.nilai ?? 0,
+      (k) => `${r.perKategori[k]?.jumlah ?? 0} pengajuan`,
+      4,
+    ),
     ...MEKANISME_LIST.map((m) => ({
       label: `Mekanisme ${m}`,
       nilai: formatRupiah(r.perMekanisme[m].nilai),
@@ -247,7 +280,7 @@ export function pdfRekapPengajuan(data: RekapPengajuanData, filter: KeteranganFi
     i + 1,
     p.kode,
     formatRentangTanggal(p.tanggal_kegiatan, p.tanggal_selesai),
-    KATEGORI_INFO[p.kategori].labelPendek,
+    kamus.jenis(p.kategori).label_pendek,
     b(p.nama_kegiatan),
     b(p.penerima),
     p.mekanisme,
@@ -289,54 +322,41 @@ export function pdfRekapPengajuan(data: RekapPengajuanData, filter: KeteranganFi
 
 // ───────────────────────────── Rekap per pegawai ─────────────────────────────
 
-export function pdfRekapPegawai(data: RekapPegawaiData, filter: KeteranganFilter, dicetakOleh: string): void {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+export function pdfRekapPegawai(data: RekapPegawaiData, filter: KeteranganFilter, dicetakOleh: string, kamus: Kamus): void {
+  const totalPer = (k: Kategori) => data.rows.reduce((s, r) => s + (r.perKategori[k] ?? 0), 0);
+  const kode = jenisBerdata(kamus, (k) => totalPer(k) > 0, [...new Set(data.rows.flatMap((r) => Object.keys(r.perKategori)))]);
+  const lebar = kode.length > 3;
+  const doc = new jsPDF({ orientation: lebar ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
   let y = judulDokumen(doc, 'Rekap Kas Operasional per Pegawai', [
     `Periode: ${filter.periode}`,
     filter.rincian.length ? `Filter: ${filter.rincian.join(' | ')}` : 'Filter: semua kategori, semua mekanisme, status selain draft',
-    'Konsumsi dihitung dari "uang siapa"; transport dari nilai per orang.',
+    'Model Konsumsi dihitung dari "uang siapa"; jenis lain dari nilai per orang.',
   ]);
-  const totalKonsumsi = data.rows.reduce((s, r) => s + r.konsumsi, 0);
-  const totalRt = data.rows.reduce((s, r) => s + r.rumah_tangga, 0);
-  const totalPd = data.rows.reduce((s, r) => s + r.perjadin, 0);
   y = kotakRingkasan(doc, y, [
     { label: 'Total', nilai: formatRupiah(data.total), sub: `${data.rows.length} pegawai` },
-    { label: 'Konsumsi', nilai: formatRupiah(totalKonsumsi) },
-    { label: 'Rumah Tangga', nilai: formatRupiah(totalRt) },
-    { label: 'Perjadin', nilai: formatRupiah(totalPd) },
+    ...kotakJenis(kamus, kode, totalPer, () => undefined, lebar ? 5 : 3),
   ]);
+  const kolomJenis = Object.fromEntries(kode.map((_, i) => [4 + i, { halign: 'right' as const, cellWidth: 22 }]));
   tabel(doc, {
     startY: y,
-    head: [['No', 'Nama pegawai', 'NIP/NUP', 'Jml', 'Konsumsi', 'Rumah Tangga', 'Perjadin', 'Total (Rp)']],
+    head: [['No', 'Nama pegawai', 'NIP/NUP', 'Jml', ...kode.map((k) => bersihkan(kamus.jenis(k).label_pendek)), 'Total (Rp)']],
     body: data.rows.map((r, i) => [
       i + 1,
       bersihkan(r.nama) + (r.jabatan ? `\n${bersihkan(r.jabatan)}` : ''),
       b(r.nip),
       r.jumlah,
-      formatAngka(r.konsumsi),
-      formatAngka(r.rumah_tangga),
-      formatAngka(r.perjadin),
+      ...kode.map((k) => formatAngka(r.perKategori[k] ?? 0)),
       formatAngka(r.total),
     ]),
-    foot: [
-      [
-        { content: 'TOTAL', colSpan: 4 },
-        formatAngka(totalKonsumsi),
-        formatAngka(totalRt),
-        formatAngka(totalPd),
-        formatAngka(data.total),
-      ],
-    ],
+    foot: [[{ content: 'TOTAL', colSpan: 4 }, ...kode.map((k) => formatAngka(totalPer(k))), formatAngka(data.total)]],
     showFoot: 'lastPage',
     columnStyles: {
       0: { halign: 'center', cellWidth: 9 },
       1: { cellWidth: 'auto', fontStyle: 'bold' },
       2: { cellWidth: 33 },
       3: { halign: 'center', cellWidth: 10 },
-      4: { halign: 'right', cellWidth: 22 },
-      5: { halign: 'right', cellWidth: 23 },
-      6: { halign: 'right', cellWidth: 22 },
-      7: { halign: 'right', cellWidth: 24, fontStyle: 'bold' },
+      ...kolomJenis,
+      [4 + kode.length]: { halign: 'right', cellWidth: 24, fontStyle: 'bold' },
     },
     footStyles: { halign: 'right' },
   });
@@ -344,7 +364,7 @@ export function pdfRekapPegawai(data: RekapPegawaiData, filter: KeteranganFilter
   doc.save(namaFile(`Rekap_Pegawai_${filter.periode}`));
 }
 
-export function pdfRekapPegawaiDetail(data: RekapPegawaiDetail, filter: KeteranganFilter, dicetakOleh: string): void {
+export function pdfRekapPegawaiDetail(data: RekapPegawaiDetail, filter: KeteranganFilter, dicetakOleh: string, kamus: Kamus): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pg = data.pegawai;
   let y = judulDokumen(doc, `Rekap Pegawai: ${pg.nama}`, [
@@ -354,10 +374,13 @@ export function pdfRekapPegawaiDetail(data: RekapPegawaiDetail, filter: Keterang
   ]);
   y = kotakRingkasan(doc, y, [
     { label: 'Total diterima', nilai: formatRupiah(data.total), sub: `${new Set(data.items.map((i) => i.pengajuan_id)).size} pengajuan` },
-    ...KATEGORI_LIST.map((k) => ({
-      label: KATEGORI_INFO[k].labelPendek,
-      nilai: formatRupiah(data.items.filter((i) => i.kategori === k).reduce((s, i) => s + i.nilai, 0)),
-    })),
+    ...kotakJenis(
+      kamus,
+      jenisBerdata(kamus, (k) => data.items.some((i) => i.kategori === k), [...new Set(data.items.map((i) => i.kategori))]),
+      (k) => data.items.filter((i) => i.kategori === k).reduce((s, i) => s + i.nilai, 0),
+      () => undefined,
+      3,
+    ),
   ]);
   tabel(doc, {
     startY: y,
@@ -366,7 +389,7 @@ export function pdfRekapPegawaiDetail(data: RekapPegawaiDetail, filter: Keterang
       i + 1,
       formatRentangTanggal(it.tanggal_kegiatan, it.tanggal_selesai),
       it.kode,
-      KATEGORI_INFO[it.kategori].labelPendek,
+      bersihkan(kamus.jenis(it.kategori).label_pendek),
       bersihkan(it.nama_kegiatan),
       it.peran === 'uang_siapa' ? 'Uang siapa' : 'Peserta',
       STATUS_INFO[it.status].label,
@@ -392,8 +415,11 @@ export function pdfRekapPegawaiDetail(data: RekapPegawaiDetail, filter: Keterang
 
 // ───────────────────────────── Bukti / ringkasan satu pengajuan ─────────────────────────────
 
-export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string): Promise<void> {
+export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string, kamus: Kamus): Promise<void> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const jenis = kamus.jenis(p.kategori);
+  const model = jenis.model;
+  const rentang = model === 'perjadin' || (model === 'umum' && !!p.tanggal_selesai);
   const w = doc.internal.pageSize.getWidth();
 
   doc.setFont('helvetica', 'bold');
@@ -420,24 +446,24 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
   y = Math.max(y, 55);
   y = kotakRingkasan(doc, y, [
     { label: 'Total pengajuan', nilai: formatRupiah(p.total), sub: `Mekanisme ${p.mekanisme}` },
-    { label: 'Kategori', nilai: KATEGORI_INFO[p.kategori].labelPendek, sub: KATEGORI_INFO[p.kategori].jenis === 'transport' ? 'Transport' : 'Konsumsi' },
+    { label: 'Kategori', nilai: jenis.label_pendek, sub: kamus.grup(p.kategori) },
     { label: 'Kelengkapan berkas', nilai: `${p.kelengkapan.terpenuhi} / ${p.kelengkapan.total}`, sub: p.kelengkapan.lengkap ? 'Lengkap' : 'Belum lengkap' },
   ]);
 
   y = judulBagian(doc, 'Informasi kegiatan', y);
   const info: [string, string][] = [
-    [p.kategori === 'perjadin' ? 'Lama kegiatan' : 'Tanggal kegiatan',
-      p.kategori === 'perjadin'
+    [model === 'perjadin' ? 'Lama kegiatan' : rentang ? 'Periode' : 'Tanggal kegiatan',
+      rentang
         ? `${formatTanggal(p.tanggal_kegiatan)} s.d. ${formatTanggal(p.tanggal_selesai)} (${lamaHari(p.tanggal_kegiatan, p.tanggal_selesai)} hari)`
         : formatTanggal(p.tanggal_kegiatan)],
     ['Jumlah orang', `${formatAngka(p.jumlah_orang)} orang`],
     ['Mekanisme', p.mekanisme],
   ];
-  if (p.kategori !== 'konsumsi') info.splice(1, 0, ['Lokasi tujuan', b(p.lokasi_tujuan)]);
-  if (p.kategori === 'perjadin') {
+  if (model === 'rumah_tangga' || model === 'perjadin') info.splice(1, 0, ['Lokasi tujuan', b(p.lokasi_tujuan)]);
+  if (model === 'perjadin') {
     info.push(['Jenis transport', p.jenis_transport ? JENIS_TRANSPORT_LABEL[p.jenis_transport] : '-']);
   }
-  if (p.kategori === 'konsumsi') {
+  if (model === 'konsumsi') {
     info.push(['Jenis konsumsi', p.jenis_konsumsi ? JENIS_KONSUMSI_LABEL[p.jenis_konsumsi] : '-']);
     info.push(['Uang siapa', b(p.uang_siapa_nama)]);
     if (p.rekening_bank && p.rekening_nomor) {
@@ -465,10 +491,10 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
   });
   y = akhirTabel(doc) + 7;
 
-  if (p.kategori !== 'konsumsi') {
+  if (modelPeserta(model)) {
     y = cukupRuang(doc, y, 30);
     y = judulBagian(doc, 'Penerima & nilai uang', y);
-    if (p.kategori === 'perjadin') {
+    if (model === 'perjadin') {
       // Perjadin: uang harian & uang transport per orang (data lama tanpa rincian mengikuti jenis uangnya).
       const rinci = p.peserta.map((ps) =>
         ps.uang_harian !== null || ps.uang_transport !== null
@@ -528,8 +554,12 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
     !it.cek ? '-' : it.cek.status === 'sesuai' ? 'Sesuai' : bersihkan(`Perlu revisi: ${it.cek.catatan ?? ''}`),
     bersihkan(p.berkas.filter((x) => x.jenis === it.jenis).map((x) => x.nama_asli).join(', ') || '-'),
   ]);
-  for (const x of p.berkas.filter((x) => x.jenis === 'lainnya')) {
-    barisBerkas.push([bersihkan(x.nama_berkas ?? JENIS_BERKAS_LABEL.lainnya), 'Tambahan', 'Ada', '-', bersihkan(x.nama_asli)]);
+  const wajib = new Set(p.kelengkapan.items.map((i) => i.jenis));
+  for (const x of p.berkas.filter((x) => x.jenis !== JENIS_BERKAS_LAINNYA && !wajib.has(x.jenis))) {
+    barisBerkas.push([bersihkan(kamus.labelBerkas(x.jenis)), 'Tidak wajib lagi', 'Ada', '-', bersihkan(x.nama_asli)]);
+  }
+  for (const x of p.berkas.filter((x) => x.jenis === JENIS_BERKAS_LAINNYA)) {
+    barisBerkas.push([bersihkan(x.nama_berkas ?? LABEL_BERKAS_LAINNYA), 'Tambahan', 'Ada', '-', bersihkan(x.nama_asli)]);
   }
   tabel(doc, {
     startY: y + 1,

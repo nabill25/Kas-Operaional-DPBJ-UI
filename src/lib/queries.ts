@@ -6,7 +6,14 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import type {
+  Bank,
   DashboardData,
+  JenisBerkasMaster,
+  JenisPengajuan,
+  Konfig,
+  MasterProject,
+  MasterProjectTask,
+  MasterTask,
   NotifikasiData,
   Paged,
   Pegawai,
@@ -49,6 +56,11 @@ export const qk = {
   rekapPegawai: (f: RekapFilter) => ['rekap', 'pegawai', f] as const,
   rekapPegawaiDetail: (id: number, f: RekapFilter) => ['rekap', 'pegawai', id, f] as const,
   users: ['users'] as const,
+  konfig: ['konfig'] as const,
+  masterJenisPengajuan: ['master', 'jenis-pengajuan'] as const,
+  masterJenisBerkas: ['master', 'jenis-berkas'] as const,
+  bank: ['master', 'bank'] as const,
+  projectTask: ['master', 'project-task'] as const,
 };
 
 /** Setelah data pengajuan berubah, segarkan semua tampilan turunan. */
@@ -179,10 +191,18 @@ export function usePegawai() {
   });
 }
 
+export interface DataPegawai {
+  nama: string;
+  nip?: string;
+  jabatan?: string;
+  rekening_bank?: string;
+  rekening_nomor?: string;
+}
+
 export function useSimpanPegawai() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id?: number; data: { nama: string; nip?: string; jabatan?: string } }) =>
+    mutationFn: ({ id, data }: { id?: number; data: DataPegawai }) =>
       id ? api<Pegawai>(`/pegawai/${id}`, { method: 'PUT', body: data }) : api<Pegawai>('/pegawai', { method: 'POST', body: data }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.pegawai });
@@ -300,5 +320,151 @@ export function useTolakPendaftaran() {
       void qc.invalidateQueries({ queryKey: qk.users });
       void qc.invalidateQueries({ queryKey: qk.notifikasi });
     },
+  });
+}
+
+// ───────────── Master data ─────────────
+
+/** Jenis pengajuan & jenis berkas — dimuat sekali setelah login (KonfigProvider). */
+export function useKonfig(aktif = true) {
+  return useQuery({
+    queryKey: qk.konfig,
+    queryFn: ({ signal }) => api<Konfig>('/master/konfig', { signal }),
+    staleTime: 5 * 60_000,
+    enabled: aktif,
+  });
+}
+
+/** Setelah master berubah: segarkan konfigurasi, daftar master, dan tampilan pengajuan (daftar berkas draft bisa ikut berubah). */
+function segarkanMaster(qc: QueryClient): void {
+  void qc.invalidateQueries({
+    predicate: (q) => {
+      const k = q.queryKey[0];
+      return k === 'konfig' || k === 'master' || k === 'pengajuan' || k === 'dashboard' || k === 'rekap';
+    },
+  });
+}
+
+export function useMasterJenisPengajuan() {
+  return useQuery({
+    queryKey: qk.masterJenisPengajuan,
+    queryFn: ({ signal }) => api<JenisPengajuan[]>('/master/jenis-pengajuan', { signal }),
+  });
+}
+
+export type DataJenisPengajuan = Omit<JenisPengajuan, 'kode' | 'bawaan' | 'urutan' | 'dipakai'>;
+
+export function useSimpanJenisPengajuan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ kode, data }: { kode?: string; data: DataJenisPengajuan }) =>
+      kode
+        ? api<JenisPengajuan & { disinkron: number }>(`/master/jenis-pengajuan/${kode}`, { method: 'PUT', body: data })
+        : api<JenisPengajuan>('/master/jenis-pengajuan', { method: 'POST', body: data }),
+    onSuccess: () => segarkanMaster(qc),
+  });
+}
+
+export function useHapusJenisPengajuan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (kode: string) => api<{ ok: true }>(`/master/jenis-pengajuan/${kode}`, { method: 'DELETE' }),
+    onSuccess: () => segarkanMaster(qc),
+  });
+}
+
+export function useMasterJenisBerkas() {
+  return useQuery({
+    queryKey: qk.masterJenisBerkas,
+    queryFn: ({ signal }) => api<JenisBerkasMaster[]>('/master/jenis-berkas', { signal }),
+  });
+}
+
+export function useSimpanJenisBerkas() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ kode, data }: { kode?: string; data: { label: string; keterangan: string; aktif: boolean } }) =>
+      kode
+        ? api<JenisBerkasMaster>(`/master/jenis-berkas/${kode}`, { method: 'PUT', body: data })
+        : api<JenisBerkasMaster>('/master/jenis-berkas', { method: 'POST', body: data }),
+    onSuccess: () => segarkanMaster(qc),
+  });
+}
+
+export function useHapusJenisBerkas() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (kode: string) => api<{ ok: true }>(`/master/jenis-berkas/${kode}`, { method: 'DELETE' }),
+    onSuccess: () => segarkanMaster(qc),
+  });
+}
+
+export function useBank() {
+  return useQuery({
+    queryKey: qk.bank,
+    queryFn: ({ signal }) => api<Bank[]>('/master/bank', { signal }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useSimpanBank() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id?: number; data: { nama: string; aktif: boolean } }) =>
+      id ? api<Bank>(`/master/bank/${id}`, { method: 'PUT', body: data }) : api<Bank>('/master/bank', { method: 'POST', body: data }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.bank }),
+  });
+}
+
+export function useHapusBank() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<{ ok: true }>(`/master/bank/${id}`, { method: 'DELETE' }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.bank }),
+  });
+}
+
+export function useProjectTask(aktif = true) {
+  return useQuery({
+    queryKey: qk.projectTask,
+    queryFn: ({ signal }) => api<MasterProjectTask>('/master/project-task', { signal }),
+    staleTime: 5 * 60_000,
+    enabled: aktif,
+  });
+}
+
+export function useSimpanProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id?: number; data: { kode: string; nama: string; aktif: boolean; task_ids: number[] } }) =>
+      id
+        ? api<MasterProject>(`/master/project/${id}`, { method: 'PUT', body: data })
+        : api<MasterProject>('/master/project', { method: 'POST', body: data }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.projectTask }),
+  });
+}
+
+export function useHapusProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<{ ok: true }>(`/master/project/${id}`, { method: 'DELETE' }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.projectTask }),
+  });
+}
+
+export function useSimpanTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id?: number; data: { kode: string; nama: string; aktif: boolean } }) =>
+      id ? api<MasterTask>(`/master/task/${id}`, { method: 'PUT', body: data }) : api<MasterTask>('/master/task', { method: 'POST', body: data }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.projectTask }),
+  });
+}
+
+export function useHapusTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<{ ok: true }>(`/master/task/${id}`, { method: 'DELETE' }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.projectTask }),
   });
 }

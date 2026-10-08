@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { KATEGORI_LIST } from '../../shared/constants';
 import type { DashboardData, PengajuanRingkas, RekapPegawaiData, RekapPengajuanData } from '../../shared/types';
 import { TAHUN_INI, buatKonteks, masuk, type Agent, type Konteks } from './helpers';
 
@@ -19,6 +18,7 @@ beforeAll(async () => {
 afterAll(() => ctx.tutup());
 
 const jumlah = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
+const jumlahNilai = (o: Record<string, number>) => jumlah(Object.values(o));
 
 describe('Dashboard', () => {
   it('angka KPI, tren bulanan, dan komposisi saling konsisten', async () => {
@@ -29,7 +29,10 @@ describe('Dashboard', () => {
     expect(d.tahunTersedia).toContain(TAHUN_INI);
     expect(d.perBulan).toHaveLength(12);
 
-    const totalBulan = jumlah(d.perBulan.map((b) => b.konsumsi + b.rumah_tangga + b.perjadin));
+    const totalBulan = jumlah(d.perBulan.map((b) => b.nilai));
+    for (const b of d.perBulan) expect(jumlahNilai(b.perKategori), `bulan ${b.bulan}`).toBe(b.nilai);
+    // Komposisi: urut master (Konsumsi, Rumah Tangga, Perjadin) dan tiap jenis aktif selalu ada.
+    expect(d.perKategori.map((k) => k.kategori)).toEqual(['konsumsi', 'rumah_tangga', 'perjadin']);
     const totalKategori = jumlah(d.perKategori.map((k) => k.nilai));
     const totalMekanisme = jumlah(d.perMekanisme.map((m) => m.nilai));
     expect(totalBulan).toBe(d.kpi.total.nilai);
@@ -50,7 +53,7 @@ describe('Dashboard', () => {
     expect(d.kpi.draft).not.toBeNull();
     expect(d.topPegawai.length).toBeGreaterThan(0);
     expect(d.topPegawai.length).toBeLessThanOrEqual(5);
-    for (const p of d.topPegawai) expect(p.konsumsi + p.rumah_tangga + p.perjadin).toBe(p.total);
+    for (const p of d.topPegawai) expect(jumlahNilai(p.perKategori)).toBe(p.total);
     expect(d.aktivitas.length).toBeGreaterThan(0);
     expect(d.kpi.rataProsesHari).not.toBeNull();
   });
@@ -97,7 +100,8 @@ describe('Rekap', () => {
     expect(r.rows.every((x) => x.status !== 'draft')).toBe(true);
     expect(r.ringkasan.jumlah).toBe(r.rows.length);
     expect(r.ringkasan.nilai).toBe(jumlah(r.rows.map((x) => x.total)));
-    expect(jumlah(KATEGORI_LIST.map((k) => r.ringkasan.perKategori[k].nilai))).toBe(r.ringkasan.nilai);
+    expect(Object.keys(r.ringkasan.perKategori)).toEqual(['konsumsi', 'rumah_tangga', 'perjadin']);
+    expect(jumlah(Object.values(r.ringkasan.perKategori).map((k) => k.nilai))).toBe(r.ringkasan.nilai);
     expect(r.ringkasan.perStatus.draft.jumlah).toBe(0);
     // Urut kronologis
     const tanggal = r.rows.map((x) => x.tanggal_kegiatan);
@@ -134,7 +138,7 @@ describe('Rekap', () => {
       const p = (await admin.get(`/api/rekap/pengajuan${qs}`)).body as RekapPengajuanData;
       const g = (await admin.get(`/api/rekap/pegawai${qs}`)).body as RekapPegawaiData;
       expect(g.total, qs).toBe(p.ringkasan.nilai);
-      for (const row of g.rows) expect(row.konsumsi + row.rumah_tangga + row.perjadin).toBe(row.total);
+      for (const row of g.rows) expect(jumlahNilai(row.perKategori)).toBe(row.total);
       // Urut menurun berdasarkan total
       const totals = g.rows.map((x) => x.total);
       expect([...totals].sort((a, b) => b - a)).toEqual(totals);

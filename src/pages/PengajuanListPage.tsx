@@ -2,11 +2,11 @@ import { FilePlus, FileSearch, FilterX, Layers, Search, SlidersHorizontal } from
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { KATEGORI_INFO, KATEGORI_LIST, ROLE_LIHAT_DRAFT, STATUS_INFO, STATUS_LIST, type Kategori } from '../../shared/constants';
+import { ROLE_LIHAT_DRAFT, STATUS_INFO, STATUS_LIST, type Kategori } from '../../shared/constants';
 import { formatAngka } from '../../shared/format';
 import { TabelPengajuan } from '../components/pengajuan/TabelPengajuan';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
-import { IKON_KATEGORI } from '../components/ui/Badge';
+import { useTampilanJenis } from '../components/ui/Badge';
 import { Button, TautanTombol } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Field';
 import { GlassCard } from '../components/ui/GlassCard';
@@ -15,6 +15,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Pagination } from '../components/ui/Pagination';
 import { Segmented } from '../components/ui/Segmented';
 import { useAuth } from '../context/AuthContext';
+import { useKamus } from '../context/KonfigContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { cn } from '../lib/cn';
@@ -25,6 +26,8 @@ const KUNCI_FILTER = ['status', 'mekanisme', 'kelengkapan', 'dari', 'sampai', 's
 
 export default function PengajuanListPage() {
   const { punyaPeran, user } = useAuth();
+  const kamus = useKamus();
+  const tampilan = useTampilanJenis();
   const [params, setParams] = useSearchParams();
   const [cari, setCari] = useState(params.get('q') ?? '');
   const cariTunda = useDebounce(cari, 350);
@@ -85,6 +88,9 @@ export default function PengajuanListPage() {
   const { data, isLoading, isFetching, isError, error, refetch } = usePengajuanDaftar(filter);
   const adaFilter = KUNCI_FILTER.some((k) => params.get(k));
   const kategori = (filter.kategori ?? '') as Kategori | '';
+  // Filter jenis: semua jenis di master (termasuk nonaktif, karena datanya tetap ada). Banyak jenis → dropdown.
+  const semuaJenis = kamus.jenisTampil(() => true);
+  const pakaiDropdown = semuaJenis.length > 3;
 
   return (
     <div>
@@ -101,20 +107,35 @@ export default function PengajuanListPage() {
       />
 
       <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center">
-        <Segmented
-          label="Kategori"
-          className="grid w-full grid-cols-2 sm:inline-flex sm:w-auto"
-          layoutId="seg-daftar-kategori"
-          value={kategori}
-          onChange={(v) => set('kategori', v)}
-          opsi={[
-            { value: '' as const, label: 'Semua', ikon: <Layers /> },
-            ...KATEGORI_LIST.map((k) => {
-              const Ikon = IKON_KATEGORI[k];
-              return { value: k, label: KATEGORI_INFO[k].labelPendek, ikon: <Ikon /> };
-            }),
-          ]}
-        />
+        {pakaiDropdown ? (
+          <label className="flex w-full items-center gap-2 xl:w-64">
+            <Layers className="size-4 shrink-0 text-fg-muted" aria-hidden />
+            <Select aria-label="Kategori" className="h-11" value={kategori} onChange={(e) => set('kategori', e.target.value)}>
+              <option value="">Semua kategori</option>
+              {semuaJenis.map((j) => (
+                <option key={j.kode} value={j.kode}>
+                  {j.label}
+                  {j.aktif ? '' : ' (nonaktif)'}
+                </option>
+              ))}
+            </Select>
+          </label>
+        ) : (
+          <Segmented
+            label="Kategori"
+            className="grid w-full grid-cols-2 sm:inline-flex sm:w-auto"
+            layoutId="seg-daftar-kategori"
+            value={kategori}
+            onChange={(v) => set('kategori', v)}
+            opsi={[
+              { value: '' as Kategori, label: 'Semua', ikon: <Layers /> },
+              ...semuaJenis.map((j) => {
+                const Ikon = tampilan.ikon(j.kode);
+                return { value: j.kode, label: j.label_pendek, ikon: <Ikon /> };
+              }),
+            ]}
+          />
+        )}
         <div className="flex flex-1 gap-2">
           <label className="relative flex-1">
             <span className="sr-only">Cari pengajuan</span>

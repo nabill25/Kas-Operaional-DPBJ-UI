@@ -1,7 +1,29 @@
-import { BadgeCheck, Car, ClipboardCheck, Coffee, Hourglass, PencilLine, Plane, Send, Undo2, type LucideIcon } from 'lucide-react';
+import {
+  BadgeCheck,
+  BriefcaseBusiness,
+  Car,
+  ClipboardCheck,
+  ClipboardList,
+  Coffee,
+  FileText,
+  GraduationCap,
+  HardHat,
+  Hourglass,
+  Package,
+  PencilLine,
+  Plane,
+  ReceiptText,
+  Send,
+  Undo2,
+  Users,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
-import { KATEGORI_INFO, STATUS_INFO, type Kategori, type Mekanisme, type Status } from '../../../shared/constants';
+import { STATUS_INFO, type IkonJenis, type Kategori, type Mekanisme, type Status } from '../../../shared/constants';
+import { useKamus } from '../../context/KonfigContext';
 import { cn } from '../../lib/cn';
+import { useWarnaKategori } from '../dashboard/palet';
 
 export const IKON_STATUS: Record<Status, LucideIcon> = {
   draft: PencilLine,
@@ -42,18 +64,35 @@ export function StatusBadge({ status, className }: { status: Status; className?:
   );
 }
 
-export const IKON_KATEGORI: Record<Kategori, LucideIcon> = {
-  konsumsi: Coffee,
-  rumah_tangga: Car,
-  perjadin: Plane,
+/** Ikon yang dapat dipilih untuk jenis pengajuan (master Jenis Pengajuan). */
+export const IKON_JENIS: Record<IkonJenis, LucideIcon> = {
+  coffee: Coffee,
+  car: Car,
+  plane: Plane,
+  briefcase: BriefcaseBusiness,
+  'hard-hat': HardHat,
+  'clipboard-list': ClipboardList,
+  'file-text': FileText,
+  users: Users,
+  wrench: Wrench,
+  package: Package,
+  'graduation-cap': GraduationCap,
+  receipt: ReceiptText,
 };
 
-/** Warna seri kategori (tervalidasi) — dipakai untuk penanda/mark, BUKAN untuk teks. */
-export const WARNA_KATEGORI: Record<Kategori, string> = {
-  konsumsi: 'var(--seri-konsumsi)',
-  rumah_tangga: 'var(--seri-rt)',
-  perjadin: 'var(--seri-pd)',
-};
+/**
+ * Tampilan jenis pengajuan dari master: ikon, warna seri (penanda/mark, BUKAN untuk teks), dan info lengkapnya.
+ * Kode yang tidak dikenal memakai tampilan cadangan (abu-abu).
+ */
+export function useTampilanJenis() {
+  const kamus = useKamus();
+  const warna = useWarnaKategori();
+  return {
+    info: kamus.jenis,
+    ikon: (k: Kategori): LucideIcon => IKON_JENIS[kamus.jenis(k).ikon] ?? FileText,
+    warna,
+  };
+}
 
 export function KategoriBadge({
   kategori,
@@ -64,8 +103,9 @@ export function KategoriBadge({
   pendek?: boolean;
   className?: string;
 }) {
-  const Ikon = IKON_KATEGORI[kategori];
-  const info = KATEGORI_INFO[kategori];
+  const t = useTampilanJenis();
+  const Ikon = t.ikon(kategori);
+  const info = t.info(kategori);
   return (
     <span
       className={cn(
@@ -73,10 +113,10 @@ export function KategoriBadge({
         className,
       )}
     >
-      <span className="grid size-4 place-items-center rounded-full" style={{ background: WARNA_KATEGORI[kategori] }} aria-hidden>
+      <span className="grid size-4 place-items-center rounded-full" style={{ background: t.warna(kategori) }} aria-hidden>
         <Ikon className="size-2.5 text-white" strokeWidth={2.75} />
       </span>
-      {pendek ? info.labelPendek : info.label}
+      {pendek ? info.label_pendek : info.label}
     </span>
   );
 }

@@ -68,4 +68,6 @@ export async function pilihPegawai(page: Page, idPemicu: string, nama: string): 
   await page.getByLabel('Cari pegawai').fill(nama);
   await page.getByRole('option', { name: new RegExp(nama) }).first().click();
   await expect(page.locator(`#${idPemicu}`)).toContainText(nama);
+  // Tunggu popup benar-benar tertutup (animasi keluar) agar pemilih berikutnya tidak bertemu dua kotak cari.
+  await expect(page.getByLabel('Cari pegawai')).toHaveCount(0);
 }

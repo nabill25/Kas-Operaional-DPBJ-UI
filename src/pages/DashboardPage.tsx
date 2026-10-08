@@ -57,7 +57,7 @@ export default function DashboardPage() {
   const k = d.kpi;
   const pum = punyaPeran('pum', 'admin');
   const rata = k.rataProsesHari === null ? '–' : k.rataProsesHari.toFixed(1).replace('.', ',');
-  const perBulanTotal = d.perBulan.map((b) => b.konsumsi + b.rumah_tangga + b.perjadin);
+  const perBulanTotal = d.perBulan.map((b) => b.nilai);
   const bulanIni = tahun === tahunIni ? new Date().getMonth() : null;
   const persenSelesai = k.total.nilai > 0 ? Math.round((k.selesai.nilai / k.total.nilai) * 100) : 0;
 

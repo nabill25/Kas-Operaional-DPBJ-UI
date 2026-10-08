@@ -5,6 +5,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { Latar } from './components/layout/Latar';
 import { Logo } from './components/ui/Logo';
 import { useAuth } from './context/AuthContext';
+import { KonfigProvider } from './context/KonfigContext';
 import { DaftarPage } from './pages/DaftarPage';
 import { LoginPage } from './pages/LoginPage';
 import NotFoundPage, { TanpaAkses } from './pages/NotFoundPage';
@@ -19,6 +20,10 @@ const RekapPage = lazy(() => import('./pages/RekapPage'));
 const PegawaiPage = lazy(() => import('./pages/PegawaiPage'));
 const PenggunaPage = lazy(() => import('./pages/PenggunaPage'));
 const PengaturanPage = lazy(() => import('./pages/PengaturanPage'));
+const MasterJenisPengajuanPage = lazy(() => import('./pages/master/MasterJenisPengajuanPage'));
+const MasterJenisBerkasPage = lazy(() => import('./pages/master/MasterJenisBerkasPage'));
+const MasterProjectTaskPage = lazy(() => import('./pages/master/MasterProjectTaskPage'));
+const MasterBankPage = lazy(() => import('./pages/master/MasterBankPage'));
 
 function LayarMuat() {
   return (
@@ -37,7 +42,11 @@ function Terlindungi() {
   const location = useLocation();
   if (!siap) return <LayarMuat />;
   if (!user) return <Navigate to="/login" replace state={{ dari: location.pathname + location.search }} />;
-  return <AppLayout />;
+  return (
+    <KonfigProvider memuat={<LayarMuat />}>
+      <AppLayout />
+    </KonfigProvider>
+  );
 }
 
 function Peran({ izin, children }: { izin: Role[]; children: ReactNode }) {
@@ -89,6 +98,24 @@ export function App() {
             </Peran>
           }
         />
+        {(
+          [
+            ['master/jenis-pengajuan', MasterJenisPengajuanPage],
+            ['master/jenis-berkas', MasterJenisBerkasPage],
+            ['master/project-task', MasterProjectTaskPage],
+            ['master/bank', MasterBankPage],
+          ] as const
+        ).map(([path, Halaman]) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <Peran izin={['admin']}>
+                <Halaman />
+              </Peran>
+            }
+          />
+        ))}
         <Route path="pengaturan" element={<PengaturanPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

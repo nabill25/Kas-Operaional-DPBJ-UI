@@ -4,7 +4,7 @@ test('mobile: tidak ada scroll horizontal di semua halaman utama', async ({ page
   await masukAPI(page, 'admin');
   const r = await page.request.get('/api/pengajuan?limit=1');
   const id = (await r.json()).data[0].id as number;
-  for (const url of ['/', '/pengajuan', '/pengajuan/baru', `/pengajuan/${id}`, '/verifikasi', '/rekap', '/rekap?tab=pegawai', '/pegawai', '/pengguna', '/pengaturan']) {
+  for (const url of ['/', '/pengajuan', '/pengajuan/baru', `/pengajuan/${id}`, '/verifikasi', '/rekap', '/rekap?tab=pegawai', '/pegawai', '/pengguna', '/pengaturan', '/master/jenis-pengajuan', '/master/jenis-berkas', '/master/project-task', '/master/project-task?tab=task', '/master/bank']) {
     await page.goto(url);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(600);

@@ -31,13 +31,15 @@ end $$;
 
 -- ─── 1. Bersihkan objek lama (tabel sudah kosong, aman) ───────
 drop table if exists notifikasi, cek_berkas, riwayat, berkas, pengajuan_peserta,
-  pengajuan, kode_counter, pegawai, sessions, users cascade;
+  pengajuan, kode_counter, pegawai, sessions, users,
+  jenis_pengajuan_berkas, jenis_pengajuan, jenis_berkas, bank,
+  master_project_task, master_project, master_task cascade;
 drop type if exists aksi_riwayat_enum, jenis_notifikasi_enum, status_cek_enum,
   jenis_konsumsi_enum, jenis_transport_enum, jenis_uang_enum, status_enum, mekanisme_enum, kategori_enum, role_enum cascade;
 
 -- ─── 2. Tipe enum (sumber: shared/constants.ts) ───────────────
+-- Kategori (jenis pengajuan) bukan enum: daftarnya master data (tabel jenis_pengajuan).
 create type role_enum as enum ('operator', 'pum', 'pimpinan', 'admin');
-create type kategori_enum as enum ('konsumsi', 'rumah_tangga', 'perjadin');
 create type mekanisme_enum as enum ('KO', 'LS');
 create type status_enum as enum ('draft', 'diajukan_pum', 'dikembalikan', 'diverifikasi_pum', 'diajukan_mdk', 'selesai');
 create type jenis_uang_enum as enum ('uang_harian', 'uang_transport');
@@ -83,14 +85,95 @@ create index ix_sessions_user on sessions (user_id);
 create index ix_sessions_expires on sessions (expires_at);
 
 create table pegawai (
+  id              bigserial primary key,
+  nama            text not null,
+  nip             text unique,
+  jabatan         text,
+  rekening_bank   text,                         -- rekening pegawai (opsional, berpasangan) → isi otomatis "uang siapa"
+  rekening_nomor  text,
+  aktif           boolean not null default true,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+-- ─── Master data (dikelola admin, menu Master Data) ──────────
+
+-- Jenis berkas kelengkapan. "Dokumen Lainnya" (kode lainnya) bukan bagian master: selalu opsional.
+create table jenis_berkas (
+  kode        text primary key check (kode ~ '^[a-z][a-z0-9_]{1,39}$' and kode <> 'lainnya'),
+  label       text not null,
+  keterangan  text,
+  aktif       boolean not null default true,
+  bawaan      boolean not null default false,   -- bawaan sistem: tidak dapat dihapus
+  urutan      integer not null default 0,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create unique index ux_jenis_berkas_label on jenis_berkas (lower(label));
+
+-- Jenis pengajuan (kategori). model = bentuk form & aturan isian:
+-- konsumsi (uang siapa + jumlah uang), rumah_tangga / perjadin (transport per orang), umum (pegawai + nilai per orang).
+create table jenis_pengajuan (
+  kode             text primary key check (kode ~ '^[a-z][a-z0-9_]{1,39}$'),
+  label            text not null,
+  label_pendek     text not null,
+  prefix           text not null unique check (prefix ~ '^[A-Z]{2,5}$'),  -- awalan kode pengajuan, mis. KSM
+  deskripsi        text,
+  model            text not null check (model in ('konsumsi', 'rumah_tangga', 'perjadin', 'umum')),
+  maks_peserta     integer check (maks_peserta is null or maks_peserta between 1 and 50),
+  kata_kunci_task  text,                         -- saran Task Name otomatis (cocok sebagian nama task)
+  warna            text not null,
+  ikon             text not null,
+  aktif            boolean not null default true,
+  bawaan           boolean not null default false,
+  urutan           integer not null default 0,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+create unique index ux_jenis_pengajuan_label on jenis_pengajuan (lower(label));
+
+-- Berkas wajib per jenis pengajuan.
+create table jenis_pengajuan_berkas (
+  jenis_pengajuan  text not null references jenis_pengajuan (kode) on delete cascade,
+  jenis_berkas     text not null references jenis_berkas (kode),
+  urutan           integer not null,
+  primary key (jenis_pengajuan, jenis_berkas)
+);
+
+create table bank (
   id          bigserial primary key,
   nama        text not null,
-  nip         text unique,
-  jabatan     text,
   aktif       boolean not null default true,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+create unique index ux_bank_nama on bank (lower(nama));
+
+-- Project Costing & Task Name (Kasubdit). Disimpan di pengajuan sebagai teks "<kode>:<nama>" / "<kode>_<nama>".
+create table master_project (
+  id          bigserial primary key,
+  kode        text not null unique,
+  nama        text not null,
+  aktif       boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create table master_task (
+  id          bigserial primary key,
+  kode        text not null unique,
+  nama        text not null,
+  aktif       boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create table master_project_task (
+  project_id  bigint not null references master_project (id) on delete cascade,
+  task_id     bigint not null references master_task (id) on delete cascade,
+  primary key (project_id, task_id)
+);
+create index ix_master_project_task_task on master_project_task (task_id);
 
 create table kode_counter (
   prefix      text not null,
@@ -102,7 +185,7 @@ create table kode_counter (
 create table pengajuan (
   id                  bigserial primary key,
   kode                text not null unique,
-  kategori            kategori_enum not null,
+  kategori            text not null references jenis_pengajuan (kode),
   nama_kegiatan       text not null,
   tanggal_kegiatan    date not null,
   tanggal_selesai     date,
@@ -120,6 +203,9 @@ create table pengajuan (
   total               bigint not null default 0 check (total >= 0),
   catatan             text,
   berkas_na           jsonb not null default '[]'::jsonb,
+  -- Berkas wajib pengajuan ini (kode jenis berkas, urut). Mengikuti master selama draft/dikembalikan,
+  -- dibekukan saat diajukan ke PUM. null = belum dicatat → ikut master jenis pengajuannya.
+  berkas_daftar       jsonb,
   berkas_terpenuhi    integer not null default 0,
   berkas_wajib        integer not null default 0,
   status              status_enum not null default 'draft',
@@ -210,6 +296,165 @@ create table notifikasi (
 );
 create index ix_notifikasi_user on notifikasi (user_id, dibaca_at, id);
 
+-- ─── 3a. Data awal master data ─────────────────────────────────
+-- Blok di antara penanda di bawah juga dipakai test (tests/api/helpers.ts) untuk mengisi ulang master.
+-- Setiap INSERT hanya berjalan bila tabelnya masih kosong.
+-- [SEED-MASTER:MULAI]
+-- Jenis berkas (kelengkapan). "Dokumen Lainnya" (lainnya) bukan bagian master: selalu opsional.
+insert into jenis_berkas (kode, label, bawaan, urutan)
+select v.* from (values
+  ('notulen', 'Notula', true, 1),
+  ('undangan', 'Undangan', true, 2),
+  ('invoice', 'Invoice', true, 3),
+  ('daftar_hadir', 'Daftar Hadir', true, 4),
+  ('surat_tugas', 'Surat Tugas', true, 5),
+  ('laporan_kegiatan', 'Laporan Kegiatan', true, 6),
+  ('invoice_hotel', 'Invoice Hotel', true, 7),
+  ('invoice_tiket', 'Invoice Tiket', true, 8),
+  ('laporan_pekerjaan', 'Laporan Pekerjaan', false, 9),
+  ('presensi', 'Presensi', false, 10),
+  ('kontrak', 'Kontrak', false, 11)
+) as v (kode, label, bawaan, urutan)
+where not exists (select 1 from jenis_berkas);
+
+-- Jenis pengajuan bawaan (model form tetap). Jenis baru ditambahkan admin lewat menu Master Data.
+insert into jenis_pengajuan (kode, label, label_pendek, prefix, deskripsi, model, maks_peserta, kata_kunci_task, warna, ikon, bawaan, urutan)
+select v.* from (values
+  ('konsumsi', 'Konsumsi', 'Konsumsi', 'KSM', 'Konsumsi rapat / kegiatan', 'konsumsi', null::integer, 'konsumsi', 'kuning', 'coffee', true, 1),
+  ('rumah_tangga', 'Transport Rumah Tangga', 'Rumah Tangga', 'TRT', 'Transport kegiatan rumah tangga', 'rumah_tangga', 2, 'transportasi rumah tangga', 'biru', 'car', true, 2),
+  ('perjadin', 'Transport Perjadin', 'Perjadin', 'TPD', 'Perjalanan dinas dalam / luar kota', 'perjadin', 2, 'perjadin', 'hijau', 'plane', true, 3)
+) as v (kode, label, label_pendek, prefix, deskripsi, model, maks_peserta, kata_kunci_task, warna, ikon, bawaan, urutan)
+where not exists (select 1 from jenis_pengajuan);
+
+-- Berkas wajib per jenis pengajuan (urutan = urutan tampil).
+insert into jenis_pengajuan_berkas (jenis_pengajuan, jenis_berkas, urutan)
+select v.* from (values
+  ('konsumsi', 'notulen', 1),
+  ('konsumsi', 'undangan', 2),
+  ('konsumsi', 'invoice', 3),
+  ('konsumsi', 'daftar_hadir', 4),
+  ('rumah_tangga', 'surat_tugas', 1),
+  ('rumah_tangga', 'laporan_kegiatan', 2),
+  ('perjadin', 'surat_tugas', 1),
+  ('perjadin', 'laporan_kegiatan', 2),
+  ('perjadin', 'invoice_hotel', 3),
+  ('perjadin', 'invoice_tiket', 4)
+) as v (jenis_pengajuan, jenis_berkas, urutan)
+where not exists (select 1 from jenis_pengajuan_berkas);
+
+-- Daftar bank untuk isian rekening.
+insert into bank (nama)
+select v.nama from (values
+  ('Bank Mandiri'),
+  ('BNI'),
+  ('BRI'),
+  ('BTN'),
+  ('BSI (Bank Syariah Indonesia)'),
+  ('BCA'),
+  ('CIMB Niaga'),
+  ('Bank Permata'),
+  ('Bank Danamon'),
+  ('Bank DKI'),
+  ('Bank BJB'),
+  ('Bank Mega'),
+  ('OCBC'),
+  ('Maybank Indonesia'),
+  ('Panin Bank'),
+  ('SeaBank'),
+  ('Bank Jago')
+) as v (nama)
+where not exists (select 1 from bank);
+
+-- Master Project Costing & Task Name dari Kasubdit (15 project, 18 task, 38 pasangan).
+insert into master_project (kode, nama)
+select v.* from (values
+  ('D0030.06.01.6.001', 'Penguatan Manajemen Kontrak'),
+  ('D0030.06.01.6.002', 'Penguatan Perencanaan, Pelaksanaan, dan Pengendalian'),
+  ('D0030.06.01.6.003', 'Perancangan dan Persiapan SCM'),
+  ('D0030.07.01.6.001', 'Sosialisasi Revisi PRPBJ dan E-Proc'),
+  ('D0030.09.01.6.001', 'Benchmarking Pengadaan Barang dan Jasa'),
+  ('D0030.09.01.6.002', 'Koordinasi Tata Kelola Pengadaan'),
+  ('D0030.09.01.6.003', 'Penyusunan Laporan Pengadaan Barang dan Jasa'),
+  ('D0030.09.01.6.004', 'Pengelolaan Sistem Informasi dan Penyedia Pengadaan B'),
+  ('D0030.10.01.6.001', 'Rapat Koordinasi Lintas Bidang Pengadaan Barang&Jasa'),
+  ('D0030.10.01.6.002', 'Koordinasi Perencanaan dan Pengadaan Langsung'),
+  ('D0030.10.01.6.003', 'Survei Pengelolaan Kontrak'),
+  ('D0030.10.01.6.004', 'Koordinasi Pengelolaan Kontrak'),
+  ('D0030.10.01.6.005', 'Undangan, penugasan, koordinasi kelembagaan & temuan'),
+  ('D0030.12.01.6.001', 'Survei Perencanaan dan Pengadaan Langsung'),
+  ('D0072.11.01.6.001', 'Operasional Administrasi Kantor')
+) as v (kode, nama)
+where not exists (select 1 from master_project);
+
+insert into master_task (kode, nama)
+select v.* from (values
+  ('721702', 'Honor Moderator/Pembicara/Fasilitator'),
+  ('721707', 'Honor Tenaga Lepas'),
+  ('722111', 'Beban Uang Harian - Perjadin Luar Kota'),
+  ('722112', 'Beban Penginapan - Perjadin Luar Kota'),
+  ('722113', 'Beban Tiket - Perjadin Luar Kota'),
+  ('722114', 'Beban Transportasi Perjadin - Perjadin Luar Kota'),
+  ('722121', 'Beban Uang Harian - Perjadin Luar Negeri'),
+  ('722122', 'Beban Penginapan - Perjadin Luar Negeri'),
+  ('722123', 'Beban Tiket - Perjadin Luar Negeri'),
+  ('722124', 'Beban Transportasi Perjadin - Perjadin Luar Negeri'),
+  ('722201', 'Beban Jasa Konsultan'),
+  ('722209', 'Beban Jasa Cetak'),
+  ('722214', 'Beban Jasa Orang Pribadi'),
+  ('723202', 'Beban Pengiriman Surat/Dokumen'),
+  ('723207', 'Beban Konsumsi'),
+  ('723216', 'Beban Transportasi Rumah Tangga'),
+  ('723601', 'Beban Perizinan'),
+  ('723705', 'Beban Foto Copy/Penjilidan')
+) as v (kode, nama)
+where not exists (select 1 from master_task);
+
+insert into master_project_task (project_id, task_id)
+select p.id, t.id from (values
+  ('D0030.07.01.6.001', '723207'),
+  ('D0030.09.01.6.002', '723216'),
+  ('D0072.11.01.6.001', '723216'),
+  ('D0030.06.01.6.001', '721707'),
+  ('D0030.10.01.6.002', '723207'),
+  ('D0030.10.01.6.003', '722111'),
+  ('D0030.09.01.6.002', '723207'),
+  ('D0030.10.01.6.003', '722114'),
+  ('D0030.12.01.6.001', '723216'),
+  ('D0030.10.01.6.001', '723216'),
+  ('D0030.09.01.6.003', '723705'),
+  ('D0030.10.01.6.003', '723216'),
+  ('D0072.11.01.6.001', '723202'),
+  ('D0030.09.01.6.004', '721707'),
+  ('D0030.09.01.6.001', '722123'),
+  ('D0030.09.01.6.002', '722113'),
+  ('D0030.09.01.6.001', '722121'),
+  ('D0030.12.01.6.001', '722112'),
+  ('D0030.10.01.6.001', '723207'),
+  ('D0030.07.01.6.001', '721702'),
+  ('D0030.09.01.6.002', '722114'),
+  ('D0030.09.01.6.002', '722111'),
+  ('D0030.06.01.6.002', '723207'),
+  ('D0030.10.01.6.003', '722113'),
+  ('D0030.09.01.6.002', '722112'),
+  ('D0030.09.01.6.002', '723601'),
+  ('D0030.12.01.6.001', '722114'),
+  ('D0030.12.01.6.001', '722113'),
+  ('D0030.10.01.6.003', '722112'),
+  ('D0030.12.01.6.001', '722111'),
+  ('D0030.09.01.6.001', '722124'),
+  ('D0030.09.01.6.003', '722209'),
+  ('D0030.06.01.6.002', '721707'),
+  ('D0030.10.01.6.005', '723216'),
+  ('D0030.09.01.6.001', '722122'),
+  ('D0030.10.01.6.004', '723207'),
+  ('D0030.06.01.6.003', '722214'),
+  ('D0030.06.01.6.003', '722201')
+) as v (project_kode, task_kode)
+join master_project p on p.kode = v.project_kode
+join master_task t on t.kode = v.task_kode
+where not exists (select 1 from master_project_task);
+-- [SEED-MASTER:SELESAI]
+
 -- ─── 4. Keamanan ──────────────────────────────────────────────
 -- Aplikasi mengakses database lewat server (DATABASE_URL, role postgres) sehingga
 -- tidak terpengaruh RLS. Kunci anon yang ada di browser TIDAK boleh membaca/menulis
@@ -224,6 +469,13 @@ alter table berkas enable row level security;
 alter table riwayat enable row level security;
 alter table cek_berkas enable row level security;
 alter table notifikasi enable row level security;
+alter table jenis_berkas enable row level security;
+alter table jenis_pengajuan enable row level security;
+alter table jenis_pengajuan_berkas enable row level security;
+alter table bank enable row level security;
+alter table master_project enable row level security;
+alter table master_task enable row level security;
+alter table master_project_task enable row level security;
 
 revoke all on all tables in schema public from anon, authenticated;
 revoke all on all sequences in schema public from anon, authenticated;

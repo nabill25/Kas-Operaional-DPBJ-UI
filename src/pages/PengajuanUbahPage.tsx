@@ -1,7 +1,6 @@
 import { Lock } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { KATEGORI_INFO } from '../../shared/constants';
 import { PengajuanForm } from '../components/pengajuan/PengajuanForm';
 import { Chip, StatusBadge } from '../components/ui/Badge';
 import { TautanTombol } from '../components/ui/Button';
@@ -9,6 +8,7 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { Kosong } from '../components/ui/Kosong';
 import { MuatHalaman } from '../components/ui/MuatHalaman';
 import { PageHeader } from '../components/ui/PageHeader';
+import { useKamus } from '../context/KonfigContext';
 import { usePengajuan, useSimpanPengajuan } from '../lib/queries';
 
 export default function PengajuanUbahPage() {
@@ -16,6 +16,7 @@ export default function PengajuanUbahPage() {
   const navigate = useNavigate();
   const { data: p, isLoading, isError, error } = usePengajuan(id);
   const simpan = useSimpanPengajuan();
+  const kamus = useKamus();
 
   if (isLoading) return <MuatHalaman />;
   if (isError || !p) {
@@ -36,7 +37,7 @@ export default function PengajuanUbahPage() {
   return (
     <div>
       <PageHeader
-        judul={`Ubah ${KATEGORI_INFO[p.kategori].label}`}
+        judul={`Ubah ${kamus.jenis(p.kategori).label}`}
         atas={
           <>
             <Chip>{p.kode}</Chip>
@@ -65,7 +66,7 @@ export default function PengajuanUbahPage() {
         </GlassCard>
       ) : (
         <PengajuanForm
-          kategori={p.kategori}
+          jenis={kamus.jenis(p.kategori)}
           awal={p}
           teksSimpan="Simpan perubahan"
           onBatal={() => navigate(`/pengajuan/${p.id}`)}

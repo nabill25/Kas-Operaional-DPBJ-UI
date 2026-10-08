@@ -1,40 +1,83 @@
 // Konstanta domain — satu-satunya sumber nilai enum untuk server & client.
 // Mengubah daftar di sini = mengubah aturan bisnis → perbarui CLAUDE.md & test.
 
-export const KATEGORI_LIST = ['konsumsi', 'rumah_tangga', 'perjadin'] as const;
-export type Kategori = (typeof KATEGORI_LIST)[number];
+/**
+ * Kategori = kode jenis pengajuan. Daftarnya master data (tabel jenis_pengajuan, menu Master Data → Jenis Pengajuan),
+ * bukan konstanta: admin bisa menambah jenis baru (mis. Kontrak Borongan). Tiga jenis bawaan di bawah ini selalu ada.
+ */
+export type Kategori = string;
+export const KATEGORI_BAWAAN = ['konsumsi', 'rumah_tangga', 'perjadin'] as const;
 
-export interface KategoriInfo {
-  label: string;
-  labelPendek: string;
-  jenis: 'konsumsi' | 'transport';
-  prefix: string;
-  deskripsi: string;
-}
-
-export const KATEGORI_INFO: Record<Kategori, KategoriInfo> = {
+/**
+ * Model form jenis pengajuan — menentukan isian & aturan validasi:
+ * - konsumsi: jenis konsumsi, jumlah orang, jumlah uang, "uang siapa" (+ rekening), tanda sudah dibayarkan
+ * - rumah_tangga: lokasi tujuan + penerima per orang (nilai uang)
+ * - perjadin: tanggal dari–sampai, lokasi, jenis transport + uang harian & uang transport per orang
+ * - umum: tanggal (opsional sampai) + pegawai & nilai per orang — untuk jenis baru yang intinya mengumpulkan berkas
+ */
+export const MODEL_FORM_LIST = ['konsumsi', 'rumah_tangga', 'perjadin', 'umum'] as const;
+export type ModelForm = (typeof MODEL_FORM_LIST)[number];
+export const MODEL_FORM_INFO: Record<ModelForm, { label: string; deskripsi: string; grup: string }> = {
   konsumsi: {
-    label: 'Konsumsi',
-    labelPendek: 'Konsumsi',
-    jenis: 'konsumsi',
-    prefix: 'KSM',
-    deskripsi: 'Konsumsi rapat / kegiatan',
+    label: 'Seperti Konsumsi',
+    deskripsi: 'Jenis konsumsi, jumlah orang, jumlah uang, dan "uang siapa" beserta rekeningnya',
+    grup: 'Konsumsi',
   },
   rumah_tangga: {
-    label: 'Transport Rumah Tangga',
-    labelPendek: 'Rumah Tangga',
-    jenis: 'transport',
-    prefix: 'TRT',
-    deskripsi: 'Transport kegiatan rumah tangga (maks. 2 orang)',
+    label: 'Seperti Transport Rumah Tangga',
+    deskripsi: 'Lokasi tujuan dan nilai uang per orang',
+    grup: 'Transport',
   },
   perjadin: {
-    label: 'Transport Perjadin',
-    labelPendek: 'Perjadin',
-    jenis: 'transport',
-    prefix: 'TPD',
-    deskripsi: 'Perjalanan dinas dalam / luar kota (maks. 2 orang)',
+    label: 'Seperti Transport Perjadin',
+    deskripsi: 'Tanggal dari–sampai, lokasi, jenis transport, uang harian & uang transport per orang',
+    grup: 'Transport',
+  },
+  umum: {
+    label: 'Umum (pegawai + nilai per orang)',
+    deskripsi: 'Tanggal (bisa berupa periode) dan nilai per pegawai — cocok untuk pengajuan yang intinya mengumpulkan berkas',
+    grup: 'Umum',
   },
 };
+
+/** Model form yang mencatat penerima per orang (tabel pengajuan_peserta). Konsumsi memakai "uang siapa". */
+export function modelPeserta(model: ModelForm): boolean {
+  return model !== 'konsumsi';
+}
+
+/**
+ * Palet warna jenis pengajuan (penanda chart/badge, bukan teks). Nilai warnanya di src/components/dashboard/palet.ts.
+ * `abu` hanya cadangan untuk kode yang tidak dikenal — tidak dapat dipilih admin (terlalu mirip warna lain bagi buta warna).
+ */
+export const WARNA_JENIS_LIST = ['kuning', 'biru', 'hijau', 'merah', 'ungu', 'toska', 'abu'] as const;
+export type WarnaJenis = (typeof WARNA_JENIS_LIST)[number];
+export const WARNA_JENIS_PILIHAN: readonly WarnaJenis[] = ['kuning', 'biru', 'hijau', 'merah', 'ungu', 'toska'];
+export const WARNA_JENIS_LABEL: Record<WarnaJenis, string> = {
+  kuning: 'Kuning',
+  biru: 'Biru',
+  hijau: 'Hijau',
+  merah: 'Merah bata',
+  ungu: 'Ungu',
+  toska: 'Toska',
+  abu: 'Abu-abu (cadangan)',
+};
+
+/** Ikon jenis pengajuan (nama ikon lucide; petanya di src/components/ui/Badge.tsx). */
+export const IKON_JENIS_LIST = [
+  'coffee',
+  'car',
+  'plane',
+  'briefcase',
+  'hard-hat',
+  'clipboard-list',
+  'file-text',
+  'users',
+  'wrench',
+  'package',
+  'graduation-cap',
+  'receipt',
+] as const;
+export type IkonJenis = (typeof IKON_JENIS_LIST)[number];
 
 /**
  * Alur: draft → diajukan_pum → (dikembalikan ↺) → diverifikasi_pum → diajukan_mdk → selesai (paid).
@@ -83,39 +126,14 @@ export const JENIS_KONSUMSI_LABEL: Record<JenisKonsumsi, string> = {
   kudapan_makan_siang: 'Kudapan + Makan Siang',
 };
 
-export const JENIS_BERKAS_LIST = [
-  'notulen',
-  'undangan',
-  'invoice',
-  'daftar_hadir',
-  'surat_tugas',
-  'laporan_kegiatan',
-  'invoice_hotel',
-  'invoice_tiket',
-  'lainnya',
-] as const;
-export type JenisBerkas = (typeof JENIS_BERKAS_LIST)[number];
-export type JenisBerkasWajib = Exclude<JenisBerkas, 'lainnya'>;
-
-export const JENIS_BERKAS_LABEL: Record<JenisBerkas, string> = {
-  // Kunci internal tetap `notulen` (sudah tersimpan di DB & dipakai API); label resmi yang tampil: "Notula".
-  notulen: 'Notula',
-  undangan: 'Undangan',
-  invoice: 'Invoice',
-  daftar_hadir: 'Daftar Hadir',
-  surat_tugas: 'Surat Tugas',
-  laporan_kegiatan: 'Laporan Kegiatan',
-  invoice_hotel: 'Invoice Hotel',
-  invoice_tiket: 'Invoice Tiket',
-  lainnya: 'Dokumen Lainnya',
-};
-
-/** Berkas wajib per kategori (urutan = urutan tampil). "lainnya" selalu opsional. */
-export const BERKAS_WAJIB: Record<Kategori, readonly JenisBerkasWajib[]> = {
-  konsumsi: ['notulen', 'undangan', 'invoice', 'daftar_hadir'],
-  rumah_tangga: ['surat_tugas', 'laporan_kegiatan'],
-  perjadin: ['surat_tugas', 'laporan_kegiatan', 'invoice_hotel', 'invoice_tiket'],
-};
+/**
+ * Jenis berkas = kode master data (tabel jenis_berkas, menu Master Data → Jenis Berkas); berkas wajib tiap jenis
+ * pengajuan diatur di master Jenis Pengajuan. "lainnya" (Dokumen Lainnya) bukan bagian master: selalu opsional,
+ * boleh banyak, dan diberi nama sendiri. Kunci bawaan `notulen` tetap (label tampil "Notula").
+ */
+export type JenisBerkas = string;
+export const JENIS_BERKAS_LAINNYA = 'lainnya';
+export const LABEL_BERKAS_LAINNYA = 'Dokumen Lainnya';
 
 /** Hasil pemeriksaan (centang) berkas oleh PUM. */
 export const STATUS_CEK_LIST = ['sesuai', 'revisi'] as const;
@@ -146,27 +164,6 @@ export const ROLE_PUM: readonly Role[] = ['pum', 'admin'];
 /** Status saat PUM boleh menandai uang konsumsi "sudah dibayarkan" ke pemilik uang. */
 export const STATUS_BISA_DIBAYARKAN: readonly Status[] = ['diajukan_pum', 'diverifikasi_pum', 'diajukan_mdk', 'selesai'];
 
-/** Saran nama bank untuk rekening "uang siapa" (isian tetap bebas). */
-export const BANK_SARAN = [
-  'Bank Mandiri',
-  'BNI',
-  'BRI',
-  'BTN',
-  'BSI (Bank Syariah Indonesia)',
-  'BCA',
-  'CIMB Niaga',
-  'Bank Permata',
-  'Bank Danamon',
-  'Bank DKI',
-  'Bank BJB',
-  'Bank Mega',
-  'OCBC',
-  'Maybank Indonesia',
-  'Panin Bank',
-  'SeaBank',
-  'Bank Jago',
-] as const;
-
 export const CATATAN_BIAYA_TRANSFER = 'Jika bukan Bank Mandiri, biaya transfer akan dibebankan kepada pemilik rekening.';
 
 /** Rekening Bank Mandiri (bebas biaya transfer). "Mandiri Syariah" lama kini BSI, jadi tidak dihitung. */
@@ -174,7 +171,11 @@ export function isBankMandiri(bank: string | null | undefined): boolean {
   return !!bank && /\bmandiri\b/i.test(bank) && !/syariah/i.test(bank);
 }
 
+/** Batas orang per pengajuan bila master jenis pengajuan tidak mengaturnya (Transport bawaan: 2). */
 export const MAX_PESERTA_TRANSPORT = 2;
+/** Batas orang bawaan untuk jenis pengajuan baru (bisa diubah admin, 1–50). */
+export const MAKS_PESERTA_BARU = 10;
+export const MAKS_PESERTA_BATAS = 50;
 export const MAX_NILAI = 1_000_000_000_000;
 export const MAX_UPLOAD_MB = 10;
 

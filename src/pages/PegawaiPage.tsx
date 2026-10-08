@@ -1,4 +1,4 @@
-import { ChartColumn, Ellipsis, PencilLine, Power, Search, Trash, UserPlus, Users } from 'lucide-react';
+import { ChartColumn, Ellipsis, Landmark, PencilLine, Power, Search, Trash, UserPlus, Users } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
@@ -18,7 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { useKonfirmasi } from '../context/KonfirmasiContext';
 import { ApiError } from '../lib/api';
 import { cn } from '../lib/cn';
-import { useAktifPegawai, useHapusPegawai, usePegawai, useSimpanPegawai } from '../lib/queries';
+import { useAktifPegawai, useBank, useHapusPegawai, usePegawai, useSimpanPegawai } from '../lib/queries';
 
 type FilterStatus = 'aktif' | 'nonaktif' | 'semua';
 
@@ -40,7 +40,14 @@ export default function PegawaiPage() {
     const q = cari.trim().toLowerCase();
     return data
       .filter((p) => (status === 'semua' ? true : status === 'aktif' ? p.aktif : !p.aktif))
-      .filter((p) => !q || p.nama.toLowerCase().includes(q) || (p.nip ?? '').includes(q) || (p.jabatan ?? '').toLowerCase().includes(q));
+      .filter(
+        (p) =>
+          !q ||
+          p.nama.toLowerCase().includes(q) ||
+          (p.nip ?? '').includes(q) ||
+          (p.jabatan ?? '').toLowerCase().includes(q) ||
+          (p.rekening_nomor ?? '').includes(q),
+      );
   }, [data, cari, status]);
 
   const jumlahAktif = data.filter((p) => p.aktif).length;
@@ -74,7 +81,7 @@ export default function PegawaiPage() {
     <div>
       <PageHeader
         judul="Master Pegawai"
-        deskripsi="Daftar orang (dengan ID tersendiri) untuk “uang siapa” dan peserta transport — dasar rekap per orang."
+        deskripsi="Daftar orang (dengan ID tersendiri) untuk “uang siapa” dan penerima per orang — dasar rekap per orang. Rekening pegawai mengisi otomatis rekening “uang siapa”."
         aksi={
           bisaKelola && (
             <Button ikon={<UserPlus className="size-4" />} onClick={() => setForm({ open: true, pegawai: null })}>
@@ -135,6 +142,12 @@ export default function PegawaiPage() {
                     <p className="truncate font-bold text-fg">{p.nama}</p>
                     <p className="truncate text-xs text-fg-muted">{p.jabatan || 'Tanpa jabatan'}</p>
                     <p className="mt-0.5 truncate font-mono text-[11px] text-fg-subtle">{p.nip ? `NIP ${p.nip}` : 'NIP/NUP belum diisi'}</p>
+                    <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-fg-muted" data-testid="rekening-pegawai">
+                      <Landmark className="size-3 shrink-0" aria-hidden />
+                      <span className="truncate">
+                        {p.rekening_bank && p.rekening_nomor ? `${p.rekening_bank} · ${p.rekening_nomor}` : 'Rekening belum diisi'}
+                      </span>
+                    </p>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <span
                         className={cn(
@@ -215,7 +228,7 @@ function FormPegawaiModal({
       onOpenChange={onOpenChange}
       terkunci={simpan.isPending}
       judul={pegawai ? 'Ubah data pegawai' : 'Tambah pegawai'}
-      deskripsi="NIP/NUP opsional, namun bila diisi harus unik."
+      deskripsi="NIP/NUP opsional, namun bila diisi harus unik. Rekening opsional (bank & nomor berpasangan)."
       ikon={pegawai ? <PencilLine className="size-5" /> : <UserPlus className="size-5" />}
       lebar="sm"
     >
@@ -236,17 +249,23 @@ function IsiFormPegawai({
   const [nama, setNama] = useState(pegawai?.nama ?? '');
   const [nip, setNip] = useState(pegawai?.nip ?? '');
   const [jabatan, setJabatan] = useState(pegawai?.jabatan ?? '');
+  const [bank, setBank] = useState(pegawai?.rekening_bank ?? '');
+  const [nomor, setNomor] = useState(pegawai?.rekening_nomor ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const { data: daftarBank = [] } = useBank();
 
   const kirim = async (e: FormEvent) => {
     e.preventDefault();
-    const h = validatePegawai({ nama, nip, jabatan });
+    const h = validatePegawai({ nama, nip, jabatan, rekening_bank: bank, rekening_nomor: nomor });
     if (!h.ok) {
       setErrors(h.errors);
       return;
     }
     try {
-      const p = await simpan.mutateAsync({ id: pegawai?.id, data: { nama, nip, jabatan } });
+      const p = await simpan.mutateAsync({
+        id: pegawai?.id,
+        data: { nama, nip, jabatan, rekening_bank: bank, rekening_nomor: nomor },
+      });
       toast.success(pegawai ? 'Data pegawai diperbarui' : `${p.nama} ditambahkan`);
       onSelesai();
     } catch (err) {
@@ -268,6 +287,44 @@ function IsiFormPegawai({
       <Field label="Jabatan" htmlFor="pg-jabatan" error={errors.jabatan}>
         <Input id="pg-jabatan" value={jabatan} maxLength={120} onChange={(e) => setJabatan(e.target.value)} />
       </Field>
+      <div className="grid grid-cols-1 gap-3 rounded-2xl bg-fg/[0.03] p-3.5 ring-1 ring-fg/[0.06] sm:grid-cols-2">
+        <p className="flex items-center gap-2 text-[13px] font-semibold text-fg sm:col-span-2">
+          <Landmark className="size-4 text-fg-muted" aria-hidden /> Rekening (opsional)
+        </p>
+        <Field label="Bank" htmlFor="pg-rekening-bank" error={errors.rekening_bank}>
+          <Input
+            id="pg-rekening-bank"
+            list="saran-bank-pegawai"
+            autoComplete="off"
+            maxLength={60}
+            value={bank}
+            invalid={!!errors.rekening_bank}
+            placeholder="mis. Bank Mandiri"
+            onChange={(e) => setBank(e.target.value)}
+          />
+          <datalist id="saran-bank-pegawai">
+            {daftarBank
+              .filter((b) => b.aktif)
+              .map((b) => (
+                <option key={b.id} value={b.nama} />
+              ))}
+          </datalist>
+        </Field>
+        <Field label="No. Rekening" htmlFor="pg-rekening-nomor" error={errors.rekening_nomor}>
+          <Input
+            id="pg-rekening-nomor"
+            inputMode="numeric"
+            autoComplete="off"
+            className="angka"
+            maxLength={34}
+            value={nomor}
+            invalid={!!errors.rekening_nomor}
+            placeholder="mis. 1570001234567"
+            onChange={(e) => setNomor(e.target.value.replace(/[^\d\s.-]/g, ''))}
+          />
+        </Field>
+        <p className="text-xs text-fg-muted sm:col-span-2">Mengisi otomatis rekening “uang siapa” saat pegawai ini dipilih di form Konsumsi.</p>
+      </div>
       <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
         <Button varian="kedua" onClick={onSelesai} disabled={simpan.isPending}>
           Batal

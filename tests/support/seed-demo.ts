@@ -1,10 +1,7 @@
 // Data demo realistis untuk test rekap/dashboard (dulu server/seed.ts). Hanya dipakai test.
 import crypto from 'node:crypto';
 import {
-  BERKAS_WAJIB,
-  JENIS_BERKAS_LABEL,
   JENIS_KONSUMSI_LIST,
-  KATEGORI_INFO,
   type JenisBerkas,
   type JenisNotifikasi,
   type JenisTransport,
@@ -15,10 +12,13 @@ import {
   type Status,
 } from '../../shared/constants';
 import { formatRupiah, formatTanggal, tanggalLokalIso } from '../../shared/format';
-import { DAFTAR_PROJECT_TASK, taskSesuaiKategori } from '../../shared/project-task';
+import { buatKamus } from '../../shared/konfig';
+import { cocokKataKunci } from '../../shared/project-task';
 import type { Db } from '../../server/db-pg';
+import { muatKonfig } from '../../server/services/master';
 import { catatRiwayat, kodeBerikutnya, segarkanKelengkapan } from '../../server/services/pengajuan';
 import { buatPdfContoh } from './pdf-contoh';
+import { PROJECT_TASK_AWAL } from './project-task-awal';
 
 export const AKUN_DEMO: readonly { username: string; password: string; nama: string; role: Role }[] = [
   { username: 'operator@dpbj.test', password: 'operator123', nama: 'Operator DPBJ', role: 'operator' },
@@ -50,6 +50,13 @@ const PEGAWAI_DEMO: readonly [string, string | null, string, boolean][] = [
   ['Yudi Kurniawan', null, 'Pengemudi', true],
   ['Laras Wulandari', '199308302021062001', 'Staf Pengadaan', false],
 ];
+
+/** Rekening sebagian pegawai demo (master Pegawai) — mengisi otomatis rekening "uang siapa" di form Konsumsi. */
+export const REKENING_PEGAWAI_DEMO: Readonly<Record<string, readonly [string, string]>> = {
+  'Nurul Hidayah': ['Bank Mandiri', '1570001234561'],
+  'Fitri Handayani': ['BNI', '0123456789'],
+  'Siti Rahmawati': ['BRI', '034101000123305'],
+};
 
 const KEGIATAN_KONSUMSI = [
   'Rapat Koordinasi Rencana Umum Pengadaan',
@@ -85,9 +92,16 @@ const KEGIATAN_PERJADIN: readonly [string, string, JenisTransport][] = [
   ['Studi Banding Tata Kelola Pengadaan', 'Semarang', 'luar_kota'],
 ];
 
+/** Kata kunci task jenis bawaan (sama dengan seed master jenis_pengajuan). */
+const KATA_KUNCI_TASK: Record<string, string> = {
+  konsumsi: 'konsumsi',
+  rumah_tangga: 'transportasi rumah tangga',
+  perjadin: 'perjadin',
+};
+
 /** Pasangan project–task dari master Kasubdit yang sesuai kategori (dipilih deterministik dari nomor kode). */
 function projectTask(kategori: Kategori, nomor: number) {
-  const opsi = DAFTAR_PROJECT_TASK.filter((pt) => taskSesuaiKategori(kategori, pt.taskNama));
+  const opsi = PROJECT_TASK_AWAL.filter((pt) => cocokKataKunci(KATA_KUNCI_TASK[kategori], pt.taskNama));
   return opsi[nomor % opsi.length];
 }
 
@@ -152,13 +166,18 @@ export async function seedDemo(
       userId[a.role] = res.lastInsertRowid;
     }
 
+    const kamus = buatKamus(await muatKonfig(txDb));
     const pg: Record<string, number> = {};
     for (const [nama, nip, jabatan, aktif] of PEGAWAI_DEMO) {
+      const rek = REKENING_PEGAWAI_DEMO[nama];
       const res = await txDb.run(
-        'INSERT INTO pegawai (nama, nip, jabatan, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
+        `INSERT INTO pegawai (nama, nip, jabatan, rekening_bank, rekening_nomor, aktif, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         nama,
         nip,
         jabatan,
+        rek?.[0] ?? null,
+        rek?.[1] ?? null,
         aktif,
         awal,
         awal,
@@ -366,7 +385,7 @@ export async function seedDemo(
         total = peserta.reduce((s, p) => s + p.nilai, 0);
       }
 
-      const wajib = BERKAS_WAJIB[x.kategori];
+      const wajib = kamus.jenis(x.kategori).berkas;
       const na: string[] = x.kategori === 'perjadin' && jenisTransport === 'dalam_kota' ? ['invoice_hotel', 'invoice_tiket'] : [];
       let diunggah: RencanaBerkas[] = wajib.filter((j) => !na.includes(j)).map((j) => ({ jenis: j, nama_berkas: null }));
       let menyusul: RencanaBerkas | null = null;
@@ -378,7 +397,7 @@ export async function seedDemo(
         diunggah.push({ jenis: 'lainnya', nama_berkas: 'Foto Dokumentasi Kegiatan' });
       }
       const alasanKembali = (b: RencanaBerkas | null) =>
-        b ? `${JENIS_BERKAS_LABEL[b.jenis]} belum dilampirkan, mohon dilengkapi.` : 'Data kegiatan perlu diperbaiki.';
+        b ? `${kamus.labelBerkas(b.jenis)} belum dilampirkan, mohon dilengkapi.` : 'Data kegiatan perlu diperbaiki.';
 
       const proyek = x.status === 'diverifikasi_pum' || x.status === 'diajukan_mdk' || x.status === 'selesai';
       const nomorKode = Number(kode.slice(-4));
@@ -398,8 +417,8 @@ export async function seedDemo(
            mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, rekening_bank, rekening_nomor, dibayar_at,
            dibayar_by, total, catatan, berkas_na, status, no_invoice_mdk, tanggal_invoice_mdk, catatan_pum, project_hosting,
            task_name, created_by, updated_by, diajukan_at, diverifikasi_by, diverifikasi_at, diajukan_mdk_by, diajukan_mdk_at,
-           diproses_by, diproses_at, created_at, updated_at, berkas_terpenuhi, berkas_wajib)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
+           diproses_by, diproses_at, created_at, updated_at, berkas_daftar, berkas_terpenuhi, berkas_wajib)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
         kode,
         x.kategori,
         nama,
@@ -438,7 +457,8 @@ export async function seedDemo(
         x.waktu.diproses ? iso(x.waktu.diproses) : x.status === 'dikembalikan' ? iso(x.waktu.kembali!) : null,
         iso(x.waktu.dibuat),
         iso(Math.min(Math.max(terakhir, dibayar ?? 0), now)),
-        wajib.length
+        JSON.stringify(wajib),
+        wajib.length,
       );
       
       for (let i = 0; i < peserta.length; i++) {
@@ -456,10 +476,10 @@ export async function seedDemo(
 
       const ref = { id, kode };
       const ringkas = `${nama} · ${formatRupiah(total)}`;
-      await catatRiwayat(txDb, ref, userId.operator, 'dibuat', `${KATEGORI_INFO[x.kategori].label} · ${formatRupiah(total)}`, iso(x.waktu.dibuat));
+      await catatRiwayat(txDb, ref, userId.operator, 'dibuat', `${kamus.jenis(x.kategori).label} · ${formatRupiah(total)}`, iso(x.waktu.dibuat));
 
       const simpanBerkas = async (b: RencanaBerkas, waktu: number) => {
-        const label = b.nama_berkas ?? JENIS_BERKAS_LABEL[b.jenis];
+        const label = b.nama_berkas ?? kamus.labelBerkas(b.jenis);
         const namaFile = `${id}/${crypto.randomUUID()}.pdf`;
         const isi = buatPdfContoh(label, [
           `Kode pengajuan : ${kode}`,
@@ -494,7 +514,7 @@ export async function seedDemo(
           ref,
           userId.operator,
           'berkas_na',
-          JENIS_BERKAS_LABEL[na[i] as JenisBerkas],
+          kamus.labelBerkas(na[i] as JenisBerkas),
           iso(x.waktu.dibuat + (diunggah.length + i + 1) * 4 * MENIT),
         );
       }
@@ -522,7 +542,7 @@ export async function seedDemo(
       if (x.waktu.kembali && x.waktu.diajukanUlang) {
         const tKembali = x.waktu.kembali;
         if (menyusul) {
-          await catatRiwayat(txDb, ref, userId.pum, 'berkas_revisi', `${JENIS_BERKAS_LABEL[menyusul.jenis]}: belum dilampirkan`, iso(tKembali - 5 * MENIT));
+          await catatRiwayat(txDb, ref, userId.pum, 'berkas_revisi', `${kamus.labelBerkas(menyusul.jenis)}: belum dilampirkan`, iso(tKembali - 5 * MENIT));
         }
         await catatRiwayat(txDb, ref, userId.pum, 'dikembalikan', alasanKembali(menyusul), iso(tKembali));
         await notif(userId.operator, tKembali, {
@@ -550,7 +570,7 @@ export async function seedDemo(
             const t = x.waktu.diajukan! + (i + 1) * 20 * MENIT;
             if (t < now) {
               await cek(id, j, 'sesuai', null, t);
-              await catatRiwayat(txDb, ref, userId.pum, 'berkas_dicek', JENIS_BERKAS_LABEL[j], iso(t));
+              await catatRiwayat(txDb, ref, userId.pum, 'berkas_dicek', kamus.labelBerkas(j), iso(t));
             }
           }
         }
@@ -562,10 +582,10 @@ export async function seedDemo(
           const t = tKembali - (wajib.length - i) * 4 * MENIT;
           if (kurang && j === kurang.jenis) {
             await cek(id, j, 'revisi', 'Belum dilampirkan', t);
-            await catatRiwayat(txDb, ref, userId.pum, 'berkas_revisi', `${JENIS_BERKAS_LABEL[j]}: Belum dilampirkan`, iso(t));
+            await catatRiwayat(txDb, ref, userId.pum, 'berkas_revisi', `${kamus.labelBerkas(j)}: Belum dilampirkan`, iso(t));
           } else {
             await cek(id, j, 'sesuai', null, t);
-            await catatRiwayat(txDb, ref, userId.pum, 'berkas_dicek', JENIS_BERKAS_LABEL[j], iso(t));
+            await catatRiwayat(txDb, ref, userId.pum, 'berkas_dicek', kamus.labelBerkas(j), iso(t));
           }
         }
         await catatRiwayat(txDb, ref, userId.pum, 'dikembalikan', alasanKembali(kurang), iso(tKembali));
@@ -583,7 +603,7 @@ export async function seedDemo(
           const j = wajib[i];
           const t = tVerifikasi - (wajib.length - i) * 4 * MENIT;
           await cek(id, j, 'sesuai', null, t);
-          await catatRiwayat(txDb, ref, userId.pum, 'berkas_dicek', JENIS_BERKAS_LABEL[j], iso(t));
+          await catatRiwayat(txDb, ref, userId.pum, 'berkas_dicek', kamus.labelBerkas(j), iso(t));
         }
         await catatRiwayat(
           txDb,

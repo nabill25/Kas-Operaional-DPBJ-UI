@@ -22,9 +22,10 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { useId, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { JENIS_BERKAS_LABEL, MAX_UPLOAD_MB, UPLOAD_ACCEPT, UPLOAD_DIIZINKAN, type StatusCek } from '../../../shared/constants';
+import { JENIS_BERKAS_LAINNYA, MAX_UPLOAD_MB, UPLOAD_ACCEPT, UPLOAD_DIIZINKAN, type StatusCek } from '../../../shared/constants';
 import { formatUkuran, formatWaktu, waktuRelatif } from '../../../shared/format';
 import type { Berkas, KelengkapanItem, PengajuanDetail } from '../../../shared/types';
+import { useKamus } from '../../context/KonfigContext';
 import { useKonfirmasi } from '../../context/KonfirmasiContext';
 import { ApiError, unggahBerkas, urlBerkas } from '../../lib/api';
 import { cn } from '../../lib/cn';
@@ -95,6 +96,7 @@ export function BerkasPanel({
   footer?: ReactNode;
 }) {
   const qc = useQueryClient();
+  const kamus = useKamus();
   const konfirmasi = useKonfirmasi();
   const naMut = useBerkasNa(p.id);
   const hapusMut = useHapusBerkas();
@@ -105,7 +107,10 @@ export function BerkasPanel({
   const [errLainnya, setErrLainnya] = useState('');
 
   const k = p.kelengkapan;
-  const lainnya = p.berkas.filter((b) => b.jenis === 'lainnya');
+  const lainnya = p.berkas.filter((b) => b.jenis === JENIS_BERKAS_LAINNYA);
+  // File berjenis yang tidak (lagi) termasuk berkas wajib pengajuan ini, mis. setelah master Jenis Pengajuan diubah.
+  const wajib = new Set(k.items.map((i) => i.jenis));
+  const diLuar = p.berkas.filter((b) => b.jenis !== JENIS_BERKAS_LAINNYA && !wajib.has(b.jenis));
   const tampilCek = bisaCek || k.sesuai > 0 || k.revisi > 0;
   // PUM (centang/revisi) dan pengaju (unggah) tidak pernah aktif bersamaan: statusnya berbeda.
   const mode: ModeAksi = bisaCek ? 'pum' : bisaKelola ? 'pengaju' : 'baca';
@@ -126,7 +131,7 @@ export function BerkasPanel({
         );
         const detail = await hasil;
         segarkanSemua(qc, detail);
-        toast.success(`${namaBerkas || JENIS_BERKAS_LABEL[jenis as keyof typeof JENIS_BERKAS_LABEL]} terunggah`, {
+        toast.success(`${namaBerkas || kamus.labelBerkas(jenis)} terunggah`, {
           description: file.name,
         });
       } catch (err) {
@@ -253,6 +258,7 @@ export function BerkasPanel({
             <BarisBerkas
               key={item.jenis}
               item={item}
+              keterangan={kamus.berkas(item.jenis)?.keterangan ?? null}
               files={p.berkas.filter((b) => b.jenis === item.jenis)}
               unggahan={unggahan[item.jenis] ?? []}
               mode={mode}
@@ -290,6 +296,27 @@ export function BerkasPanel({
             />
           ))}
         </ul>
+
+        {diLuar.length > 0 && (
+          <div className="mt-2 rounded-2xl bg-fg/[0.03] p-3.5 ring-1 ring-fg/[0.06] sm:p-4" data-berkas="di-luar-daftar">
+            <p className="text-sm font-bold text-fg">Berkas di luar daftar wajib</p>
+            <p className="text-xs text-fg-muted">
+              Jenis berkas ini tidak lagi wajib untuk pengajuan ini (daftar berkas wajib diubah di Master Data). File tetap tersimpan.
+            </p>
+            {[...new Set(diLuar.map((b) => b.jenis))].map((jenis) => (
+              <div key={jenis} className="mt-3">
+                <p className="text-xs font-semibold text-fg-muted">{kamus.labelBerkas(jenis)}</p>
+                <DaftarFile
+                  files={diLuar.filter((b) => b.jenis === jenis)}
+                  unggahan={[]}
+                  bisaKelola={bisaKelola}
+                  onPratinjau={setPratinjau}
+                  onHapus={hapus}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Dokumen lainnya */}
         <div className="mt-2 rounded-2xl border border-dashed border-fg/15 p-3.5 sm:p-4" data-berkas="lainnya">
@@ -335,7 +362,7 @@ export function BerkasPanel({
       <Modal
         open={!!pratinjau}
         onOpenChange={(o) => !o && setPratinjau(null)}
-        judul={pratinjau?.nama_berkas ?? (pratinjau ? JENIS_BERKAS_LABEL[pratinjau.jenis] : '')}
+        judul={pratinjau?.nama_berkas ?? (pratinjau ? kamus.labelBerkas(pratinjau.jenis) : '')}
         deskripsi={pratinjau ? `${pratinjau.nama_asli} · ${formatUkuran(pratinjau.ukuran)}` : undefined}
         lebar="xl"
         footer={
@@ -490,6 +517,7 @@ function BarisBerkas({
   onHapus,
   onCek,
   menu,
+  keterangan,
 }: {
   item: KelengkapanItem;
   files: Berkas[];
@@ -501,6 +529,8 @@ function BarisBerkas({
   onHapus: (b: Berkas) => void;
   onCek: (status: StatusCek | null, catatan?: string) => Promise<boolean>;
   menu: ReactNode;
+  /** Keterangan jenis berkas dari master (petunjuk untuk pengaju). */
+  keterangan: string | null;
 }) {
   const id = useId();
   const [seret, setSeret] = useState(false);
@@ -592,6 +622,7 @@ function BarisBerkas({
               <p className="text-sm leading-snug font-bold text-fg">
                 {item.label} <span className="font-normal text-fg-subtle">· wajib</span>
               </p>
+              {keterangan && <p className="text-[11px] text-fg-subtle">{keterangan}</p>}
               <p className="text-xs text-fg-muted">
                 {keadaan === 'ada'
                   ? `${files.length} file terunggah`

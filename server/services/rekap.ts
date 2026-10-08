@@ -1,5 +1,4 @@
 import {
-  KATEGORI_LIST,
   MEKANISME_LIST,
   ROLE_LIHAT_DRAFT,
   STATUS_LIST,
@@ -20,9 +19,10 @@ import type {
   RekapPengajuanData,
   Riwayat,
 } from '../../shared/types';
-import { nowIso, type Db } from '../db-pg';
+import { nowIso, type Db, type SqlParam } from '../db-pg';
 import { notFound } from '../http';
 import type { SessionUser } from '../types';
+import { daftarJenisPengajuan } from './master';
 import {
   SELECT_PENGAJUAN,
   bangunWhere,
@@ -46,12 +46,15 @@ function filterRekap(f: FilterPengajuan, user: SessionUser): FilterPengajuan {
 
 export async function rekapPengajuan(db: Db, user: SessionUser, f: FilterPengajuan): Promise<RekapPengajuanData> {
   const rows = await semuaPengajuan(db, user, filterRekap(f, user));
-  const perKategori = Object.fromEntries(KATEGORI_LIST.map((k) => [k, kosong()])) as Record<Kategori, JumlahNilai>;
+  const perKategori: Record<Kategori, JumlahNilai> = Object.fromEntries(
+    (await daftarJenisPengajuan(db)).map((j) => [j.kode, kosong()]),
+  );
   const perStatus = Object.fromEntries(STATUS_LIST.map((s) => [s, kosong()])) as Record<Status, JumlahNilai>;
   const perMekanisme = Object.fromEntries(MEKANISME_LIST.map((m) => [m, kosong()])) as Record<Mekanisme, JumlahNilai>;
   let nilai = 0;
   for (const r of rows) {
     nilai += r.total;
+    perKategori[r.kategori] ??= kosong();
     perKategori[r.kategori].jumlah++;
     perKategori[r.kategori].nilai += r.total;
     perStatus[r.status].jumlah++;
@@ -62,34 +65,65 @@ export async function rekapPengajuan(db: Db, user: SessionUser, f: FilterPengaju
   return { rows, ringkasan: { jumlah: rows.length, nilai, perKategori, perStatus, perMekanisme } };
 }
 
+/**
+ * Nilai yang diterima tiap pegawai: model Konsumsi lewat "uang siapa" (nilai = total), model lain lewat peserta
+ * (nilai per orang). Jumlah seluruh kontribusi = jumlah total pengajuan.
+ */
 function cteKontribusi(where: string): string {
   return `
     WITH base AS (SELECT p.* FROM pengajuan p ${where}),
     x AS (
       SELECT b.id AS pengajuan_id, b.uang_siapa_id AS pegawai_id, b.total AS nilai, b.kategori
-        FROM base b WHERE b.kategori = 'konsumsi' AND b.uang_siapa_id IS NOT NULL
+        FROM base b JOIN jenis_pengajuan jp ON jp.kode = b.kategori
+       WHERE jp.model = 'konsumsi' AND b.uang_siapa_id IS NOT NULL
       UNION ALL
       SELECT b.id, ps.pegawai_id, ps.nilai, b.kategori
         FROM base b JOIN pengajuan_peserta ps ON ps.pengajuan_id = b.id
     )`;
 }
 
+/** Rincian nilai per jenis pengajuan untuk sejumlah pegawai (hanya yang > 0). */
+async function perKategoriPegawai(
+  db: Db,
+  where: string,
+  params: SqlParam[],
+  pegawaiIds: number[],
+): Promise<Map<number, Record<Kategori, number>>> {
+  const peta = new Map<number, Record<Kategori, number>>();
+  if (pegawaiIds.length === 0) return peta;
+  const rows = await db.all<{ pegawai_id: number; kategori: Kategori; nilai: number }>(
+    `${cteKontribusi(where)}
+     SELECT x.pegawai_id, x.kategori, SUM(x.nilai)::bigint AS nilai
+       FROM x WHERE x.pegawai_id = ANY(?) GROUP BY x.pegawai_id, x.kategori`,
+    ...params,
+    pegawaiIds,
+  );
+  for (const r of rows) {
+    const id = Number(r.pegawai_id);
+    const isi = peta.get(id) ?? {};
+    if (Number(r.nilai) > 0) isi[r.kategori] = Number(r.nilai);
+    peta.set(id, isi);
+  }
+  return peta;
+}
+
 export async function rekapPegawai(db: Db, user: SessionUser, f: FilterPengajuan): Promise<RekapPegawaiData> {
   const { where, params } = bangunWhere(user, filterRekap(f, user));
-  const rows = await db.all<RekapPegawaiRow>(
+  const rows = await db.all<Omit<RekapPegawaiRow, 'perKategori'>>(
     `${cteKontribusi(where)}
      SELECT g.id AS pegawai_id, g.nama, g.nip, g.jabatan,
             COUNT(DISTINCT x.pengajuan_id)::int AS jumlah,
-            SUM(CASE WHEN x.kategori = 'konsumsi' THEN x.nilai ELSE 0 END)::bigint AS konsumsi,
-            SUM(CASE WHEN x.kategori = 'rumah_tangga' THEN x.nilai ELSE 0 END)::bigint AS rumah_tangga,
-            SUM(CASE WHEN x.kategori = 'perjadin' THEN x.nilai ELSE 0 END)::bigint AS perjadin,
             SUM(x.nilai)::bigint AS total
        FROM x JOIN pegawai g ON g.id = x.pegawai_id
       GROUP BY g.id
       ORDER BY total DESC, g.nama ASC`,
     ...params,
   );
-  return { rows: rows.map(r => ({...r, pegawai_id: Number(r.pegawai_id)})), total: rows.reduce((s, r) => s + r.total, 0) };
+  const rincian = await perKategoriPegawai(db, where, params, rows.map((r) => Number(r.pegawai_id)));
+  return {
+    rows: rows.map((r) => ({ ...r, pegawai_id: Number(r.pegawai_id), perKategori: rincian.get(Number(r.pegawai_id)) ?? {} })),
+    total: rows.reduce((s, r) => s + r.total, 0),
+  };
 }
 
 export async function getPegawai(db: Db, id: number): Promise<Pegawai | undefined> {
@@ -111,7 +145,7 @@ export async function rekapPegawaiDetail(db: Db, user: SessionUser, pegawaiId: n
     `WITH base AS (SELECT p.* FROM pengajuan p ${where})
      SELECT b.id AS pengajuan_id, b.kode, b.kategori, b.nama_kegiatan, b.tanggal_kegiatan, b.tanggal_selesai,
             b.lokasi_tujuan, b.mekanisme, b.status, 'uang_siapa' AS peran, b.total AS nilai, b.no_invoice_mdk
-       FROM base b WHERE b.kategori = 'konsumsi' AND b.uang_siapa_id = ?
+       FROM base b JOIN jenis_pengajuan jp ON jp.kode = b.kategori WHERE jp.model = 'konsumsi' AND b.uang_siapa_id = ?
      UNION ALL
      SELECT b.id, b.kode, b.kategori, b.nama_kegiatan, b.tanggal_kegiatan, b.tanggal_selesai,
             b.lokasi_tujuan, b.mekanisme, b.status, 'peserta', ps.nilai, b.no_invoice_mdk
@@ -208,15 +242,15 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
   );
   const rata = rataRow?.r;
 
-  const perBulan = Array.from({ length: 12 }, (_, i) => ({
+  const perBulan: DashboardData['perBulan'] = Array.from({ length: 12 }, (_, i) => ({
     bulan: i + 1,
-    konsumsi: 0,
-    rumah_tangga: 0,
-    perjadin: 0,
     jumlah: 0,
+    nilai: 0,
+    perKategori: {},
   }));
-  
-  const perKategoriMap = Object.fromEntries(KATEGORI_LIST.map((k) => [k, kosong()])) as Record<Kategori, JumlahNilai>;
+
+  const jenisMaster = await daftarJenisPengajuan(db);
+  const perKategoriMap: Record<Kategori, JumlahNilai> = {};
   const bulanRows = await db.all<{ bulan: number; kategori: Kategori; jumlah: number; nilai: number }>(
     `SELECT EXTRACT(MONTH FROM tanggal_kegiatan)::int AS bulan, kategori,
             COUNT(*)::int AS jumlah, COALESCE(SUM(total), 0)::bigint AS nilai
@@ -224,15 +258,26 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
       GROUP BY bulan, kategori`,
     tahun,
   );
-  
+
   for (const r of bulanRows) {
     const b = perBulan[r.bulan - 1];
     if (!b) continue;
-    b[r.kategori] += r.nilai;
+    if (r.nilai > 0) b.perKategori[r.kategori] = (b.perKategori[r.kategori] ?? 0) + r.nilai;
+    b.nilai += r.nilai;
     b.jumlah += r.jumlah;
+    perKategoriMap[r.kategori] ??= kosong();
     perKategoriMap[r.kategori].jumlah += r.jumlah;
     perKategoriMap[r.kategori].nilai += r.nilai;
   }
+  // Urut master: jenis aktif selalu tampil; jenis nonaktif / tak dikenal hanya bila punya data.
+  const perKategori: DashboardData['perKategori'] = [
+    ...jenisMaster
+      .filter((j) => j.aktif || perKategoriMap[j.kode])
+      .map((j) => ({ kategori: j.kode, ...(perKategoriMap[j.kode] ?? kosong()) })),
+    ...Object.keys(perKategoriMap)
+      .filter((k) => !jenisMaster.some((j) => j.kode === k))
+      .map((k) => ({ kategori: k, ...perKategoriMap[k] })),
+  ];
 
   const perMekanismeMap = Object.fromEntries(MEKANISME_LIST.map((m) => [m, kosong()])) as Record<Mekanisme, JumlahNilai>;
   const mekanismeRows = await db.all<{ mekanisme: Mekanisme; jumlah: number; nilai: number }>(
@@ -246,19 +291,21 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
   }
 
   const { where, params } = bangunWhere(user, { status: 'semua', tahun: String(tahun) });
-  const topPegawaiRows = await db.all<DashboardData['topPegawai'][number]>(
+  const topPegawaiRows = await db.all<Omit<DashboardData['topPegawai'][number], 'perKategori'>>(
     `${cteKontribusi(where)}
      SELECT g.id AS pegawai_id, g.nama,
-            SUM(CASE WHEN x.kategori = 'konsumsi' THEN x.nilai ELSE 0 END)::bigint AS konsumsi,
-            SUM(CASE WHEN x.kategori = 'rumah_tangga' THEN x.nilai ELSE 0 END)::bigint AS rumah_tangga,
-            SUM(CASE WHEN x.kategori = 'perjadin' THEN x.nilai ELSE 0 END)::bigint AS perjadin,
             SUM(x.nilai)::bigint AS total,
             COUNT(DISTINCT x.pengajuan_id)::int AS jumlah
        FROM x JOIN pegawai g ON g.id = x.pegawai_id
       GROUP BY g.id ORDER BY total DESC, g.nama ASC LIMIT 5`,
     ...params,
   );
-  const topPegawai = topPegawaiRows.map(r => ({...r, pegawai_id: Number(r.pegawai_id)}));
+  const rincianTop = await perKategoriPegawai(db, where, params, topPegawaiRows.map((r) => Number(r.pegawai_id)));
+  const topPegawai = topPegawaiRows.map((r) => ({
+    ...r,
+    pegawai_id: Number(r.pegawai_id),
+    perKategori: rincianTop.get(Number(r.pegawai_id)) ?? {},
+  }));
 
   // Acuan lama menunggu sesuai tahap (dipakai untuk mengurutkan: terlama di atas).
   const acuanTunggu = `COALESCE(CASE p.status WHEN 'diverifikasi_pum' THEN p.diverifikasi_at
@@ -302,7 +349,7 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
       rataProsesHari: rata === null || rata === undefined ? null : Math.round(Number(rata) * 10) / 10,
     },
     perBulan,
-    perKategori: KATEGORI_LIST.map((k) => ({ kategori: k, ...perKategoriMap[k] })),
+    perKategori,
     perMekanisme: MEKANISME_LIST.map((m) => ({ mekanisme: m, ...perMekanismeMap[m] })),
     topPegawai,
     aktivitas: await aktivitasTerbaru(db, user, 8),

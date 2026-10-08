@@ -8,6 +8,7 @@ import type { AuthProvider, StorageProvider } from './providers';
 import { HttpError } from './http.js';
 import { authRoutes } from './routes/auth.js';
 import { laporanRoutes } from './routes/laporan.js';
+import { masterRoutes } from './routes/master.js';
 import { pegawaiRoutes } from './routes/pegawai.js';
 import { berkasRoutes, pengajuanRoutes } from './routes/pengajuan.js';
 import { usersRoutes } from './routes/users.js';
@@ -55,6 +56,7 @@ export function createApp({ db, cfg, auth, storage, peringatan = [] }: Dependens
   app.use('/api/auth', authRoutes(db, cfg, auth));
   app.use('/api', requireAuth);
   app.use('/api/pegawai', pegawaiRoutes(db));
+  app.use('/api/master', masterRoutes(db));
   app.use('/api/users', usersRoutes(db, auth));
   app.use('/api/pengajuan', pengajuanRoutes(db, storage));
   app.use('/api/berkas', berkasRoutes(db, storage));

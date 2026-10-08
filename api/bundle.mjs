@@ -21031,11 +21031,11 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router6;
+    module.exports = Router7;
     module.exports.Route = Route;
-    function Router6(options) {
-      if (!(this instanceof Router6)) {
-        return new Router6(options);
+    function Router7(options) {
+      if (!(this instanceof Router7)) {
+        return new Router7(options);
       }
       const opts = options || {};
       function router(req, res, next) {
@@ -21049,9 +21049,9 @@ var require_router = __commonJS({
       router.stack = [];
       return router;
     }
-    Router6.prototype = function() {
+    Router7.prototype = function() {
     };
-    Router6.prototype.param = function param(name, fn) {
+    Router7.prototype.param = function param(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -21071,7 +21071,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router6.prototype.handle = function handle(req, res, callback) {
+    Router7.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -21198,7 +21198,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router6.prototype.use = function use(handler2) {
+    Router7.prototype.use = function use(handler2) {
       let offset = 0;
       let path4 = "/";
       if (typeof handler2 !== "function") {
@@ -21231,7 +21231,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router6.prototype.route = function route(path4) {
+    Router7.prototype.route = function route(path4) {
       const route2 = new Route(path4);
       const layer = new Layer(path4, {
         sensitive: this.caseSensitive,
@@ -21246,7 +21246,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router6.prototype[method] = function(path4) {
+      Router7.prototype[method] = function(path4) {
         const route = this.route(path4);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -21429,7 +21429,7 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router6 = require_router();
+    var Router7 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app = exports = module.exports = {};
@@ -21445,7 +21445,7 @@ var require_application = __commonJS({
         enumerable: true,
         get: function getrouter() {
           if (router === null) {
-            router = new Router6({
+            router = new Router7({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
@@ -24177,7 +24177,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router6 = require_router();
+    var Router7 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -24199,8 +24199,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router6.Route;
-    exports.Router = Router6;
+    exports.Route = Router7.Route;
+    exports.Router = Router7;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -43391,7 +43391,7 @@ var require_main3 = __commonJS({
 });
 
 // server/app.ts
-var import_express6 = __toESM(require_express2(), 1);
+var import_express7 = __toESM(require_express2(), 1);
 import fs from "node:fs";
 import path2 from "node:path";
 
@@ -43719,30 +43719,25 @@ var LoginLimiter = class {
 var import_express = __toESM(require_express2(), 1);
 
 // shared/constants.ts
-var KATEGORI_LIST = ["konsumsi", "rumah_tangga", "perjadin"];
-var KATEGORI_INFO = {
-  konsumsi: {
-    label: "Konsumsi",
-    labelPendek: "Konsumsi",
-    jenis: "konsumsi",
-    prefix: "KSM",
-    deskripsi: "Konsumsi rapat / kegiatan"
-  },
-  rumah_tangga: {
-    label: "Transport Rumah Tangga",
-    labelPendek: "Rumah Tangga",
-    jenis: "transport",
-    prefix: "TRT",
-    deskripsi: "Transport kegiatan rumah tangga (maks. 2 orang)"
-  },
-  perjadin: {
-    label: "Transport Perjadin",
-    labelPendek: "Perjadin",
-    jenis: "transport",
-    prefix: "TPD",
-    deskripsi: "Perjalanan dinas dalam / luar kota (maks. 2 orang)"
-  }
-};
+var MODEL_FORM_LIST = ["konsumsi", "rumah_tangga", "perjadin", "umum"];
+function modelPeserta(model) {
+  return model !== "konsumsi";
+}
+var WARNA_JENIS_PILIHAN = ["kuning", "biru", "hijau", "merah", "ungu", "toska"];
+var IKON_JENIS_LIST = [
+  "coffee",
+  "car",
+  "plane",
+  "briefcase",
+  "hard-hat",
+  "clipboard-list",
+  "file-text",
+  "users",
+  "wrench",
+  "package",
+  "graduation-cap",
+  "receipt"
+];
 var STATUS_LIST = ["draft", "diajukan_pum", "dikembalikan", "diverifikasi_pum", "diajukan_mdk", "selesai"];
 var STATUS_INFO = {
   draft: { label: "Draft", deskripsi: "Disimpan, belum diajukan" },
@@ -43761,23 +43756,8 @@ var JENIS_KONSUMSI_LABEL = {
   makan_siang: "Makan Siang",
   kudapan_makan_siang: "Kudapan + Makan Siang"
 };
-var JENIS_BERKAS_LABEL = {
-  // Kunci internal tetap `notulen` (sudah tersimpan di DB & dipakai API); label resmi yang tampil: "Notula".
-  notulen: "Notula",
-  undangan: "Undangan",
-  invoice: "Invoice",
-  daftar_hadir: "Daftar Hadir",
-  surat_tugas: "Surat Tugas",
-  laporan_kegiatan: "Laporan Kegiatan",
-  invoice_hotel: "Invoice Hotel",
-  invoice_tiket: "Invoice Tiket",
-  lainnya: "Dokumen Lainnya"
-};
-var BERKAS_WAJIB = {
-  konsumsi: ["notulen", "undangan", "invoice", "daftar_hadir"],
-  rumah_tangga: ["surat_tugas", "laporan_kegiatan"],
-  perjadin: ["surat_tugas", "laporan_kegiatan", "invoice_hotel", "invoice_tiket"]
-};
+var JENIS_BERKAS_LAINNYA = "lainnya";
+var LABEL_BERKAS_LAINNYA = "Dokumen Lainnya";
 var STATUS_CEK_LIST = ["sesuai", "revisi"];
 var ROLE_LIST = ["operator", "pum", "pimpinan", "admin"];
 var ROLE_LIHAT_DRAFT = ["operator", "admin"];
@@ -43785,6 +43765,7 @@ var ROLE_PENGAJU = ["operator", "admin"];
 var ROLE_PUM = ["pum", "admin"];
 var STATUS_BISA_DIBAYARKAN = ["diajukan_pum", "diverifikasi_pum", "diajukan_mdk", "selesai"];
 var MAX_PESERTA_TRANSPORT = 2;
+var MAKS_PESERTA_BATAS = 50;
 var MAX_NILAI = 1e12;
 var MAX_UPLOAD_MB = 10;
 var UPLOAD_DIIZINKAN = {
@@ -43821,6 +43802,20 @@ function lamaHari(dari, sampai) {
   return Math.round((tb - ta) / 864e5) + 1;
 }
 
+// shared/konfig.ts
+function maksPeserta(j) {
+  if (!modelPeserta(j.model)) return 0;
+  return j.maks_peserta ?? MAX_PESERTA_TRANSPORT;
+}
+function kodeDariLabel(label, sudahAda = []) {
+  const dasar = label.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^[^a-z]+/, "").slice(0, 36).replace(/_+$/g, "") || "jenis";
+  const terpakai = new Set(sudahAda);
+  terpakai.add(JENIS_BERKAS_LAINNYA);
+  let kode = dasar.length >= 2 ? dasar : `${dasar}_x`;
+  for (let i = 2; terpakai.has(kode); i++) kode = `${dasar.slice(0, 36)}_${i}`;
+  return kode;
+}
+
 // shared/validation.ts
 var RE_TANGGAL2 = /^(\d{4})-(\d{2})-(\d{2})$/;
 function isTanggalValid(s) {
@@ -43855,20 +43850,37 @@ function keInteger(v) {
 function termasuk(daftar, v) {
   return typeof v === "string" && daftar.includes(v);
 }
-function validatePengajuan(raw) {
+function validasiRekening(bankRaw, nomorRaw, e, kunci = { bank: "rekening_bank", nomor: "rekening_nomor" }) {
+  const bank = teks(bankRaw);
+  const nomor = teks(nomorRaw).replace(/[\s.-]/g, "");
+  if (!bank && !nomor) return { bank: null, nomor: null };
+  let hasilBank = null;
+  let hasilNomor = null;
+  if (!bank) e[kunci.bank] = "Isi nama bank";
+  else if (bank.length < 2) e[kunci.bank] = "Nama bank minimal 2 karakter";
+  else if (bank.length > 60) e[kunci.bank] = "Nama bank maksimal 60 karakter";
+  else hasilBank = bank;
+  if (!nomor) e[kunci.nomor] = "Isi nomor rekening";
+  else if (!/^\d+$/.test(nomor)) e[kunci.nomor] = "Nomor rekening hanya boleh berisi angka";
+  else if (nomor.length < 5 || nomor.length > 30) e[kunci.nomor] = "Nomor rekening harus 5\u201330 digit";
+  else hasilNomor = nomor;
+  return { bank: hasilBank, nomor: hasilNomor };
+}
+function validatePengajuan(raw, jenis) {
   const r = objek(raw);
   const e = {};
-  if (!termasuk(KATEGORI_LIST, r.kategori)) {
-    return { ok: false, errors: { kategori: "Kategori tidak valid" } };
+  if (typeof r.kategori !== "string" || !jenis || jenis.kode !== r.kategori) {
+    return { ok: false, errors: { kategori: "Jenis pengajuan tidak valid" } };
   }
-  const kategori = r.kategori;
+  const kategori = jenis.kode;
+  const model = jenis.model;
   const nama_kegiatan = teks(r.nama_kegiatan);
   if (!nama_kegiatan) e.nama_kegiatan = "Nama kegiatan wajib diisi";
   else if (nama_kegiatan.length < 3) e.nama_kegiatan = "Nama kegiatan minimal 3 karakter";
   else if (nama_kegiatan.length > 200) e.nama_kegiatan = "Nama kegiatan maksimal 200 karakter";
   const tanggal_kegiatan = r.tanggal_kegiatan;
   if (tanggal_kegiatan === void 0 || tanggal_kegiatan === null || tanggal_kegiatan === "") {
-    e.tanggal_kegiatan = kategori === "perjadin" ? "Tanggal mulai (dari) wajib diisi" : "Tanggal kegiatan wajib diisi";
+    e.tanggal_kegiatan = model === "perjadin" ? "Tanggal mulai (dari) wajib diisi" : model === "umum" ? "Tanggal wajib diisi" : "Tanggal kegiatan wajib diisi";
   } else if (!isTanggalValid(tanggal_kegiatan)) {
     e.tanggal_kegiatan = "Tanggal tidak valid";
   }
@@ -43886,7 +43898,7 @@ function validatePengajuan(raw) {
   let jenis_transport = null;
   let jenis_konsumsi = null;
   const peserta = [];
-  if (kategori === "konsumsi") {
+  if (model === "konsumsi") {
     if (!termasuk(JENIS_KONSUMSI_LIST, r.jenis_konsumsi)) e.jenis_konsumsi = "Pilih jenis konsumsi";
     else jenis_konsumsi = r.jenis_konsumsi;
     const jo = keInteger(r.jumlah_orang);
@@ -43902,32 +43914,26 @@ function validatePengajuan(raw) {
     const us = keInteger(r.uang_siapa_id);
     if (us === null || Number.isNaN(us) || us <= 0) e.uang_siapa_id = "Pilih uang siapa yang digunakan";
     else uang_siapa_id = us;
-    const bank = teks(r.rekening_bank);
-    const nomor = teks(r.rekening_nomor).replace(/[\s.-]/g, "");
-    if (bank || nomor) {
-      if (!bank) e.rekening_bank = "Isi nama bank";
-      else if (bank.length < 2) e.rekening_bank = "Nama bank minimal 2 karakter";
-      else if (bank.length > 60) e.rekening_bank = "Nama bank maksimal 60 karakter";
-      else rekening_bank = bank;
-      if (!nomor) e.rekening_nomor = "Isi nomor rekening";
-      else if (!/^\d+$/.test(nomor)) e.rekening_nomor = "Nomor rekening hanya boleh berisi angka";
-      else if (nomor.length < 5 || nomor.length > 30) e.rekening_nomor = "Nomor rekening harus 5\u201330 digit";
-      else rekening_nomor = nomor;
-    }
+    const rek = validasiRekening(r.rekening_bank, r.rekening_nomor, e);
+    rekening_bank = rek.bank;
+    rekening_nomor = rek.nomor;
   } else {
-    const lok = teks(r.lokasi_tujuan);
-    if (!lok) e.lokasi_tujuan = "Lokasi tujuan wajib diisi";
-    else if (lok.length < 2) e.lokasi_tujuan = "Lokasi tujuan minimal 2 karakter";
-    else if (lok.length > 200) e.lokasi_tujuan = "Lokasi tujuan maksimal 200 karakter";
-    else lokasi_tujuan = lok;
+    if (model === "rumah_tangga" || model === "perjadin") {
+      const lok = teks(r.lokasi_tujuan);
+      if (!lok) e.lokasi_tujuan = "Lokasi tujuan wajib diisi";
+      else if (lok.length < 2) e.lokasi_tujuan = "Lokasi tujuan minimal 2 karakter";
+      else if (lok.length > 200) e.lokasi_tujuan = "Lokasi tujuan maksimal 200 karakter";
+      else lokasi_tujuan = lok;
+    }
+    const maks = maksPeserta(jenis);
     const daftar = Array.isArray(r.peserta) ? r.peserta : [];
     if (daftar.length === 0) {
       e.peserta = "Tambahkan minimal 1 orang";
-    } else if (daftar.length > MAX_PESERTA_TRANSPORT) {
-      e.peserta = `Maksimal ${MAX_PESERTA_TRANSPORT} orang per pengajuan`;
+    } else if (daftar.length > maks) {
+      e.peserta = `Maksimal ${maks} orang per pengajuan`;
     } else {
       const sudah = /* @__PURE__ */ new Set();
-      const perjadin = kategori === "perjadin";
+      const perjadin = model === "perjadin";
       daftar.forEach((item, i) => {
         const o = objek(item);
         const pid = keInteger(o.pegawai_id);
@@ -43987,19 +43993,22 @@ function validatePengajuan(raw) {
       total = peserta.reduce((s, p) => s + p.nilai, 0);
       if (total > MAX_NILAI) e.peserta = "Total nilai melebihi batas maksimal";
     }
-    if (kategori === "perjadin") {
+    if (model === "perjadin" || model === "umum") {
       const ts = r.tanggal_selesai;
-      if (ts === void 0 || ts === null || ts === "") {
-        e.tanggal_selesai = "Tanggal selesai (sampai) wajib diisi";
+      const kosong2 = ts === void 0 || ts === null || ts === "";
+      if (kosong2) {
+        if (model === "perjadin") e.tanggal_selesai = "Tanggal selesai (sampai) wajib diisi";
       } else if (!isTanggalValid(ts)) {
         e.tanggal_selesai = "Tanggal tidak valid";
       } else if (isTanggalValid(tanggal_kegiatan) && ts < tanggal_kegiatan) {
         e.tanggal_selesai = "Tanggal selesai tidak boleh sebelum tanggal mulai";
       } else if (isTanggalValid(tanggal_kegiatan) && lamaHari(tanggal_kegiatan, ts) > 366) {
-        e.tanggal_selesai = "Lama kegiatan maksimal 366 hari";
+        e.tanggal_selesai = model === "perjadin" ? "Lama kegiatan maksimal 366 hari" : "Periode maksimal 366 hari";
       } else {
         tanggal_selesai = ts;
       }
+    }
+    if (model === "perjadin") {
       if (!termasuk(JENIS_TRANSPORT_LIST, r.jenis_transport)) e.jenis_transport = "Pilih jenis transport";
       else jenis_transport = r.jenis_transport;
     }
@@ -44038,8 +44047,12 @@ function validatePegawai(raw) {
   if (nip && !/^\d{1,30}$/.test(nip)) e.nip = "NIP/NUP hanya boleh berisi angka (maks. 30 digit)";
   const jabatan = teks(r.jabatan);
   if (jabatan.length > 120) e.jabatan = "Jabatan maksimal 120 karakter";
+  const rek = validasiRekening(r.rekening_bank, r.rekening_nomor, e);
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
-  return { ok: true, data: { nama, nip: nip || null, jabatan: jabatan || null } };
+  return {
+    ok: true,
+    data: { nama, nip: nip || null, jabatan: jabatan || null, rekening_bank: rek.bank, rekening_nomor: rek.nomor }
+  };
 }
 var EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 function validateUser(raw, mode) {
@@ -44165,6 +44178,160 @@ function validateDibayarkan(raw) {
   if (typeof r.dibayarkan !== "boolean") return { ok: false, errors: { dibayarkan: "Nilai dibayarkan harus true atau false" } };
   return { ok: true, data: { dibayarkan: r.dibayarkan } };
 }
+function bacaAktif(v, e) {
+  if (v === void 0) return true;
+  if (typeof v !== "boolean") {
+    e.aktif = "Nilai aktif harus true/false";
+    return true;
+  }
+  return v;
+}
+function validateJenisPengajuan(raw, modelTetap) {
+  const r = objek(raw);
+  const e = {};
+  const label = teks(r.label);
+  if (!label) e.label = "Nama jenis pengajuan wajib diisi";
+  else if (label.length < 3) e.label = "Nama minimal 3 karakter";
+  else if (label.length > 60) e.label = "Nama maksimal 60 karakter";
+  let label_pendek = teks(r.label_pendek);
+  if (!label_pendek && label.length >= 2 && label.length <= 24) label_pendek = label;
+  if (!label_pendek) e.label_pendek = "Nama singkat wajib diisi (maks. 24 karakter)";
+  else if (label_pendek.length < 2) e.label_pendek = "Nama singkat minimal 2 karakter";
+  else if (label_pendek.length > 24) e.label_pendek = "Nama singkat maksimal 24 karakter";
+  const prefix = teks(r.prefix).toUpperCase();
+  if (!prefix) e.prefix = "Awalan kode wajib diisi";
+  else if (!/^[A-Z]{2,5}$/.test(prefix)) e.prefix = "Awalan kode 2\u20135 huruf A\u2013Z, mis. KBR";
+  const deskripsi = teks(r.deskripsi);
+  if (deskripsi.length > 160) e.deskripsi = "Deskripsi maksimal 160 karakter";
+  let model = "umum";
+  if (modelTetap) model = modelTetap;
+  else if (termasuk(MODEL_FORM_LIST, r.model)) model = r.model;
+  else e.model = "Pilih model form";
+  let maks_peserta = null;
+  if (modelPeserta(model)) {
+    const m = keInteger(r.maks_peserta);
+    if (m === null) e.maks_peserta = "Isi batas jumlah orang per pengajuan";
+    else if (Number.isNaN(m) || m < 1 || m > MAKS_PESERTA_BATAS) e.maks_peserta = `Batas jumlah orang 1\u2013${MAKS_PESERTA_BATAS}`;
+    else maks_peserta = m;
+  }
+  const kata_kunci_task = teks(r.kata_kunci_task);
+  if (kata_kunci_task.length > 100) e.kata_kunci_task = "Kata kunci maksimal 100 karakter";
+  let warna = "abu";
+  if (termasuk(WARNA_JENIS_PILIHAN, r.warna)) warna = r.warna;
+  else e.warna = "Pilih warna";
+  let ikon = "file-text";
+  if (termasuk(IKON_JENIS_LIST, r.ikon)) ikon = r.ikon;
+  else e.ikon = "Pilih ikon";
+  const aktif = bacaAktif(r.aktif, e);
+  const berkas = [];
+  const daftar = r.berkas === void 0 ? [] : r.berkas;
+  if (!Array.isArray(daftar)) {
+    e.berkas = "Daftar berkas wajib tidak valid";
+  } else {
+    for (const b of daftar) {
+      if (typeof b !== "string" || !b.trim()) {
+        e.berkas = "Daftar berkas wajib tidak valid";
+        break;
+      }
+      if (b === JENIS_BERKAS_LAINNYA) {
+        e.berkas = "Dokumen Lainnya selalu tersedia sebagai berkas opsional, tidak perlu dipilih";
+        break;
+      }
+      if (berkas.includes(b)) {
+        e.berkas = "Ada jenis berkas yang dipilih dua kali";
+        break;
+      }
+      berkas.push(b);
+    }
+    if (!e.berkas && berkas.length > 20) e.berkas = "Maksimal 20 berkas wajib";
+  }
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return {
+    ok: true,
+    data: {
+      label,
+      label_pendek,
+      prefix,
+      deskripsi: deskripsi || null,
+      model,
+      maks_peserta,
+      kata_kunci_task: kata_kunci_task || null,
+      warna,
+      ikon,
+      aktif,
+      berkas
+    }
+  };
+}
+function validateJenisBerkas(raw) {
+  const r = objek(raw);
+  const e = {};
+  const label = teks(r.label);
+  if (!label) e.label = "Nama jenis berkas wajib diisi";
+  else if (label.length < 2) e.label = "Nama minimal 2 karakter";
+  else if (label.length > 60) e.label = "Nama maksimal 60 karakter";
+  else if (label.toLowerCase() === LABEL_BERKAS_LAINNYA.toLowerCase()) e.label = `"${LABEL_BERKAS_LAINNYA}" sudah tersedia untuk semua pengajuan`;
+  const keterangan = teks(r.keterangan);
+  if (keterangan.length > 200) e.keterangan = "Keterangan maksimal 200 karakter";
+  const aktif = bacaAktif(r.aktif, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { label, keterangan: keterangan || null, aktif } };
+}
+function validateBank(raw) {
+  const r = objek(raw);
+  const e = {};
+  const nama = teks(r.nama);
+  if (!nama) e.nama = "Nama bank wajib diisi";
+  else if (nama.length < 2) e.nama = "Nama bank minimal 2 karakter";
+  else if (nama.length > 60) e.nama = "Nama bank maksimal 60 karakter";
+  const aktif = bacaAktif(r.aktif, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { nama, aktif } };
+}
+function validateProject(raw) {
+  const r = objek(raw);
+  const e = {};
+  const kode = teks(r.kode).replace(/\s+/g, "");
+  if (!kode) e.kode = "Kode project wajib diisi";
+  else if (!/^[A-Za-z0-9][A-Za-z0-9./-]{0,39}$/.test(kode)) e.kode = "Kode project hanya huruf, angka, titik, strip, atau garis miring (maks. 40)";
+  const nama = teks(r.nama);
+  if (!nama) e.nama = "Nama project wajib diisi";
+  else if (nama.length < 2) e.nama = "Nama project minimal 2 karakter";
+  else if (nama.length > 120) e.nama = "Nama project maksimal 120 karakter";
+  else if (!e.kode && kode.length + 1 + nama.length > 150) e.nama = "Kode + nama project maksimal 150 karakter";
+  const aktif = bacaAktif(r.aktif, e);
+  const task_ids = [];
+  const daftar = r.task_ids === void 0 ? [] : r.task_ids;
+  if (!Array.isArray(daftar)) e.task_ids = "Daftar task tidak valid";
+  else {
+    for (const v of daftar) {
+      const id = keInteger(v);
+      if (id === null || Number.isNaN(id) || id <= 0) {
+        e.task_ids = "Daftar task tidak valid";
+        break;
+      }
+      if (!task_ids.includes(id)) task_ids.push(id);
+    }
+    if (!e.task_ids && task_ids.length > 200) e.task_ids = "Terlalu banyak task";
+  }
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { kode, nama, aktif, task_ids } };
+}
+function validateTask(raw) {
+  const r = objek(raw);
+  const e = {};
+  const kode = teks(r.kode).replace(/\s+/g, "");
+  if (!kode) e.kode = "Kode task wajib diisi";
+  else if (!/^[A-Za-z0-9][A-Za-z0-9./-]{0,29}$/.test(kode)) e.kode = "Kode task hanya huruf, angka, titik, strip, atau garis miring (maks. 30)";
+  const nama = teks(r.nama);
+  if (!nama) e.nama = "Nama task wajib diisi";
+  else if (nama.length < 2) e.nama = "Nama task minimal 2 karakter";
+  else if (nama.length > 120) e.nama = "Nama task maksimal 120 karakter";
+  else if (!e.kode && kode.length + 1 + nama.length > 150) e.nama = "Kode + nama task maksimal 150 karakter";
+  const aktif = bacaAktif(r.aktif, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { kode, nama, aktif } };
+}
 
 // server/providers.ts
 var AuthGagal = class extends Error {
@@ -44177,13 +44344,13 @@ var AuthGagal = class extends Error {
 };
 
 // shared/kelengkapan.ts
-function hitungKelengkapan(kategori, berkas, berkasNa, cek = []) {
-  const items = BERKAS_WAJIB[kategori].map((jenis) => {
+function hitungKelengkapan(daftarWajib2, label, berkas, berkasNa, cek = []) {
+  const items = daftarWajib2.map((jenis) => {
     const jumlah = berkas.filter((b) => b.jenis === jenis).length;
     const na = jumlah === 0 && berkasNa.includes(jenis);
     return {
       jenis,
-      label: JENIS_BERKAS_LABEL[jenis],
+      label: label(jenis),
       jumlah,
       na,
       terpenuhi: jumlah > 0 || na,
@@ -44213,6 +44380,410 @@ function parseBerkasNa(json) {
     return [];
   }
 }
+function parseBerkasDaftar(json) {
+  if (json === null || json === void 0) return null;
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : null;
+  } catch {
+    return null;
+  }
+}
+
+// server/services/master.ts
+var keJenis = (r, berkas) => ({
+  kode: r.kode,
+  label: r.label,
+  label_pendek: r.label_pendek,
+  prefix: r.prefix,
+  deskripsi: r.deskripsi,
+  model: r.model,
+  maks_peserta: r.maks_peserta === null ? null : Number(r.maks_peserta),
+  kata_kunci_task: r.kata_kunci_task,
+  warna: r.warna,
+  ikon: r.ikon,
+  aktif: r.aktif,
+  bawaan: r.bawaan,
+  urutan: Number(r.urutan),
+  berkas,
+  ...r.dipakai === void 0 ? {} : { dipakai: Number(r.dipakai) }
+});
+async function petaBerkasWajib(db) {
+  const rows = await db.all(
+    "SELECT jenis_pengajuan, jenis_berkas FROM jenis_pengajuan_berkas ORDER BY jenis_pengajuan, urutan, jenis_berkas"
+  );
+  const peta = /* @__PURE__ */ new Map();
+  for (const r of rows) peta.set(r.jenis_pengajuan, [...peta.get(r.jenis_pengajuan) ?? [], r.jenis_berkas]);
+  return peta;
+}
+var KOLOM_JENIS = `jp.kode, jp.label, jp.label_pendek, jp.prefix, jp.deskripsi, jp.model, jp.maks_peserta, jp.kata_kunci_task,
+       jp.warna, jp.ikon, jp.aktif, jp.bawaan, jp.urutan`;
+async function daftarJenisPengajuan(db, denganPemakaian = false) {
+  const rows = await db.all(
+    `SELECT ${KOLOM_JENIS}
+            ${denganPemakaian ? ", (SELECT COUNT(*) FROM pengajuan p WHERE p.kategori = jp.kode)::int AS dipakai" : ""}
+       FROM jenis_pengajuan jp ORDER BY jp.urutan, jp.kode`
+  );
+  const peta = await petaBerkasWajib(db);
+  return rows.map((r) => keJenis(r, peta.get(r.kode) ?? []));
+}
+async function daftarJenisBerkas(db, denganPemakaian = false) {
+  const rows = await db.all(
+    `SELECT jb.kode, jb.label, jb.keterangan, jb.aktif, jb.bawaan, jb.urutan
+            ${denganPemakaian ? `, (SELECT array_agg(m.jenis_pengajuan ORDER BY m.jenis_pengajuan) FROM jenis_pengajuan_berkas m
+                      WHERE m.jenis_berkas = jb.kode) AS jp,
+                   (SELECT COUNT(*) FROM berkas b WHERE b.jenis = jb.kode)::int AS jumlah_berkas` : ""}
+       FROM jenis_berkas jb ORDER BY jb.urutan, jb.label`
+  );
+  return rows.map(({ jp, jumlah_berkas, ...r }) => ({
+    ...r,
+    urutan: Number(r.urutan),
+    ...denganPemakaian ? { dipakai: { jenis_pengajuan: jp ?? [], berkas: Number(jumlah_berkas ?? 0) } } : {}
+  }));
+}
+async function muatKonfig(db) {
+  return { jenisPengajuan: await daftarJenisPengajuan(db), jenisBerkas: await daftarJenisBerkas(db) };
+}
+async function ambilJenisPengajuan(db, kode) {
+  if (typeof kode !== "string" || !kode) return void 0;
+  const row = await db.get(`SELECT ${KOLOM_JENIS} FROM jenis_pengajuan jp WHERE jp.kode = ?`, kode);
+  if (!row) return void 0;
+  const berkas = await db.all(
+    "SELECT jenis_berkas FROM jenis_pengajuan_berkas WHERE jenis_pengajuan = ? ORDER BY urutan, jenis_berkas",
+    kode
+  );
+  return keJenis(row, berkas.map((b) => b.jenis_berkas));
+}
+async function labelJenisBerkas(db, kode) {
+  const unik = [...new Set(kode.filter((k) => k !== JENIS_BERKAS_LAINNYA))];
+  const rows = unik.length ? await db.all("SELECT kode, label FROM jenis_berkas WHERE kode = ANY(?)", unik) : [];
+  const peta = new Map(rows.map((r) => [r.kode, r.label]));
+  return (k) => k === JENIS_BERKAS_LAINNYA ? LABEL_BERKAS_LAINNYA : peta.get(k) ?? k;
+}
+async function pastikanBerkasSah(db, berkas, lama = []) {
+  if (berkas.length === 0) return;
+  const rows = await db.all(
+    "SELECT kode, label, aktif FROM jenis_berkas WHERE kode = ANY(?)",
+    berkas
+  );
+  const ada = new Map(rows.map((r) => [r.kode, r]));
+  const tidakAda = berkas.filter((b) => !ada.has(b));
+  if (tidakAda.length) throw badRequest("Jenis berkas tidak ditemukan", { berkas: `Jenis berkas tidak dikenal: ${tidakAda.join(", ")}` });
+  const nonaktif = berkas.filter((b) => !ada.get(b).aktif && !lama.includes(b));
+  if (nonaktif.length) {
+    throw badRequest("Jenis berkas nonaktif tidak dapat dipilih", {
+      berkas: `Jenis berkas nonaktif: ${nonaktif.map((b) => ada.get(b).label).join(", ")}. Aktifkan dulu di master Jenis Berkas.`
+    });
+  }
+}
+async function pastikanUnikJenis(db, data, kecuali) {
+  const errors = {};
+  const label = await db.get(
+    "SELECT kode FROM jenis_pengajuan WHERE lower(label) = lower(?) AND kode <> ?",
+    data.label,
+    kecuali ?? ""
+  );
+  if (label) errors.label = "Nama jenis pengajuan sudah dipakai";
+  const prefix = await db.get(
+    "SELECT label FROM jenis_pengajuan WHERE prefix = ? AND kode <> ?",
+    data.prefix,
+    kecuali ?? ""
+  );
+  if (prefix) errors.prefix = `Awalan kode sudah dipakai oleh ${prefix.label}`;
+  if (Object.keys(errors).length) throw badRequest("Data jenis pengajuan sudah ada", errors);
+}
+async function simpanBerkasWajib(db, kode, berkas) {
+  await db.run("DELETE FROM jenis_pengajuan_berkas WHERE jenis_pengajuan = ?", kode);
+  for (let i = 0; i < berkas.length; i++) {
+    await db.run(
+      "INSERT INTO jenis_pengajuan_berkas (jenis_pengajuan, jenis_berkas, urutan) VALUES (?, ?, ?)",
+      kode,
+      berkas[i],
+      i + 1
+    );
+  }
+}
+async function buatJenisPengajuan(db, data) {
+  return db.tx(async (tx) => {
+    await pastikanUnikJenis(tx, data);
+    await pastikanBerkasSah(tx, data.berkas);
+    const kodeAda = (await tx.all("SELECT kode FROM jenis_pengajuan")).map((r) => r.kode);
+    const kode = kodeDariLabel(data.label, kodeAda);
+    const urutan = (await tx.get("SELECT MAX(urutan) AS m FROM jenis_pengajuan"))?.m ?? 0;
+    const waktu = nowIso();
+    await tx.run(
+      `INSERT INTO jenis_pengajuan (kode, label, label_pendek, prefix, deskripsi, model, maks_peserta, kata_kunci_task,
+         warna, ikon, aktif, bawaan, urutan, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false, ?, ?, ?)`,
+      kode,
+      data.label,
+      data.label_pendek,
+      data.prefix,
+      data.deskripsi,
+      data.model,
+      data.maks_peserta,
+      data.kata_kunci_task,
+      data.warna,
+      data.ikon,
+      data.aktif,
+      Number(urutan) + 1,
+      waktu,
+      waktu
+    );
+    await simpanBerkasWajib(tx, kode, data.berkas);
+    return kode;
+  });
+}
+async function ubahJenisPengajuan(db, kode, data) {
+  const lama = await ambilJenisPengajuan(db, kode);
+  if (!lama) throw notFound("Jenis pengajuan tidak ditemukan");
+  await pastikanUnikJenis(db, data, kode);
+  await pastikanBerkasSah(db, data.berkas, lama.berkas);
+  if (data.prefix !== lama.prefix) {
+    const n = (await db.get("SELECT COUNT(*)::int AS c FROM pengajuan WHERE kategori = ?", kode))?.c ?? 0;
+    if (n > 0) {
+      throw badRequest("Awalan kode tidak dapat diubah", {
+        prefix: `Sudah ada ${n} pengajuan berkode ${lama.prefix}-\u2026, sehingga awalan kode tidak dapat diubah`
+      });
+    }
+  }
+  if (lama.aktif && !data.aktif) {
+    const lain = (await db.get("SELECT COUNT(*)::int AS c FROM jenis_pengajuan WHERE aktif = true AND kode <> ?", kode))?.c ?? 0;
+    if (lain === 0) throw conflict("Minimal harus ada satu jenis pengajuan yang aktif");
+  }
+  await db.run(
+    `UPDATE jenis_pengajuan SET label = ?, label_pendek = ?, prefix = ?, deskripsi = ?, maks_peserta = ?, kata_kunci_task = ?,
+       warna = ?, ikon = ?, aktif = ?, updated_at = ? WHERE kode = ?`,
+    data.label,
+    data.label_pendek,
+    data.prefix,
+    data.deskripsi,
+    data.maks_peserta,
+    data.kata_kunci_task,
+    data.warna,
+    data.ikon,
+    data.aktif,
+    nowIso(),
+    kode
+  );
+  const berubah = data.berkas.join("|") !== lama.berkas.join("|");
+  if (berubah) await simpanBerkasWajib(db, kode, data.berkas);
+  return berubah;
+}
+async function hapusJenisPengajuan(db, kode) {
+  const j = await ambilJenisPengajuan(db, kode);
+  if (!j) throw notFound("Jenis pengajuan tidak ditemukan");
+  if (j.bawaan) throw conflict(`${j.label} adalah jenis bawaan sistem sehingga tidak dapat dihapus. Nonaktifkan saja bila tidak dipakai.`);
+  const n = (await db.get("SELECT COUNT(*)::int AS c FROM pengajuan WHERE kategori = ?", kode))?.c ?? 0;
+  if (n > 0) throw conflict(`${j.label} sudah dipakai ${n} pengajuan sehingga tidak dapat dihapus. Nonaktifkan saja agar data tetap utuh.`);
+  const lain = (await db.get("SELECT COUNT(*)::int AS c FROM jenis_pengajuan WHERE aktif = true AND kode <> ?", kode))?.c ?? 0;
+  if (j.aktif && lain === 0) throw conflict("Minimal harus ada satu jenis pengajuan yang aktif");
+  await db.run("DELETE FROM jenis_pengajuan WHERE kode = ?", kode);
+}
+async function pastikanLabelBerkasUnik(db, label, kecuali) {
+  const ada = await db.get(
+    "SELECT kode FROM jenis_berkas WHERE lower(label) = lower(?) AND kode <> ?",
+    label,
+    kecuali ?? ""
+  );
+  if (ada) throw badRequest("Nama jenis berkas sudah ada", { label: "Nama jenis berkas sudah dipakai" });
+}
+async function jenisPengajuanPemakai(db, kodeBerkas) {
+  return (await db.all(
+    `SELECT jp.label FROM jenis_pengajuan_berkas m JOIN jenis_pengajuan jp ON jp.kode = m.jenis_pengajuan
+        WHERE m.jenis_berkas = ? ORDER BY jp.urutan, jp.label`,
+    kodeBerkas
+  )).map((r) => r.label);
+}
+async function buatJenisBerkas(db, data) {
+  return db.tx(async (tx) => {
+    await pastikanLabelBerkasUnik(tx, data.label);
+    const kodeAda = (await tx.all("SELECT kode FROM jenis_berkas")).map((r) => r.kode);
+    const kode = kodeDariLabel(data.label, kodeAda);
+    const urutan = (await tx.get("SELECT MAX(urutan) AS m FROM jenis_berkas"))?.m ?? 0;
+    const waktu = nowIso();
+    await tx.run(
+      `INSERT INTO jenis_berkas (kode, label, keterangan, aktif, bawaan, urutan, created_at, updated_at)
+       VALUES (?, ?, ?, ?, false, ?, ?, ?)`,
+      kode,
+      data.label,
+      data.keterangan,
+      data.aktif,
+      Number(urutan) + 1,
+      waktu,
+      waktu
+    );
+    return kode;
+  });
+}
+async function ubahJenisBerkas(db, kode, data) {
+  const lama = await db.get("SELECT aktif FROM jenis_berkas WHERE kode = ?", kode);
+  if (!lama) throw notFound("Jenis berkas tidak ditemukan");
+  await pastikanLabelBerkasUnik(db, data.label, kode);
+  if (lama.aktif && !data.aktif) {
+    const pemakai = await jenisPengajuanPemakai(db, kode);
+    if (pemakai.length) {
+      throw conflict(`Jenis berkas ini masih wajib pada: ${pemakai.join(", ")}. Hapus dari jenis pengajuan tersebut terlebih dahulu.`);
+    }
+  }
+  await db.run(
+    "UPDATE jenis_berkas SET label = ?, keterangan = ?, aktif = ?, updated_at = ? WHERE kode = ?",
+    data.label,
+    data.keterangan,
+    data.aktif,
+    nowIso(),
+    kode
+  );
+}
+async function hapusJenisBerkas(db, kode) {
+  const jb = await db.get("SELECT label, bawaan FROM jenis_berkas WHERE kode = ?", kode);
+  if (!jb) throw notFound("Jenis berkas tidak ditemukan");
+  if (jb.bawaan) throw conflict(`${jb.label} adalah jenis berkas bawaan sistem sehingga tidak dapat dihapus. Nonaktifkan saja bila tidak dipakai.`);
+  const pemakai = await jenisPengajuanPemakai(db, kode);
+  if (pemakai.length) throw conflict(`${jb.label} masih wajib pada: ${pemakai.join(", ")}. Hapus dari jenis pengajuan tersebut terlebih dahulu.`);
+  const dipakai = await db.get(
+    `SELECT ((SELECT COUNT(*) FROM berkas WHERE jenis = ?)
+           + (SELECT COUNT(*) FROM cek_berkas WHERE jenis = ?)
+           + (SELECT COUNT(*) FROM pengajuan WHERE berkas_daftar @> jsonb_build_array(?::text)))::int AS c`,
+    kode,
+    kode,
+    kode
+  );
+  if ((dipakai?.c ?? 0) > 0) {
+    throw conflict(`${jb.label} sudah tercatat pada pengajuan sehingga tidak dapat dihapus. Nonaktifkan saja agar data tetap utuh.`);
+  }
+  await db.run("DELETE FROM jenis_berkas WHERE kode = ?", kode);
+}
+async function daftarBank(db) {
+  const rows = await db.all(
+    `SELECT b.id, b.nama, b.aktif,
+            ((SELECT COUNT(*) FROM pengajuan p WHERE lower(p.rekening_bank) = lower(b.nama))
+           + (SELECT COUNT(*) FROM pegawai g WHERE lower(g.rekening_bank) = lower(b.nama)))::int AS dipakai
+       FROM bank b ORDER BY b.id`
+  );
+  return rows.map((r) => ({ ...r, id: Number(r.id), dipakai: Number(r.dipakai) }));
+}
+async function pastikanBankUnik(db, nama, kecuali = 0) {
+  const ada = await db.get("SELECT id FROM bank WHERE lower(nama) = lower(?) AND id <> ?", nama, kecuali);
+  if (ada) throw badRequest("Nama bank sudah ada", { nama: "Nama bank sudah terdaftar" });
+}
+async function buatBank(db, data) {
+  await pastikanBankUnik(db, data.nama);
+  const waktu = nowIso();
+  const { lastInsertRowid } = await db.run(
+    "INSERT INTO bank (nama, aktif, created_at, updated_at) VALUES (?, ?, ?, ?) RETURNING id",
+    data.nama,
+    data.aktif,
+    waktu,
+    waktu
+  );
+  return lastInsertRowid;
+}
+async function ubahBank(db, id, data) {
+  if (!await db.get("SELECT id FROM bank WHERE id = ?", id)) throw notFound("Bank tidak ditemukan");
+  await pastikanBankUnik(db, data.nama, id);
+  await db.run("UPDATE bank SET nama = ?, aktif = ?, updated_at = ? WHERE id = ?", data.nama, data.aktif, nowIso(), id);
+}
+async function hapusBank(db, id) {
+  const { changes } = await db.run("DELETE FROM bank WHERE id = ?", id);
+  if (changes === 0) throw notFound("Bank tidak ditemukan");
+}
+async function daftarProjectTask(db) {
+  const project = await db.all(
+    `SELECT p.id, p.kode, p.nama, p.aktif,
+            (SELECT array_agg(pt.task_id ORDER BY pt.task_id) FROM master_project_task pt WHERE pt.project_id = p.id) AS task_ids
+       FROM master_project p ORDER BY p.kode`
+  );
+  const task = await db.all(
+    "SELECT id, kode, nama, aktif FROM master_task ORDER BY kode"
+  );
+  return {
+    project: project.map((p) => ({ ...p, id: Number(p.id), task_ids: (p.task_ids ?? []).map(Number) })),
+    task: task.map((t) => ({ ...t, id: Number(t.id) }))
+  };
+}
+async function pastikanTaskAda(db, ids) {
+  if (ids.length === 0) return;
+  const ada = await db.all("SELECT id FROM master_task WHERE id = ANY(?)", ids);
+  if (ada.length !== ids.length) throw badRequest("Task tidak ditemukan", { task_ids: "Ada task yang tidak ditemukan" });
+}
+async function simpanTaskProject(db, projectId, ids) {
+  await db.run("DELETE FROM master_project_task WHERE project_id = ?", projectId);
+  for (const id of ids) await db.run("INSERT INTO master_project_task (project_id, task_id) VALUES (?, ?)", projectId, id);
+}
+async function pastikanKodeUnik(db, tabel, kode, kecuali = 0) {
+  const ada = await db.get(`SELECT id FROM ${tabel} WHERE lower(kode) = lower(?) AND id <> ?`, kode, kecuali);
+  if (ada) throw badRequest("Kode sudah terdaftar", { kode: `Kode ${tabel === "master_project" ? "project" : "task"} sudah terdaftar` });
+}
+async function buatProject(db, data) {
+  return db.tx(async (tx) => {
+    await pastikanKodeUnik(tx, "master_project", data.kode);
+    await pastikanTaskAda(tx, data.task_ids);
+    const waktu = nowIso();
+    const { lastInsertRowid: id } = await tx.run(
+      "INSERT INTO master_project (kode, nama, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?) RETURNING id",
+      data.kode,
+      data.nama,
+      data.aktif,
+      waktu,
+      waktu
+    );
+    await simpanTaskProject(tx, id, data.task_ids);
+    return id;
+  });
+}
+async function ubahProject(db, id, data) {
+  await db.tx(async (tx) => {
+    if (!await tx.get("SELECT id FROM master_project WHERE id = ?", id)) throw notFound("Project tidak ditemukan");
+    await pastikanKodeUnik(tx, "master_project", data.kode, id);
+    await pastikanTaskAda(tx, data.task_ids);
+    await tx.run(
+      "UPDATE master_project SET kode = ?, nama = ?, aktif = ?, updated_at = ? WHERE id = ?",
+      data.kode,
+      data.nama,
+      data.aktif,
+      nowIso(),
+      id
+    );
+    await simpanTaskProject(tx, id, data.task_ids);
+  });
+}
+async function hapusProject(db, id) {
+  const { changes } = await db.run("DELETE FROM master_project WHERE id = ?", id);
+  if (changes === 0) throw notFound("Project tidak ditemukan");
+}
+async function buatTask(db, data) {
+  await pastikanKodeUnik(db, "master_task", data.kode);
+  const waktu = nowIso();
+  const { lastInsertRowid } = await db.run(
+    "INSERT INTO master_task (kode, nama, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?) RETURNING id",
+    data.kode,
+    data.nama,
+    data.aktif,
+    waktu,
+    waktu
+  );
+  return lastInsertRowid;
+}
+async function ubahTask(db, id, data) {
+  if (!await db.get("SELECT id FROM master_task WHERE id = ?", id)) throw notFound("Task tidak ditemukan");
+  await pastikanKodeUnik(db, "master_task", data.kode, id);
+  await db.run(
+    "UPDATE master_task SET kode = ?, nama = ?, aktif = ?, updated_at = ? WHERE id = ?",
+    data.kode,
+    data.nama,
+    data.aktif,
+    nowIso(),
+    id
+  );
+}
+async function hapusTask(db, id) {
+  const { changes } = await db.run("DELETE FROM master_task WHERE id = ?", id);
+  if (changes === 0) throw notFound("Task tidak ditemukan");
+}
+async function modelJenis(db, kode) {
+  return (await db.get("SELECT model FROM jenis_pengajuan WHERE kode = ?", kode))?.model;
+}
 
 // server/services/pengajuan.ts
 var STATUS_BISA_EDIT = ["draft", "dikembalikan"];
@@ -44235,8 +44806,11 @@ var SELECT_PENGAJUAN = `
          dp.nama AS diproses_by_nama,
          dbr.nama AS dibayar_by_nama,
          (SELECT COUNT(*) FROM cek_berkas ck WHERE ck.pengajuan_id = p.id AND ck.status = 'sesuai')::int AS berkas_sesuai,
-         CAST(p.berkas_na AS TEXT) AS berkas_na
+         CAST(p.berkas_na AS TEXT) AS berkas_na,
+         CAST(p.berkas_daftar AS TEXT) AS berkas_daftar,
+         COALESCE(jp.model, 'umum') AS model
     FROM pengajuan p
+    LEFT JOIN jenis_pengajuan jp ON jp.kode = p.kategori
     LEFT JOIN pegawai us ON us.id = p.uang_siapa_id
     LEFT JOIN users cb ON cb.id = p.created_by
     LEFT JOIN users ub ON ub.id = p.updated_by
@@ -44245,7 +44819,7 @@ var SELECT_PENGAJUAN = `
     LEFT JOIN users dp ON dp.id = p.diproses_by
     LEFT JOIN users dbr ON dbr.id = p.dibayar_by`;
 function keRingkas(row, pesertaNama) {
-  const penerima = row.kategori === "konsumsi" ? row.uang_siapa_nama ?? "-" : pesertaNama.join(", ") || "-";
+  const penerima = row.model === "konsumsi" ? row.uang_siapa_nama ?? "-" : pesertaNama.join(", ") || "-";
   const normTgl = (v) => {
     if (!v) return null;
     if (v instanceof Date) return v.toISOString().split("T")[0];
@@ -44319,7 +44893,7 @@ async function namaPesertaMap(db, ids) {
 async function rowsKeRingkas(db, rows) {
   const peserta = await namaPesertaMap(
     db,
-    rows.filter((r) => r.kategori !== "konsumsi").map((r) => Number(r.id))
+    rows.filter((r) => r.model !== "konsumsi").map((r) => Number(r.id))
   );
   return rows.map((r) => keRingkas(r, peserta.get(Number(r.id)) ?? []));
 }
@@ -44328,8 +44902,8 @@ function bangunWhere(user, f) {
   const params = [];
   if (!ROLE_LIHAT_DRAFT.includes(user.role)) kondisi.push(`p.status <> 'draft'`);
   if (f.kategori === "transport") {
-    kondisi.push(`p.kategori IN ('rumah_tangga','perjadin')`);
-  } else if (f.kategori && KATEGORI_LIST.includes(f.kategori)) {
+    kondisi.push(`p.kategori IN (SELECT kode FROM jenis_pengajuan WHERE model IN ('rumah_tangga','perjadin'))`);
+  } else if (f.kategori && /^[a-z][a-z0-9_]{1,39}$/.test(f.kategori)) {
     kondisi.push("p.kategori = ?");
     params.push(f.kategori);
   }
@@ -44427,11 +45001,22 @@ async function ambilPengajuan(db, user, id) {
 async function getPeserta(db, pengajuanId) {
   return db.all(
     `SELECT ps.id, ps.pegawai_id, pg.nama, pg.nip, pg.jabatan, ps.nilai::bigint AS nilai,
-            ps.uang_harian, ps.uang_transport, ps.urutan
+            ps.uang_harian, ps.uang_transport, ps.urutan, pg.rekening_bank, pg.rekening_nomor
        FROM pengajuan_peserta ps JOIN pegawai pg ON pg.id = ps.pegawai_id
       WHERE ps.pengajuan_id = ? ORDER BY ps.urutan`,
     pengajuanId
   );
+}
+var teksJson = (v) => v === null || v === void 0 ? null : typeof v === "string" ? v : JSON.stringify(v);
+async function daftarWajib(db, row) {
+  const tercatat = parseBerkasDaftar(teksJson(row.berkas_daftar));
+  if (tercatat) return tercatat;
+  return (await ambilJenisPengajuan(db, row.kategori))?.berkas ?? [];
+}
+async function kelengkapanRow(db, row, berkas, cek = []) {
+  const daftar = await daftarWajib(db, row);
+  const label = await labelJenisBerkas(db, daftar);
+  return hitungKelengkapan(daftar, label, berkas, parseBerkasNa(teksJson(row.berkas_na)), cek);
 }
 async function getBerkasList(db, pengajuanId) {
   return db.all(
@@ -44462,7 +45047,7 @@ async function getDetail(db, user, id) {
   const row = await ambilPengajuan(db, user, id);
   const peserta = await getPeserta(db, id);
   const berkas = await getBerkasList(db, id);
-  const berkasNa = parseBerkasNa(typeof row.berkas_na === "string" ? row.berkas_na : JSON.stringify(row.berkas_na));
+  const berkasNa = parseBerkasNa(teksJson(row.berkas_na));
   const cekList = await getCekBerkas(db, id);
   return {
     ...keRingkas(row, peserta.map((p) => p.nama)),
@@ -44472,7 +45057,7 @@ async function getDetail(db, user, id) {
     peserta,
     berkas,
     riwayat: await getRiwayat(db, id),
-    kelengkapan: hitungKelengkapan(row.kategori, berkas, berkasNa, cekList),
+    kelengkapan: await kelengkapanRow(db, row, berkas, cekList),
     updated_by_nama: row.updated_by_nama,
     diverifikasi_by: row.diverifikasi_by ? Number(row.diverifikasi_by) : null,
     diverifikasi_by_nama: row.diverifikasi_by_nama,
@@ -44533,13 +45118,13 @@ async function penerimaPum(db) {
 }
 async function segarkanKelengkapan(db, pengajuanId) {
   const row = await db.get(
-    "SELECT kategori, CAST(berkas_na AS TEXT) AS berkas_na FROM pengajuan WHERE id = ?",
+    "SELECT kategori, CAST(berkas_na AS TEXT) AS berkas_na, CAST(berkas_daftar AS TEXT) AS berkas_daftar FROM pengajuan WHERE id = ?",
     pengajuanId
   );
   if (!row) return;
   const berkas = await db.all("SELECT jenis FROM berkas WHERE pengajuan_id = ?", pengajuanId);
-  const berkasNaStr = typeof row.berkas_na === "string" ? row.berkas_na : JSON.stringify(row.berkas_na);
-  const k = hitungKelengkapan(row.kategori, berkas, parseBerkasNa(berkasNaStr));
+  const daftar = await daftarWajib(db, row);
+  const k = hitungKelengkapan(daftar, (j) => j, berkas, parseBerkasNa(row.berkas_na));
   await db.run(
     "UPDATE pengajuan SET berkas_terpenuhi = ?, berkas_wajib = ? WHERE id = ?",
     k.terpenuhi,
@@ -44547,8 +45132,41 @@ async function segarkanKelengkapan(db, pengajuanId) {
     pengajuanId
   );
 }
+async function sinkronDaftarBerkas(db, sasaran, userId) {
+  const rows = await db.all(
+    `SELECT id, kode, kategori, CAST(berkas_na AS TEXT) AS berkas_na, CAST(berkas_daftar AS TEXT) AS berkas_daftar
+       FROM pengajuan WHERE status IN ('draft','dikembalikan') AND ${"kategori" in sasaran ? "kategori = ?" : "id = ?"}`,
+    "kategori" in sasaran ? sasaran.kategori : sasaran.pengajuanId
+  );
+  const master = /* @__PURE__ */ new Map();
+  let berubah = 0;
+  for (const r of rows) {
+    if (!master.has(r.kategori)) master.set(r.kategori, (await ambilJenisPengajuan(db, r.kategori))?.berkas ?? []);
+    const baru = master.get(r.kategori);
+    const lama = parseBerkasDaftar(r.berkas_daftar);
+    if (lama && lama.join("|") === baru.join("|")) continue;
+    const na = parseBerkasNa(r.berkas_na).filter((j) => baru.includes(j));
+    await db.run("UPDATE pengajuan SET berkas_daftar = ?, berkas_na = ? WHERE id = ?", JSON.stringify(baru), JSON.stringify(na), r.id);
+    await db.run("DELETE FROM cek_berkas WHERE pengajuan_id = ? AND NOT (jenis = ANY(?))", r.id, baru);
+    await segarkanKelengkapan(db, Number(r.id));
+    if (lama) {
+      const label = await labelJenisBerkas(db, [...lama, ...baru]);
+      const tambah = baru.filter((j) => !lama.includes(j)).map(label);
+      const kurang = lama.filter((j) => !baru.includes(j)).map(label);
+      const ket = [
+        tambah.length ? `wajib baru: ${tambah.join(", ")}` : null,
+        kurang.length ? `tidak wajib lagi: ${kurang.join(", ")}` : null
+      ].filter(Boolean);
+      await catatRiwayat(db, { id: Number(r.id), kode: r.kode }, userId, "diubah", `Berkas wajib mengikuti master \u2014 ${ket.join(" \xB7 ") || "urutan diperbarui"}`);
+    }
+    berubah++;
+  }
+  return berubah;
+}
 async function kodeBerikutnya(db, kategori, tahun) {
-  const prefix = KATEGORI_INFO[kategori].prefix;
+  const jenis = await ambilJenisPengajuan(db, kategori);
+  if (!jenis) throw badRequest("Jenis pengajuan tidak dikenal", { kategori: "Jenis pengajuan tidak valid" });
+  const prefix = jenis.prefix;
   await db.run(
     `INSERT INTO kode_counter (prefix, tahun, terakhir) VALUES (?, ?, 1)
      ON CONFLICT (prefix, tahun) DO UPDATE SET terakhir = kode_counter.terakhir + 1`,
@@ -44569,7 +45187,7 @@ async function cekPegawai(db, data, sebelumnya) {
     if (!pg2) errors[key] = "Pegawai tidak ditemukan";
     else if (!pg2.aktif && !sebelumnya.has(id)) errors[key] = "Pegawai sudah nonaktif";
   };
-  if (data.kategori === "konsumsi" && data.uang_siapa_id !== null) await cek(data.uang_siapa_id, "uang_siapa_id");
+  if (data.uang_siapa_id !== null) await cek(data.uang_siapa_id, "uang_siapa_id");
   for (let i = 0; i < data.peserta.length; i++) {
     await cek(data.peserta[i].pegawai_id, `peserta.${i}.pegawai_id`);
   }
@@ -44591,8 +45209,13 @@ async function simpanPeserta(db, pengajuanId, data) {
     );
   }
 }
-async function buatPengajuan(db, user, data) {
+async function buatPengajuan(db, user, data, jenis) {
   if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat membuat pengajuan");
+  if (!jenis.aktif) {
+    throw badRequest(`Jenis pengajuan ${jenis.label} sudah nonaktif sehingga tidak dapat dipakai untuk pengajuan baru`, {
+      kategori: "Jenis pengajuan nonaktif"
+    });
+  }
   return db.tx(async (txDb) => {
     await cekPegawai(txDb, data, /* @__PURE__ */ new Set());
     const waktu = nowIso();
@@ -44600,9 +45223,9 @@ async function buatPengajuan(db, user, data) {
     const { lastInsertRowid: id } = await txDb.run(
       `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang,
          lokasi_tujuan, mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, rekening_bank,
-         rekening_nomor, total, catatan, berkas_na, berkas_terpenuhi, berkas_wajib, status, created_by, updated_by,
-         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
+         rekening_nomor, total, catatan, berkas_na, berkas_daftar, berkas_terpenuhi, berkas_wajib, status, created_by,
+         updated_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, 0, ?, 'draft', ?, ?, ?, ?) RETURNING id`,
       kode,
       data.kategori,
       data.nama_kegiatan,
@@ -44619,14 +45242,15 @@ async function buatPengajuan(db, user, data) {
       data.rekening_nomor,
       data.total,
       data.catatan,
-      BERKAS_WAJIB[data.kategori].length,
+      JSON.stringify(jenis.berkas),
+      jenis.berkas.length,
       user.id,
       user.id,
       waktu,
       waktu
     );
     await simpanPeserta(txDb, id, data);
-    await catatRiwayat(txDb, { id, kode }, user.id, "dibuat", `${KATEGORI_INFO[data.kategori].label} \xB7 ${formatRupiah(data.total)}`, waktu);
+    await catatRiwayat(txDb, { id, kode }, user.id, "dibuat", `${jenis.label} \xB7 ${formatRupiah(data.total)}`, waktu);
     return id;
   });
 }
@@ -44684,13 +45308,13 @@ async function ubahPengajuan(db, user, id, data) {
     await simpanPeserta(txDb, id, data);
     const perubahan = [];
     if (Number(row.total) !== data.total) perubahan.push(`Nilai ${formatRupiah(Number(row.total))} \u2192 ${formatRupiah(data.total)}`);
-    if (row.kategori === "konsumsi" && (row.jenis_konsumsi ?? null) !== data.jenis_konsumsi) {
+    if (row.model === "konsumsi" && (row.jenis_konsumsi ?? null) !== data.jenis_konsumsi) {
       const label = (j) => j ? JENIS_KONSUMSI_LABEL[j] : "-";
       perubahan.push(`Jenis konsumsi ${label(row.jenis_konsumsi ?? null)} \u2192 ${label(data.jenis_konsumsi)}`);
     }
     const rekLama = teksRekening(row.rekening_bank ?? null, row.rekening_nomor ?? null);
     const rekBaru = teksRekening(data.rekening_bank, data.rekening_nomor);
-    if (row.kategori === "konsumsi" && rekLama !== rekBaru) perubahan.push(`Rekening ${rekLama} \u2192 ${rekBaru}`);
+    if (row.model === "konsumsi" && rekLama !== rekBaru) perubahan.push(`Rekening ${rekLama} \u2192 ${rekBaru}`);
     await catatRiwayat(txDb, row, user.id, "diubah", perubahan.join(" \xB7 ") || null, waktu);
   });
 }
@@ -44707,11 +45331,13 @@ async function hapusPengajuan(db, user, id) {
 }
 async function ajukan(db, user, id) {
   await db.tx(async (txDb) => {
-    const row = await ambilPengajuan(txDb, user, id);
+    const awal = await ambilPengajuan(txDb, user, id);
     if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat mengajukan");
-    if (!STATUS_BISA_EDIT.includes(row.status)) {
+    if (!STATUS_BISA_EDIT.includes(awal.status)) {
       throw conflict("Hanya pengajuan berstatus Draft atau Dikembalikan yang dapat diajukan ke PUM");
     }
+    await sinkronDaftarBerkas(txDb, { pengajuanId: id }, user.id);
+    const row = await ambilPengajuan(txDb, user, id);
     const waktu = nowIso();
     await txDb.run(
       `UPDATE pengajuan SET status = 'diajukan_pum', diajukan_at = ?, diproses_by = NULL, diproses_at = NULL,
@@ -44763,10 +45389,10 @@ async function cekBerkas(db, user, id, data) {
     if (row.status !== "diajukan_pum") {
       throw conflict("Berkas hanya dapat dicentang saat pengajuan berstatus Diajukan ke PUM");
     }
-    if (!BERKAS_WAJIB[row.kategori].includes(data.jenis)) {
-      throw badRequest("Jenis berkas tidak termasuk berkas wajib kategori ini", { jenis: "Jenis berkas tidak valid" });
+    if (!(await daftarWajib(txDb, row)).includes(data.jenis)) {
+      throw badRequest("Jenis berkas tidak termasuk berkas wajib pengajuan ini", { jenis: "Jenis berkas tidak valid" });
     }
-    const label = JENIS_BERKAS_LABEL[data.jenis];
+    const label = (await labelJenisBerkas(txDb, [data.jenis]))(data.jenis);
     const lama = await txDb.get(
       "SELECT status, catatan FROM cek_berkas WHERE pengajuan_id = ? AND jenis = ?",
       id,
@@ -44820,10 +45446,12 @@ async function kembalikan(db, user, id, catatan) {
       waktu,
       id
     );
-    const revisi = (await txDb.all(
+    const barisRevisi = await txDb.all(
       `SELECT jenis, catatan FROM cek_berkas WHERE pengajuan_id = ? AND status = 'revisi'`,
       id
-    )).map((r) => `${JENIS_BERKAS_LABEL[r.jenis]}${r.catatan ? ` (${r.catatan})` : ""}`);
+    );
+    const labelRevisi = await labelJenisBerkas(txDb, barisRevisi.map((r) => r.jenis));
+    const revisi = barisRevisi.map((r) => `${labelRevisi(r.jenis)}${r.catatan ? ` (${r.catatan})` : ""}`);
     const rincian = revisi.length ? ` \xB7 Berkas perlu revisi: ${revisi.join("; ")}` : "";
     const invoiceLama = row.no_invoice_mdk ? ` \xB7 Invoice MDK sebelumnya: ${row.no_invoice_mdk}` : "";
     await catatRiwayat(txDb, row, user.id, "dikembalikan", `${catatan}${rincian}${invoiceLama}`, waktu);
@@ -44849,13 +45477,7 @@ async function verifikasi(db, user, id, data) {
     if (row.status !== "diajukan_pum") {
       throw conflict("Hanya pengajuan berstatus Diajukan ke PUM yang dapat diverifikasi");
     }
-    const berkasNaStr = typeof row.berkas_na === "string" ? row.berkas_na : JSON.stringify(row.berkas_na);
-    const k = hitungKelengkapan(
-      row.kategori,
-      await getBerkasList(txDb, id),
-      parseBerkasNa(berkasNaStr),
-      await getCekBerkas(txDb, id)
-    );
+    const k = await kelengkapanRow(txDb, row, await getBerkasList(txDb, id), await getCekBerkas(txDb, id));
     if (!k.semuaSesuai) {
       throw conflict(`Centang semua berkas wajib sebagai "sesuai" sebelum memverifikasi (baru ${k.sesuai}/${k.total}).`);
     }
@@ -44924,7 +45546,7 @@ async function tandaiDibayarkan(db, user, id, dibayarkan) {
   await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
     if (!bolehProsesPum(user)) throw forbidden("Hanya PUM atau admin yang dapat menandai pembayaran");
-    if (row.kategori !== "konsumsi") throw conflict("Tanda sudah dibayarkan hanya untuk pengajuan Konsumsi");
+    if (row.model !== "konsumsi") throw conflict("Tanda sudah dibayarkan hanya untuk pengajuan Konsumsi");
     if (!STATUS_BISA_DIBAYARKAN.includes(row.status)) {
       throw conflict(`Pembayaran tidak dapat ditandai pada pengajuan berstatus ${STATUS_INFO[row.status].label}`);
     }
@@ -45083,8 +45705,8 @@ async function pastikanBisaKelolaBerkas(db, user, pengajuanId) {
   }
   return row;
 }
-function jenisBerkasValid(kategori, jenis) {
-  return jenis === "lainnya" || BERKAS_WAJIB[kategori].includes(jenis);
+async function jenisBerkasValid(db, row, jenis) {
+  return jenis === JENIS_BERKAS_LAINNYA || (await daftarWajib(db, row)).includes(jenis);
 }
 async function resetCek(db, pengajuanId, jenis) {
   await db.run("DELETE FROM cek_berkas WHERE pengajuan_id = ? AND jenis = ?", pengajuanId, jenis);
@@ -45106,12 +45728,11 @@ async function tambahBerkas(db, user, pengajuanId, b) {
       user.id,
       waktu
     );
-    const berkasNaStr = typeof row.berkas_na === "string" ? row.berkas_na : JSON.stringify(row.berkas_na);
-    const na = parseBerkasNa(berkasNaStr).filter((j) => j !== b.jenis);
+    const na = parseBerkasNa(teksJson(row.berkas_na)).filter((j) => j !== b.jenis);
     await txDb.run("UPDATE pengajuan SET berkas_na = ?, updated_by = ?, updated_at = ? WHERE id = ?", JSON.stringify(na), user.id, waktu, pengajuanId);
     await resetCek(txDb, pengajuanId, b.jenis);
     await segarkanKelengkapan(txDb, pengajuanId);
-    const label = b.jenis === "lainnya" && b.nama_berkas ? b.nama_berkas : JENIS_BERKAS_LABEL[b.jenis];
+    const label = b.jenis === JENIS_BERKAS_LAINNYA && b.nama_berkas ? b.nama_berkas : (await labelJenisBerkas(txDb, [b.jenis]))(b.jenis);
     await catatRiwayat(txDb, row, user.id, "berkas_diunggah", `${label}: ${b.nama_asli}`, waktu);
     return id;
   });
@@ -45131,7 +45752,7 @@ async function hapusBerkas(db, user, berkasId) {
     await txDb.run("UPDATE pengajuan SET updated_by = ?, updated_at = ? WHERE id = ?", user.id, waktu, b.pengajuan_id);
     await resetCek(txDb, Number(b.pengajuan_id), b.jenis);
     await segarkanKelengkapan(txDb, Number(b.pengajuan_id));
-    const label = b.jenis === "lainnya" && b.nama_berkas ? b.nama_berkas : JENIS_BERKAS_LABEL[b.jenis];
+    const label = b.jenis === JENIS_BERKAS_LAINNYA && b.nama_berkas ? b.nama_berkas : (await labelJenisBerkas(txDb, [b.jenis]))(b.jenis);
     await catatRiwayat(txDb, row, user.id, "berkas_dihapus", `${label}: ${b.nama_asli}`, waktu);
     return { pengajuanId: Number(b.pengajuan_id), namaFile: b.nama_file };
   });
@@ -45139,18 +45760,17 @@ async function hapusBerkas(db, user, berkasId) {
 async function setBerkasNa(db, user, pengajuanId, jenis, na) {
   await db.tx(async (txDb) => {
     const row = await pastikanBisaKelolaBerkas(txDb, user, pengajuanId);
-    if (!BERKAS_WAJIB[row.kategori].includes(jenis)) {
-      throw badRequest("Jenis berkas tidak termasuk berkas wajib kategori ini", { jenis: "Jenis berkas tidak valid" });
+    if (!(await daftarWajib(txDb, row)).includes(jenis)) {
+      throw badRequest("Jenis berkas tidak termasuk berkas wajib pengajuan ini", { jenis: "Jenis berkas tidak valid" });
     }
-    const label = JENIS_BERKAS_LABEL[jenis];
+    const label = (await labelJenisBerkas(txDb, [jenis]))(jenis);
     if (na) {
       const ada = await txDb.get("SELECT COUNT(*)::int AS c FROM berkas WHERE pengajuan_id = ? AND jenis = ?", pengajuanId, jenis);
       if ((ada?.c ?? 0) > 0) {
         throw conflict(`${label} sudah memiliki file. Hapus file terlebih dahulu bila memang tidak diperlukan.`);
       }
     }
-    const berkasNaStr = typeof row.berkas_na === "string" ? row.berkas_na : JSON.stringify(row.berkas_na);
-    const daftar = new Set(parseBerkasNa(berkasNaStr));
+    const daftar = new Set(parseBerkasNa(teksJson(row.berkas_na)));
     const sebelum = daftar.has(jenis);
     if (na) daftar.add(jenis);
     else daftar.delete(jenis);
@@ -45363,12 +45983,15 @@ function filterRekap(f, user) {
 }
 async function rekapPengajuan(db, user, f) {
   const rows = await semuaPengajuan(db, user, filterRekap(f, user));
-  const perKategori = Object.fromEntries(KATEGORI_LIST.map((k) => [k, kosong()]));
+  const perKategori = Object.fromEntries(
+    (await daftarJenisPengajuan(db)).map((j) => [j.kode, kosong()])
+  );
   const perStatus = Object.fromEntries(STATUS_LIST.map((s) => [s, kosong()]));
   const perMekanisme = Object.fromEntries(MEKANISME_LIST.map((m) => [m, kosong()]));
   let nilai = 0;
   for (const r of rows) {
     nilai += r.total;
+    perKategori[r.kategori] ??= kosong();
     perKategori[r.kategori].jumlah++;
     perKategori[r.kategori].nilai += r.total;
     perStatus[r.status].jumlah++;
@@ -45383,11 +46006,30 @@ function cteKontribusi(where) {
     WITH base AS (SELECT p.* FROM pengajuan p ${where}),
     x AS (
       SELECT b.id AS pengajuan_id, b.uang_siapa_id AS pegawai_id, b.total AS nilai, b.kategori
-        FROM base b WHERE b.kategori = 'konsumsi' AND b.uang_siapa_id IS NOT NULL
+        FROM base b JOIN jenis_pengajuan jp ON jp.kode = b.kategori
+       WHERE jp.model = 'konsumsi' AND b.uang_siapa_id IS NOT NULL
       UNION ALL
       SELECT b.id, ps.pegawai_id, ps.nilai, b.kategori
         FROM base b JOIN pengajuan_peserta ps ON ps.pengajuan_id = b.id
     )`;
+}
+async function perKategoriPegawai(db, where, params, pegawaiIds) {
+  const peta = /* @__PURE__ */ new Map();
+  if (pegawaiIds.length === 0) return peta;
+  const rows = await db.all(
+    `${cteKontribusi(where)}
+     SELECT x.pegawai_id, x.kategori, SUM(x.nilai)::bigint AS nilai
+       FROM x WHERE x.pegawai_id = ANY(?) GROUP BY x.pegawai_id, x.kategori`,
+    ...params,
+    pegawaiIds
+  );
+  for (const r of rows) {
+    const id = Number(r.pegawai_id);
+    const isi = peta.get(id) ?? {};
+    if (Number(r.nilai) > 0) isi[r.kategori] = Number(r.nilai);
+    peta.set(id, isi);
+  }
+  return peta;
 }
 async function rekapPegawai(db, user, f) {
   const { where, params } = bangunWhere(user, filterRekap(f, user));
@@ -45395,16 +46037,17 @@ async function rekapPegawai(db, user, f) {
     `${cteKontribusi(where)}
      SELECT g.id AS pegawai_id, g.nama, g.nip, g.jabatan,
             COUNT(DISTINCT x.pengajuan_id)::int AS jumlah,
-            SUM(CASE WHEN x.kategori = 'konsumsi' THEN x.nilai ELSE 0 END)::bigint AS konsumsi,
-            SUM(CASE WHEN x.kategori = 'rumah_tangga' THEN x.nilai ELSE 0 END)::bigint AS rumah_tangga,
-            SUM(CASE WHEN x.kategori = 'perjadin' THEN x.nilai ELSE 0 END)::bigint AS perjadin,
             SUM(x.nilai)::bigint AS total
        FROM x JOIN pegawai g ON g.id = x.pegawai_id
       GROUP BY g.id
       ORDER BY total DESC, g.nama ASC`,
     ...params
   );
-  return { rows: rows.map((r) => ({ ...r, pegawai_id: Number(r.pegawai_id) })), total: rows.reduce((s, r) => s + r.total, 0) };
+  const rincian = await perKategoriPegawai(db, where, params, rows.map((r) => Number(r.pegawai_id)));
+  return {
+    rows: rows.map((r) => ({ ...r, pegawai_id: Number(r.pegawai_id), perKategori: rincian.get(Number(r.pegawai_id)) ?? {} })),
+    total: rows.reduce((s, r) => s + r.total, 0)
+  };
 }
 async function getPegawai(db, id) {
   const row = await db.get(
@@ -45424,7 +46067,7 @@ async function rekapPegawaiDetail(db, user, pegawaiId, f) {
     `WITH base AS (SELECT p.* FROM pengajuan p ${where})
      SELECT b.id AS pengajuan_id, b.kode, b.kategori, b.nama_kegiatan, b.tanggal_kegiatan, b.tanggal_selesai,
             b.lokasi_tujuan, b.mekanisme, b.status, 'uang_siapa' AS peran, b.total AS nilai, b.no_invoice_mdk
-       FROM base b WHERE b.kategori = 'konsumsi' AND b.uang_siapa_id = ?
+       FROM base b JOIN jenis_pengajuan jp ON jp.kode = b.kategori WHERE jp.model = 'konsumsi' AND b.uang_siapa_id = ?
      UNION ALL
      SELECT b.id, b.kode, b.kategori, b.nama_kegiatan, b.tanggal_kegiatan, b.tanggal_selesai,
             b.lokasi_tujuan, b.mekanisme, b.status, 'peserta', ps.nilai, b.no_invoice_mdk
@@ -45510,12 +46153,12 @@ async function dashboard(db, user, tahunInput) {
   const rata = rataRow?.r;
   const perBulan = Array.from({ length: 12 }, (_, i) => ({
     bulan: i + 1,
-    konsumsi: 0,
-    rumah_tangga: 0,
-    perjadin: 0,
-    jumlah: 0
+    jumlah: 0,
+    nilai: 0,
+    perKategori: {}
   }));
-  const perKategoriMap = Object.fromEntries(KATEGORI_LIST.map((k) => [k, kosong()]));
+  const jenisMaster = await daftarJenisPengajuan(db);
+  const perKategoriMap = {};
   const bulanRows = await db.all(
     `SELECT EXTRACT(MONTH FROM tanggal_kegiatan)::int AS bulan, kategori,
             COUNT(*)::int AS jumlah, COALESCE(SUM(total), 0)::bigint AS nilai
@@ -45526,11 +46169,17 @@ async function dashboard(db, user, tahunInput) {
   for (const r of bulanRows) {
     const b = perBulan[r.bulan - 1];
     if (!b) continue;
-    b[r.kategori] += r.nilai;
+    if (r.nilai > 0) b.perKategori[r.kategori] = (b.perKategori[r.kategori] ?? 0) + r.nilai;
+    b.nilai += r.nilai;
     b.jumlah += r.jumlah;
+    perKategoriMap[r.kategori] ??= kosong();
     perKategoriMap[r.kategori].jumlah += r.jumlah;
     perKategoriMap[r.kategori].nilai += r.nilai;
   }
+  const perKategori = [
+    ...jenisMaster.filter((j) => j.aktif || perKategoriMap[j.kode]).map((j) => ({ kategori: j.kode, ...perKategoriMap[j.kode] ?? kosong() })),
+    ...Object.keys(perKategoriMap).filter((k) => !jenisMaster.some((j) => j.kode === k)).map((k) => ({ kategori: k, ...perKategoriMap[k] }))
+  ];
   const perMekanismeMap = Object.fromEntries(MEKANISME_LIST.map((m) => [m, kosong()]));
   const mekanismeRows = await db.all(
     `SELECT mekanisme, COUNT(*)::int AS jumlah, COALESCE(SUM(total), 0)::bigint AS nilai
@@ -45544,16 +46193,18 @@ async function dashboard(db, user, tahunInput) {
   const topPegawaiRows = await db.all(
     `${cteKontribusi(where)}
      SELECT g.id AS pegawai_id, g.nama,
-            SUM(CASE WHEN x.kategori = 'konsumsi' THEN x.nilai ELSE 0 END)::bigint AS konsumsi,
-            SUM(CASE WHEN x.kategori = 'rumah_tangga' THEN x.nilai ELSE 0 END)::bigint AS rumah_tangga,
-            SUM(CASE WHEN x.kategori = 'perjadin' THEN x.nilai ELSE 0 END)::bigint AS perjadin,
             SUM(x.nilai)::bigint AS total,
             COUNT(DISTINCT x.pengajuan_id)::int AS jumlah
        FROM x JOIN pegawai g ON g.id = x.pegawai_id
       GROUP BY g.id ORDER BY total DESC, g.nama ASC LIMIT 5`,
     ...params
   );
-  const topPegawai = topPegawaiRows.map((r) => ({ ...r, pegawai_id: Number(r.pegawai_id) }));
+  const rincianTop = await perKategoriPegawai(db, where, params, topPegawaiRows.map((r) => Number(r.pegawai_id)));
+  const topPegawai = topPegawaiRows.map((r) => ({
+    ...r,
+    pegawai_id: Number(r.pegawai_id),
+    perKategori: rincianTop.get(Number(r.pegawai_id)) ?? {}
+  }));
   const acuanTunggu = `COALESCE(CASE p.status WHEN 'diverifikasi_pum' THEN p.diverifikasi_at
                                               WHEN 'diajukan_mdk' THEN p.diajukan_mdk_at
                                               ELSE p.diajukan_at END, p.updated_at)`;
@@ -45594,7 +46245,7 @@ async function dashboard(db, user, tahunInput) {
       rataProsesHari: rata === null || rata === void 0 ? null : Math.round(Number(rata) * 10) / 10
     },
     perBulan,
-    perKategori: KATEGORI_LIST.map((k) => ({ kategori: k, ...perKategoriMap[k] })),
+    perKategori,
     perMekanisme: MEKANISME_LIST.map((m) => ({ mekanisme: m, ...perMekanismeMap[m] })),
     topPegawai,
     aktivitas: await aktivitasTerbaru(db, user, 8),
@@ -45686,8 +46337,107 @@ function laporanRoutes(db) {
   return r;
 }
 
-// server/routes/pegawai.ts
+// server/routes/master.ts
 var import_express3 = __toESM(require_express2(), 1);
+function kodeParam(v, label) {
+  if (typeof v !== "string" || !/^[a-z][a-z0-9_]{1,39}$/.test(v)) throw notFound(`${label} tidak ditemukan`);
+  return v;
+}
+function masterRoutes(db) {
+  const r = (0, import_express3.Router)();
+  const admin = requireRole("admin");
+  r.get("/konfig", async (_req, res) => {
+    res.json(await muatKonfig(db));
+  });
+  r.get("/jenis-pengajuan", async (_req, res) => {
+    res.json(await daftarJenisPengajuan(db, true));
+  });
+  r.post("/jenis-pengajuan", admin, async (req, res) => {
+    const data = assertValid(validateJenisPengajuan(req.body));
+    const kode = await buatJenisPengajuan(db, data);
+    res.status(201).json(await ambilJenisPengajuan(db, kode));
+  });
+  r.put("/jenis-pengajuan/:kode", admin, async (req, res) => {
+    const kode = kodeParam(req.params.kode, "Jenis pengajuan");
+    const model = await modelJenis(db, kode);
+    if (!model) throw notFound("Jenis pengajuan tidak ditemukan");
+    const data = assertValid(validateJenisPengajuan(req.body, model));
+    const disinkron = await db.tx(async (tx) => {
+      const berubah = await ubahJenisPengajuan(tx, kode, data);
+      return berubah ? sinkronDaftarBerkas(tx, { kategori: kode }, userOf(req).id) : 0;
+    });
+    res.json({ ...await ambilJenisPengajuan(db, kode), disinkron });
+  });
+  r.delete("/jenis-pengajuan/:kode", admin, async (req, res) => {
+    await hapusJenisPengajuan(db, kodeParam(req.params.kode, "Jenis pengajuan"));
+    res.json({ ok: true });
+  });
+  r.get("/jenis-berkas", async (_req, res) => {
+    res.json(await daftarJenisBerkas(db, true));
+  });
+  r.post("/jenis-berkas", admin, async (req, res) => {
+    const kode = await buatJenisBerkas(db, assertValid(validateJenisBerkas(req.body)));
+    res.status(201).json((await daftarJenisBerkas(db, true)).find((b) => b.kode === kode));
+  });
+  r.put("/jenis-berkas/:kode", admin, async (req, res) => {
+    const kode = kodeParam(req.params.kode, "Jenis berkas");
+    await ubahJenisBerkas(db, kode, assertValid(validateJenisBerkas(req.body)));
+    res.json((await daftarJenisBerkas(db, true)).find((b) => b.kode === kode));
+  });
+  r.delete("/jenis-berkas/:kode", admin, async (req, res) => {
+    await hapusJenisBerkas(db, kodeParam(req.params.kode, "Jenis berkas"));
+    res.json({ ok: true });
+  });
+  r.get("/bank", async (_req, res) => {
+    res.json(await daftarBank(db));
+  });
+  r.post("/bank", admin, async (req, res) => {
+    const id = await buatBank(db, assertValid(validateBank(req.body)));
+    res.status(201).json((await daftarBank(db)).find((b) => b.id === id));
+  });
+  r.put("/bank/:id", admin, async (req, res) => {
+    const id = parseId(req.params.id, "Bank");
+    await ubahBank(db, id, assertValid(validateBank(req.body)));
+    res.json((await daftarBank(db)).find((b) => b.id === id));
+  });
+  r.delete("/bank/:id", admin, async (req, res) => {
+    await hapusBank(db, parseId(req.params.id, "Bank"));
+    res.json({ ok: true });
+  });
+  r.get("/project-task", async (_req, res) => {
+    res.json(await daftarProjectTask(db));
+  });
+  r.post("/project", admin, async (req, res) => {
+    const id = await buatProject(db, assertValid(validateProject(req.body)));
+    res.status(201).json((await daftarProjectTask(db)).project.find((p) => p.id === id));
+  });
+  r.put("/project/:id", admin, async (req, res) => {
+    const id = parseId(req.params.id, "Project");
+    await ubahProject(db, id, assertValid(validateProject(req.body)));
+    res.json((await daftarProjectTask(db)).project.find((p) => p.id === id));
+  });
+  r.delete("/project/:id", admin, async (req, res) => {
+    await hapusProject(db, parseId(req.params.id, "Project"));
+    res.json({ ok: true });
+  });
+  r.post("/task", admin, async (req, res) => {
+    const id = await buatTask(db, assertValid(validateTask(req.body)));
+    res.status(201).json((await daftarProjectTask(db)).task.find((t) => t.id === id));
+  });
+  r.put("/task/:id", admin, async (req, res) => {
+    const id = parseId(req.params.id, "Task");
+    await ubahTask(db, id, assertValid(validateTask(req.body)));
+    res.json((await daftarProjectTask(db)).task.find((t) => t.id === id));
+  });
+  r.delete("/task/:id", admin, async (req, res) => {
+    await hapusTask(db, parseId(req.params.id, "Task"));
+    res.json({ ok: true });
+  });
+  return r;
+}
+
+// server/routes/pegawai.ts
+var import_express4 = __toESM(require_express2(), 1);
 var SELECT_PEGAWAI = `
   SELECT g.*,
          (SELECT COUNT(*) FROM pengajuan p WHERE p.uang_siapa_id = g.id)
@@ -45701,7 +46451,7 @@ async function cekNipUnik(db, nip, kecualiId) {
   }
 }
 function pegawaiRoutes(db) {
-  const r = (0, import_express3.Router)();
+  const r = (0, import_express4.Router)();
   r.get("/", async (req, res) => {
     const kondisi = [];
     const params = [];
@@ -45730,10 +46480,13 @@ function pegawaiRoutes(db) {
     await cekNipUnik(db, data.nip);
     const waktu = nowIso();
     const { lastInsertRowid } = await db.run(
-      "INSERT INTO pegawai (nama, nip, jabatan, aktif, created_at, updated_at) VALUES (?, ?, ?, true, ?, ?) RETURNING id",
+      `INSERT INTO pegawai (nama, nip, jabatan, rekening_bank, rekening_nomor, aktif, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, true, ?, ?) RETURNING id`,
       data.nama,
       data.nip,
       data.jabatan,
+      data.rekening_bank,
+      data.rekening_nomor,
       waktu,
       waktu
     );
@@ -45745,10 +46498,12 @@ function pegawaiRoutes(db) {
     const data = assertValid(validatePegawai(req.body));
     await cekNipUnik(db, data.nip, id);
     await db.run(
-      "UPDATE pegawai SET nama = ?, nip = ?, jabatan = ?, updated_at = ? WHERE id = ?",
+      "UPDATE pegawai SET nama = ?, nip = ?, jabatan = ?, rekening_bank = ?, rekening_nomor = ?, updated_at = ? WHERE id = ?",
       data.nama,
       data.nip,
       data.jabatan,
+      data.rekening_bank,
+      data.rekening_nomor,
       nowIso(),
       id
     );
@@ -45778,7 +46533,7 @@ function pegawaiRoutes(db) {
 }
 
 // server/routes/pengajuan.ts
-var import_express4 = __toESM(require_express2(), 1);
+var import_express5 = __toESM(require_express2(), 1);
 import crypto3 from "node:crypto";
 import path from "node:path";
 var BATAS_BYTE = MAX_UPLOAD_MB * 1024 * 1024;
@@ -45809,13 +46564,13 @@ function kunciBerkasValid(pengajuanId, key, ext) {
   const pola = new RegExp(`^${pengajuanId}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}${ext.replace(".", "\\.")}$`);
   return pola.test(key);
 }
-function bacaInputBerkas(kategori, body) {
+async function bacaInputBerkas(db, row, body) {
   const jenis = typeof body.jenis === "string" ? body.jenis : "";
-  if (!jenisBerkasValid(kategori, jenis)) {
-    throw badRequest("Jenis berkas tidak sesuai kategori pengajuan", { jenis: "Jenis berkas tidak valid" });
+  if (!await jenisBerkasValid(db, row, jenis)) {
+    throw badRequest("Jenis berkas tidak termasuk berkas pengajuan ini", { jenis: "Jenis berkas tidak valid" });
   }
   const namaBerkas = typeof body.nama_berkas === "string" ? body.nama_berkas.trim().replace(/\s+/g, " ") : "";
-  if (jenis === "lainnya" && namaBerkas.length < 2) {
+  if (jenis === JENIS_BERKAS_LAINNYA && namaBerkas.length < 2) {
     throw badRequest("Beri nama dokumen lainnya", { nama_berkas: "Nama dokumen wajib diisi (min. 2 karakter)" });
   }
   if (namaBerkas.length > 120) {
@@ -45830,7 +46585,7 @@ function bacaInputBerkas(kategori, body) {
   }
   return {
     jenis,
-    namaBerkas: jenis === "lainnya" ? namaBerkas : null,
+    namaBerkas: jenis === JENIS_BERKAS_LAINNYA ? namaBerkas : null,
     namaAsli,
     ext,
     mime: UPLOAD_DIIZINKAN[ext][0]
@@ -45853,7 +46608,7 @@ function filterDariQuery(query) {
   };
 }
 function pengajuanRoutes(db, storage) {
-  const r = (0, import_express4.Router)();
+  const r = (0, import_express5.Router)();
   r.get("/", async (req, res) => {
     res.json(await listPengajuan(db, userOf(req), filterDariQuery(req.query)));
   });
@@ -45862,8 +46617,9 @@ function pengajuanRoutes(db, storage) {
   });
   r.post("/", async (req, res) => {
     const user = userOf(req);
-    const data = assertValid(validatePengajuan(req.body));
-    const id = await buatPengajuan(db, user, data);
+    const jenis = await ambilJenisPengajuan(db, req.body?.kategori);
+    const data = assertValid(validatePengajuan(req.body, jenis));
+    const id = await buatPengajuan(db, user, data, jenis);
     res.status(201).json(await getDetail(db, user, id));
   });
   r.get("/:id", async (req, res) => {
@@ -45872,7 +46628,8 @@ function pengajuanRoutes(db, storage) {
   r.put("/:id", async (req, res) => {
     const user = userOf(req);
     const id = parseId(req.params.id, "Pengajuan");
-    const data = assertValid(validatePengajuan(req.body));
+    const jenis = await ambilJenisPengajuan(db, req.body?.kategori);
+    const data = assertValid(validatePengajuan(req.body, jenis));
     await ubahPengajuan(db, user, id, data);
     res.json(await getDetail(db, user, id));
   });
@@ -45965,7 +46722,7 @@ function pengajuanRoutes(db, storage) {
     const id = parseId(req.params.id, "Pengajuan");
     const row = await pastikanBisaKelolaBerkas(db, user, id);
     const body = req.body ?? {};
-    const input = bacaInputBerkas(row.kategori, body);
+    const input = await bacaInputBerkas(db, row, body);
     const ukuran = typeof body.ukuran === "number" ? body.ukuran : Number.NaN;
     if (!Number.isFinite(ukuran) || ukuran <= 0) {
       throw badRequest("Ukuran file tidak valid", { file: "Pilih file yang valid" });
@@ -45980,7 +46737,7 @@ function pengajuanRoutes(db, storage) {
     const id = parseId(req.params.id, "Pengajuan");
     const row = await pastikanBisaKelolaBerkas(db, user, id);
     const body = req.body ?? {};
-    const input = bacaInputBerkas(row.kategori, body);
+    const input = await bacaInputBerkas(db, row, body);
     const key = typeof body.key === "string" ? body.key : "";
     if (!kunciBerkasValid(id, key, input.ext)) throw badRequest("Kunci berkas tidak valid. Unggah ulang file.");
     if (await db.get("SELECT id FROM berkas WHERE nama_file = ?", key)) {
@@ -46010,7 +46767,7 @@ function pengajuanRoutes(db, storage) {
   return r;
 }
 function berkasRoutes(db, storage) {
-  const r = (0, import_express4.Router)();
+  const r = (0, import_express5.Router)();
   r.get("/:id/file", async (req, res) => {
     const b = await ambilBerkas(db, userOf(req), parseId(req.params.id, "Berkas"));
     const unduh = q(req.query.unduh) === "1";
@@ -46029,9 +46786,9 @@ function berkasRoutes(db, storage) {
 }
 
 // server/routes/users.ts
-var import_express5 = __toESM(require_express2(), 1);
+var import_express6 = __toESM(require_express2(), 1);
 function usersRoutes(db, auth) {
-  const r = (0, import_express5.Router)();
+  const r = (0, import_express6.Router)();
   r.use(requireRole("admin"));
   r.get("/", async (_req, res) => {
     const rows = await db.all("SELECT * FROM users ORDER BY menunggu_persetujuan DESC, aktif DESC, role ASC, nama ASC");
@@ -46156,7 +46913,7 @@ function usersRoutes(db, auth) {
 
 // server/app.ts
 function createApp({ db, cfg, auth, storage, peringatan = [] }) {
-  const app = (0, import_express6.default)();
+  const app = (0, import_express7.default)();
   app.disable("x-powered-by");
   app.set("trust proxy", true);
   app.use((_req, res, next) => {
@@ -46165,7 +46922,7 @@ function createApp({ db, cfg, auth, storage, peringatan = [] }) {
     res.setHeader("Referrer-Policy", "same-origin");
     next();
   });
-  app.use(import_express6.default.json({ limit: "1mb" }));
+  app.use(import_express7.default.json({ limit: "1mb" }));
   app.get("/api/health", async (_req, res) => {
     const waktu = (/* @__PURE__ */ new Date()).toISOString();
     try {
@@ -46184,6 +46941,7 @@ function createApp({ db, cfg, auth, storage, peringatan = [] }) {
   app.use("/api/auth", authRoutes(db, cfg, auth));
   app.use("/api", requireAuth);
   app.use("/api/pegawai", pegawaiRoutes(db));
+  app.use("/api/master", masterRoutes(db));
   app.use("/api/users", usersRoutes(db, auth));
   app.use("/api/pengajuan", pengajuanRoutes(db, storage));
   app.use("/api/berkas", berkasRoutes(db, storage));
@@ -46195,9 +46953,9 @@ function createApp({ db, cfg, auth, storage, peringatan = [] }) {
   if (fs.existsSync(indexHtml)) {
     app.use(
       "/assets",
-      import_express6.default.static(path2.join(cfg.distDir, "assets"), { immutable: true, maxAge: "365d", fallthrough: false })
+      import_express7.default.static(path2.join(cfg.distDir, "assets"), { immutable: true, maxAge: "365d", fallthrough: false })
     );
-    app.use(import_express6.default.static(cfg.distDir, { index: false, maxAge: "1h" }));
+    app.use(import_express7.default.static(cfg.distDir, { index: false, maxAge: "1h" }));
     app.use((req, res, next) => {
       if (req.method !== "GET" && req.method !== "HEAD") return next();
       res.setHeader("Cache-Control", "no-cache");
