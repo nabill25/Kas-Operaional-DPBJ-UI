@@ -171,7 +171,8 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
 | K1 | ☐ Tombol bulan/matahari (kanan atas) | Tema gelap/terang berganti mulus & diingat setelah muat ulang |
-| K1a | ☐ Menu **Pengaturan** → tema warna **Kuning UI** / **Biru Dongker DPBJ** | Warna aksen berganti seketika & diingat di perangkat ini |
+| K1a | ☐ Menu **Pengaturan** → tema warna **Kuning UI** / **Pink** / **Biru Dongker DPBJ** | Warna aksen berganti seketika & diingat di perangkat ini; tema Pink juga rapi di mode gelap |
+| K1b | ☐ Mode gelap → buka dropdown (mis. Tahun di Dashboard, Kategori/Status di Rekap) | Daftar pilihan berlatar gelap dengan teks terang (terbaca) |
 | K2 | ☐ Perkecil jendela / buka di ponsel (`npm run dev:lan`) | Menu menjadi tombol ☰ (drawer), tabel menjadi kartu, tidak ada geser horizontal |
 | K3 | ☐ Pencarian di topbar (mis. "Rapat", atau nama project) + Enter | Daftar pengajuan terfilter kata kunci |
 | K4 | ☐ Daftar pengajuan: filter status (6 status), urutan, paginasi | Hasil & jumlah total menyesuaikan; tombol **Reset** mengosongkan filter |
@@ -186,7 +187,7 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | L2 | ☐ Login `admin` → **Jenis Pengajuan** | 3 jenis bawaan (Konsumsi KSM, Rumah Tangga TRT, Perjadin TPD) beserta berkas wajib berurutan, model form, jumlah pengajuan |
 | L3 | ☐ **Jenis Berkas** → **Tambah Jenis Berkas** (mis. "Kuitansi", keterangan opsional) | Muncul di daftar; nama yang sama / "Dokumen Lainnya" ditolak |
 | L4 | ☐ Menu ⋯ **Notula** → Nonaktifkan / Hapus | Tidak bisa: masih wajib pada Konsumsi / jenis bawaan |
-| L5 | ☐ **Jenis Pengajuan** → **Tambah Jenis Pengajuan**: "Kontrak Borongan", singkat "Borongan", awalan **KBR**, model **Umum**, batas 3 orang, berkas wajib Laporan Pekerjaan, Presensi, Kontrak (atur urutan dengan ↑↓), kata kunci "tenaga lepas", warna & ikon | Tersimpan; kartu menampilkan KBR-YYYY-NNNN, model, maks. 3 orang, berkas wajib berurutan |
+| L5 | ☐ **Jenis Pengajuan** → **Tambah Jenis Pengajuan**: "Kontrak Borongan", singkat "Borongan", awalan **KBR**, model **Umum**, batas 3 orang, berkas wajib Laporan Pekerjaan, Presensi, Kontrak (atur urutan dengan ↑↓), kata kunci "tenaga lepas", warna & ikon | Tersimpan; kartu menampilkan KBR-YYYY-NNNN, model, maks. 3 orang, berkas wajib berurutan. Saat mengeklik warna/ikon, judul dialog tetap di tempat (tidak bergeser & tidak ada ruang kosong di bawah) |
 | L6 | ☐ Coba awalan yang sudah dipakai (mis. KSM) / nama yang sama | Ditolak dengan pesan pada isian terkait |
 | L7 | ☐ Login operator → **Buat Pengajuan** | Ada kartu **Kontrak Borongan** (UMUM, maks. 3 orang, berkas wajibnya) |
 | L8 | ☐ Pilih Kontrak Borongan: isi nama, **Tanggal / mulai periode** + **Sampai (opsional)**, mekanisme, 1–3 penerima + nilai → Simpan draft | Tidak ada isian lokasi; tombol tambah orang berhenti di 3; kode **KBR-YYYY-0001**; tabel berkas berisi 3 berkas wajib tadi; total = jumlah nilai |

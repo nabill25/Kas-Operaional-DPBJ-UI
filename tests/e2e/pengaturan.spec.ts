@@ -3,7 +3,7 @@ import { expect, masukAPI, test } from './fixtures';
 const aksen = (page: import('@playwright/test').Page) =>
   page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--color-kuning-500').trim().toLowerCase());
 
-test('pengaturan: tema warna Kuning UI diterapkan, tersimpan, dan terpisah dari mode gelap', async ({ page }) => {
+test('pengaturan: tema warna Kuning UI & Pink diterapkan, tersimpan, dan terpisah dari mode gelap', async ({ page }) => {
   await masukAPI(page, 'operator');
   await page.goto('/');
   await page.getByRole('button', { name: 'Menu akun' }).click();
@@ -33,6 +33,18 @@ test('pengaturan: tema warna Kuning UI diterapkan, tersimpan, dan terpisah dari 
   await page.getByRole('button', { name: gelapAwal ? 'Ganti ke tema terang' : 'Ganti ke tema gelap' }).click();
   await expect.poll(() => html.evaluate((el) => el.classList.contains('dark'))).toBe(!gelapAwal);
   await expect(html).toHaveAttribute('data-warna', 'ui');
+
+  // Pilih Pink → aksen pink #F564A8 & tinta plum; tersimpan setelah muat ulang
+  await page.locator('[data-warna-opsi="pink"]').click();
+  await expect(html).toHaveAttribute('data-warna', 'pink');
+  await expect(page.locator('[data-warna-opsi="pink"]')).toHaveAttribute('data-terpilih', 'ya');
+  await expect(page.getByRole('radio', { name: /Pink/ })).toBeChecked();
+  expect(await aksen(page)).toBe('#f564a8');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', /^#(FAEFF4|13070E)$/);
+  await page.reload();
+  await expect(html).toHaveAttribute('data-warna', 'pink');
+  expect(await aksen(page)).toBe('#f564a8');
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--color-navy-900').trim().toLowerCase())).toBe('#28101f');
 
   // Kembali ke bawaan
   await page.locator('[data-warna-opsi="dpbj"]').click();

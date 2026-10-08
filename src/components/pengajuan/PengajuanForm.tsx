@@ -467,7 +467,7 @@ export function PengajuanForm({ jenis, awal, teksSimpan, onSimpan, onBatal }: Pe
                       key={j}
                       data-jenis-konsumsi={j}
                       className={cn(
-                        'flex min-h-[76px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-center ring-1 transition',
+                        'relative flex min-h-[76px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-center ring-1 transition',
                         'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
                         aktif
                           ? 'bg-kuning-400/15 ring-2 ring-kuning-500'

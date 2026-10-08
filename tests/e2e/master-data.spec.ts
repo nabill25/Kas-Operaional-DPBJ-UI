@@ -34,6 +34,9 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   await expect(dialog.getByRole('radio', { name: 'Ungu' })).toBeChecked();
   await dialog.locator('label:has(input[name="ikon"][value="hard-hat"])').click();
   await expect(dialog.getByRole('radio', { name: 'Ikon hard-hat' })).toBeChecked();
+  // Memilih warna/ikon tidak menggeser panel dialog (judul tetap terlihat, tanpa ruang kosong di bawah).
+  expect(await dialog.evaluate((el) => el.scrollTop)).toBe(0);
+  await expect(dialog.getByRole('heading', { name: 'Tambah jenis pengajuan' })).toBeInViewport();
   await expect(dialog.getByTestId('pratinjau-jenis')).toHaveText('Borongan');
   await dialog.getByRole('button', { name: 'Tambah jenis pengajuan' }).click();
   await expect(dialog).toBeHidden();

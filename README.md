@@ -27,7 +27,7 @@ hingga **Selesai (Paid)** setelah proses MDK selesai, notifikasi otomatis, dashb
   input No. Invoice MDK (= diajukan ke MDK), lalu tekan **Selesai** setelah proses di MDK selesai.
 - **Notifikasi otomatis** di aplikasi (lonceng + toast).
 - **Peran**: Operator/Pengaju, PUM, Pimpinan (hanya memantau), Administrator. Pendaftaran akun mandiri dengan persetujuan admin.
-- **Dashboard**, **rekap & laporan** (PDF dan Excel), tema warna (Biru Dongker DPBJ / Kuning UI), terang/gelap, responsif hingga ponsel.
+- **Dashboard**, **rekap & laporan** (PDF dan Excel), tema warna (Biru Dongker DPBJ / Kuning UI / Pink), terang/gelap, responsif hingga ponsel.
 
 ## Teknologi
 

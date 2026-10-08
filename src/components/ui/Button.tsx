@@ -12,7 +12,7 @@ const DASAR =
 
 const VARIAN: Record<Varian, string> = {
   utama:
-    'text-navy-950 bg-linear-to-b from-kuning-300 via-kuning-400 to-kuning-500 shadow-[inset_0_1px_0_rgb(255_255_255/0.7),inset_0_-1px_0_rgb(179_143_0/0.35),0_10px_24px_-12px_rgb(230_170_0/0.95)] hover:brightness-[1.05] hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.75),inset_0_-1px_0_rgb(179_143_0/0.35),0_14px_28px_-12px_rgb(230_170_0/1)]',
+    'text-navy-950 bg-linear-to-b from-kuning-300 via-kuning-400 to-kuning-500 shadow-[inset_0_1px_0_rgb(255_255_255/0.7),inset_0_-1px_0_rgb(var(--aksen-tepi)/0.35),0_10px_24px_-12px_rgb(var(--aksen-kilau)/0.95)] hover:brightness-[1.05] hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.75),inset_0_-1px_0_rgb(var(--aksen-tepi)/0.35),0_14px_28px_-12px_rgb(var(--aksen-kilau)/1)]',
   kedua: 'glass text-fg hover:bg-white/50 dark:hover:bg-white/[0.08]',
   hantu: 'text-fg-muted hover:bg-fg/[0.06] hover:text-fg',
   bahaya:

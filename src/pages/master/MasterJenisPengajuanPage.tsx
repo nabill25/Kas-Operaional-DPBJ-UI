@@ -374,7 +374,7 @@ function FormJenis({
                   key={m}
                   data-model={m}
                   className={cn(
-                    'flex cursor-pointer flex-col gap-0.5 rounded-2xl px-3.5 py-3 ring-1 transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
+                    'relative flex cursor-pointer flex-col gap-0.5 rounded-2xl px-3.5 py-3 ring-1 transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
                     dipilih ? 'bg-kuning-400/15 ring-2 ring-kuning-500' : 'bg-fg/[0.03] ring-fg/10 hover:ring-fg/25',
                   )}
                 >
@@ -524,7 +524,7 @@ function FormJenis({
                   key={w}
                   title={WARNA_JENIS_LABEL[w]}
                   className={cn(
-                    'grid size-9 cursor-pointer place-items-center rounded-full ring-offset-2 ring-offset-surface transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
+                    'relative grid size-9 cursor-pointer place-items-center rounded-full ring-offset-2 ring-offset-surface transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
                     warna === w && 'ring-2 ring-fg',
                   )}
                   style={{ background: warnaSeri(tema, w) }}
@@ -543,7 +543,7 @@ function FormJenis({
                   <label
                     key={k}
                     className={cn(
-                      'grid size-9 cursor-pointer place-items-center rounded-xl ring-1 transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
+                      'relative grid size-9 cursor-pointer place-items-center rounded-xl ring-1 transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
                       ikon === k ? 'bg-kuning-400/20 text-fg ring-2 ring-kuning-500' : 'bg-fg/[0.03] text-fg-muted ring-fg/10 hover:text-fg',
                     )}
                   >

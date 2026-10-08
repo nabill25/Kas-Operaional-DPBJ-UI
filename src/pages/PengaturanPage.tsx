@@ -32,6 +32,12 @@ const OPSI_WARNA: OpsiWarna[] = [
     deskripsi: 'Kuning resmi Universitas Indonesia (#F6DB00 · Pantone 109 C) dipadukan hitam arang.',
     contoh: ['#1c1b19', '#f6db00', '#f4f3ed'],
   },
+  {
+    id: 'pink',
+    nama: 'Pink',
+    deskripsi: 'Aksen pink lembut dipadukan ungu plum tua.',
+    contoh: ['#28101f', '#f564a8', '#faeff4'],
+  },
 ];
 
 export default function PengaturanPage() {
@@ -56,52 +62,55 @@ export default function PengaturanPage() {
             judul="Tema warna"
             deskripsi="Berlaku di perangkat ini. Mode terang/gelap tetap diatur dari tombol matahari/bulan di bilah atas."
           />
-          <div role="radiogroup" aria-label="Tema warna" className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {OPSI_WARNA.map((o) => {
-              const aktif = o.id === warna;
-              return (
-                <label
-                  key={o.id}
-                  data-warna-opsi={o.id}
-                  data-terpilih={aktif ? 'ya' : 'tidak'}
-                  className={cn(
-                    'group relative flex cursor-pointer flex-col gap-3 rounded-2xl p-3 ring-1 transition',
-                    'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
-                    aktif ? 'bg-kuning-400/10 ring-2 ring-kuning-500' : 'bg-fg/[0.02] ring-fg/10 hover:ring-fg/25',
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="tema-warna"
-                    value={o.id}
-                    checked={aktif}
-                    onChange={() => pilih(o)}
-                    className="sr-only"
-                  />
-                  <PratinjauTema warna={o.id} />
-                  <div className="flex items-start gap-3 px-1 pb-1">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-fg">{o.nama}</p>
-                      <p className="mt-0.5 text-xs leading-snug text-fg-muted">{o.deskripsi}</p>
-                      <div className="mt-2 flex items-center gap-1.5" aria-hidden>
-                        {o.contoh.map((c) => (
-                          <span key={c} className="size-4 rounded-full ring-1 ring-fg/15" style={{ background: c }} />
-                        ))}
+          {/* Kolom mengikuti lebar kartu (container query): 1 → 2 → 3 pilihan sebaris */}
+          <div className="@container mt-5">
+            <div role="radiogroup" aria-label="Tema warna" className="grid grid-cols-1 gap-3 @md:grid-cols-2 @[38rem]:grid-cols-3">
+              {OPSI_WARNA.map((o) => {
+                const aktif = o.id === warna;
+                return (
+                  <label
+                    key={o.id}
+                    data-warna-opsi={o.id}
+                    data-terpilih={aktif ? 'ya' : 'tidak'}
+                    className={cn(
+                      'group relative flex cursor-pointer flex-col gap-3 rounded-2xl p-3 ring-1 transition',
+                      'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-kuning-500',
+                      aktif ? 'bg-kuning-400/10 ring-2 ring-kuning-500' : 'bg-fg/[0.02] ring-fg/10 hover:ring-fg/25',
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="tema-warna"
+                      value={o.id}
+                      checked={aktif}
+                      onChange={() => pilih(o)}
+                      className="sr-only"
+                    />
+                    <PratinjauTema warna={o.id} />
+                    <div className="flex items-start gap-3 px-1 pb-1">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-fg">{o.nama}</p>
+                        <p className="mt-0.5 text-xs leading-snug text-fg-muted">{o.deskripsi}</p>
+                        <div className="mt-2 flex items-center gap-1.5" aria-hidden>
+                          {o.contoh.map((c) => (
+                            <span key={c} className="size-4 rounded-full ring-1 ring-fg/15" style={{ background: c }} />
+                          ))}
+                        </div>
                       </div>
+                      <span
+                        className={cn(
+                          'grid size-6 shrink-0 place-items-center rounded-full ring-1 transition',
+                          aktif ? 'bg-kuning-400 text-navy-950 ring-kuning-500' : 'text-transparent ring-fg/20',
+                        )}
+                        aria-hidden
+                      >
+                        <Check className="size-3.5" strokeWidth={3} />
+                      </span>
                     </div>
-                    <span
-                      className={cn(
-                        'grid size-6 shrink-0 place-items-center rounded-full ring-1 transition',
-                        aktif ? 'bg-kuning-400 text-navy-950 ring-kuning-500' : 'text-transparent ring-fg/20',
-                      )}
-                      aria-hidden
-                    >
-                      <Check className="size-3.5" strokeWidth={3} />
-                    </span>
-                  </div>
-                </label>
-              );
-            })}
+                  </label>
+                );
+              })}
+            </div>
           </div>
         </GlassCard>
 

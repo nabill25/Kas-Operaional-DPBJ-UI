@@ -149,6 +149,10 @@
   --blob-a: color-mix(in oklab, var(--color-kuning-500) 38%, transparent);
   --blob-b: rgb(42 120 214 / 0.26);
   --blob-c: rgb(10 26 63 / 0.14);
+
+  /* Bayangan tombol/menu aktif beraksen (kanal RGB, dipakai sebagai rgb(var(--aksen-kilau)/α)) — ikut tema warna */
+  --aksen-kilau: 230 170 0;
+  --aksen-tepi: 179 143 0;
 }
 
 .dark,
@@ -190,7 +194,8 @@
 
 /* ── Tema warna (Pengaturan → Tema warna) ───────────────────────────────────
  * "dpbj" (bawaan): biru dongker + kuning. "ui": kuning resmi Universitas Indonesia
- * (#F6DB00 · Pantone 109 C, pedoman logo UI) dipadukan hitam arang.
+ * (#F6DB00 · Pantone 109 C, pedoman logo UI) dipadukan hitam arang. "pink": pink #F564A8
+ * dipadukan plum tua. Palet "kuning-*" = warna aksen, "navy-*" = warna tinta/gelap tema.
  * data-warna dipasang di <html>, dan juga bisa di elemen mana pun (pratinjau di halaman
  * Pengaturan) karena palet & token ditimpa lewat variabel CSS.
  * PENTING: setiap variabel di blok terang sebuah tema wajib diulang di blok gelapnya,
@@ -243,6 +248,8 @@
   --color-kuning-700: #9e8b00;
   --color-kuning-800: #6f6200;
   --color-kuning-900: #433b00;
+  --aksen-kilau: 230 170 0;
+  --aksen-tepi: 179 143 0;
 
   color-scheme: light;
   --bg: #f4f3ed;
@@ -289,6 +296,78 @@
   --blob-c: rgb(42 41 37 / 0.7);
 }
 
+[data-warna='pink'] {
+  /* Plum tua (menggantikan biru dongker) */
+  --color-navy-50: #fbf3f7;
+  --color-navy-100: #f5e4ee;
+  --color-navy-200: #e9c8db;
+  --color-navy-300: #d39fbc;
+  --color-navy-400: #b07494;
+  --color-navy-500: #6c3656;
+  --color-navy-600: #5a2b47;
+  --color-navy-700: #4a213a;
+  --color-navy-800: #38182c;
+  --color-navy-900: #28101f;
+  --color-navy-950: #170811;
+  /* Pink: 500 = #F564A8 (teks plum di atas 300–500 ≥ 6,7:1) */
+  --color-kuning-50: #fff1f7;
+  --color-kuning-100: #ffe3f0;
+  --color-kuning-200: #ffc8e1;
+  --color-kuning-300: #ffa3cd;
+  --color-kuning-400: #fb83bb;
+  --color-kuning-500: #f564a8;
+  --color-kuning-600: #e0418c;
+  --color-kuning-700: #bf2a70;
+  --color-kuning-800: #962057;
+  --color-kuning-900: #6b183f;
+  --aksen-kilau: 224 65 140;
+  --aksen-tepi: 191 42 112;
+
+  color-scheme: light;
+  --bg: #faeff4;
+  --fg: #2a0f20;
+  --fg-muted: #77566a;
+  --fg-subtle: #a07f92;
+  --line: rgb(42 15 32 / 0.09);
+  --field-line: rgb(42 15 32 / 0.15);
+  --surface: #fdf6f9;
+  --glass-strong-bg: rgb(255 255 255 / 0.9);
+  --glass-shadow: 0 1px 1px rgb(42 15 32 / 0.04), 0 10px 30px -12px rgb(42 15 32 / 0.18),
+    inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --rim-3: rgb(255 255 255 / 0.7);
+  --spot: color-mix(in oklab, var(--color-kuning-400) 14%, transparent);
+  --netral: #75606d;
+  --netral-track: #f0dfe8;
+  --grid: rgb(42 15 32 / 0.08);
+  --axis: #75606d;
+  --blob-a: color-mix(in oklab, var(--color-kuning-500) 32%, transparent);
+  --blob-b: rgb(167 139 250 / 0.22);
+  --blob-c: rgb(42 15 32 / 0.1);
+}
+.dark[data-warna='pink'],
+.dark [data-warna='pink'] {
+  color-scheme: dark;
+  --bg: #13070e;
+  --fg: #f7eaf1;
+  --fg-muted: #b39aa8;
+  --fg-subtle: #8c7083;
+  --line: rgb(255 255 255 / 0.09);
+  --field-line: rgb(255 255 255 / 0.14);
+  --surface: #22111b;
+  --glass-strong-bg: rgb(36 18 29 / 0.94);
+  --glass-shadow: 0 1px 1px rgb(0 0 0 / 0.2), 0 18px 40px -16px rgb(0 0 0 / 0.6),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
+  --rim-3: color-mix(in oklab, var(--color-kuning-400) 18%, transparent);
+  --spot: color-mix(in oklab, var(--color-kuning-400) 10%, transparent);
+  --netral: #9b8693;
+  --netral-track: #2e1a26;
+  --grid: rgb(255 255 255 / 0.07);
+  --axis: #9b8693;
+  --blob-a: color-mix(in oklab, var(--color-kuning-500) 14%, transparent);
+  --blob-b: rgb(139 92 246 / 0.12);
+  --blob-c: rgb(56 24 44 / 0.7);
+}
+
 /* Toast (sonner): target sentuh lebih besar di layar sentuh */
 @media (pointer: coarse) {
   html [data-sonner-toaster] [data-sonner-toast] [data-close-button] {
@@ -325,6 +404,16 @@
   }
   .dark input[type='date']::-webkit-calendar-picker-indicator {
     filter: invert(1);
+  }
+  /* Daftar pilihan <select> bawaan browser: Chrome/Edge (Windows) menggambar latar <select> yang transparan di atas
+     putih, sehingga teks terang tidak terbaca di mode gelap → latar & warna teks pilihan dibuat eksplisit sesuai tema. */
+  select option,
+  select optgroup {
+    background-color: var(--surface);
+    color: var(--fg);
+  }
+  select option:disabled {
+    color: var(--fg-subtle);
   }
   /* Scrollbar halus */
   * {

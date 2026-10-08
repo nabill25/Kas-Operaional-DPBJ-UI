@@ -43,7 +43,9 @@ export function Modal({ open, onOpenChange, judul, deskripsi, ikon, lebar = 'md'
               >
                 <motion.div
                   className={cn(
-                    'glass-strong pointer-events-auto flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-3xl sm:max-h-[calc(100dvh-3rem)]',
+                    // overflow-clip (bukan hidden): panel tidak ikut tergulir saat fokus pindah ke input di dalamnya
+                    // (yang bergulir hanya isi dialog), sehingga judul tidak pernah terdorong keluar.
+                    'glass-strong pointer-events-auto flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-clip rounded-3xl sm:max-h-[calc(100dvh-3rem)]',
                     LEBAR[lebar],
                   )}
                   initial={{ opacity: 0, y: 28, scale: 0.97 }}

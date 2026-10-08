@@ -16,7 +16,8 @@
           var t = localStorage.getItem('kas-tema');
           var gelap = t === 'gelap' || (t !== 'terang' && window.matchMedia('(prefers-color-scheme: dark)').matches);
           if (gelap) root.classList.add('dark');
-          if (localStorage.getItem('kas-warna') === 'ui') root.setAttribute('data-warna', 'ui');
+          var w = localStorage.getItem('kas-warna');
+          if (w === 'ui' || w === 'pink') root.setAttribute('data-warna', w);
         } catch (e) {}
       })();
     </script>

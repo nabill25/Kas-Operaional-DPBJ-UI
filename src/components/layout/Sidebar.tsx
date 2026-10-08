@@ -163,7 +163,7 @@ export function Sidebar({ onNavigasi }: { onNavigasi?: () => void }) {
                         {aktif && (
                           <motion.span
                             layoutId="nav-aktif"
-                            className="absolute inset-0 rounded-2xl bg-linear-to-b from-kuning-300 to-kuning-500 shadow-[inset_0_1px_0_rgb(255_255_255/0.7),0_8px_20px_-10px_rgb(230_170_0/0.95)]"
+                            className="absolute inset-0 rounded-2xl bg-linear-to-b from-kuning-300 to-kuning-500 shadow-[inset_0_1px_0_rgb(255_255_255/0.7),0_8px_20px_-10px_rgb(var(--aksen-kilau)/0.95)]"
                             transition={{ type: 'spring', stiffness: 420, damping: 36 }}
                           />
                         )}

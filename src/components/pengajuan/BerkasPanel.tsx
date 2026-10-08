@@ -663,7 +663,7 @@ function BarisBerkas({
                 <label
                   htmlFor={`${id}-sesuai`}
                   className={cn(
-                    'inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-xl px-3 text-[13px] font-semibold ring-1 transition select-none',
+                    'relative inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-xl px-3 text-[13px] font-semibold ring-1 transition select-none',
                     sesuai
                       ? 'bg-emerald-500 text-white shadow-md ring-emerald-600 shadow-emerald-500/25'
                       : 'bg-surface/70 text-fg ring-fg/15 hover:ring-emerald-500/50 dark:bg-white/[0.04]',

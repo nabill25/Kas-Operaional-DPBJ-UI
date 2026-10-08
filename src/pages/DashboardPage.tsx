@@ -16,7 +16,7 @@ import { Link } from 'react-router';
 import { formatAngka, formatRupiah, formatRupiahRingkas } from '../../shared/format';
 import { KpiTile } from '../components/dashboard/KpiTile';
 import { Komposisi } from '../components/dashboard/Komposisi';
-import { usePaletChart } from '../components/dashboard/palet';
+import { NAMA_AKSEN, usePaletChart } from '../components/dashboard/palet';
 import { PerluTindakan } from '../components/dashboard/PerluTindakan';
 import { Sparkline } from '../components/dashboard/Sparkline';
 import { TopPegawai } from '../components/dashboard/TopPegawai';
@@ -30,11 +30,13 @@ import { Kosong } from '../components/ui/Kosong';
 import { MuatHalaman } from '../components/ui/MuatHalaman';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useAuth } from '../context/AuthContext';
+import { useTema } from '../context/ThemeContext';
 import { useDashboard } from '../lib/queries';
 
 export default function DashboardPage() {
   const { user, punyaPeran } = useAuth();
   const w = usePaletChart();
+  const { warna } = useTema();
   const tahunIni = new Date().getFullYear();
   const [tahun, setTahun] = useState(tahunIni);
   const { data: d, isLoading, isError, error, refetch, isFetching, isPlaceholderData } = useDashboard(tahun);
@@ -110,7 +112,7 @@ export default function DashboardPage() {
           </p>
           <div className="mt-4">
             <Sparkline nilai={perBulanTotal} indeksAksen={bulanIni} warna={w.netral} aksen={w.aksen} />
-            <p className="mt-1 text-[11px] text-fg-subtle">Tren Jan–Des {tahun} · titik kuning = bulan berjalan</p>
+            <p className="mt-1 text-[11px] text-fg-subtle">Tren Jan–Des {tahun} · titik {NAMA_AKSEN[warna]} = bulan berjalan</p>
           </div>
           <div className="mt-4 border-t border-line pt-4">
             <div className="flex items-center justify-between text-xs">

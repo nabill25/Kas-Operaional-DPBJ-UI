@@ -327,8 +327,12 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 
 - **Tema warna** (halaman Pengaturan, per perangkat, `localStorage kas-warna`, atribut `data-warna` di `<html>`):
   `dpbj` (bawaan) = biru dongker `#0A1A3F` + kuning `#FFD100`; `ui` = **kuning resmi UI `#F6DB00`** (Pantone 109 C,
-  pedoman logo UI) + hitam arang. Tema menimpa palet `--color-kuning-*`/`--color-navy-*` & token semantik di `index.css`;
-  setiap variabel di blok terang sebuah tema wajib diulang di blok gelapnya. Terpisah dari mode terang/gelap
+  pedoman logo UI) + hitam arang; `pink` = pink `#F564A8` + plum tua `#28101F` (Okt 2026). Tema menimpa palet
+  `--color-kuning-*` (= warna aksen) / `--color-navy-*` (= warna tinta/gelap), `--aksen-kilau`/`--aksen-tepi` (bayangan tombol &
+  menu aktif, kanal RGB) & token semantik di `index.css`; setiap variabel di blok terang sebuah tema wajib diulang di blok gelapnya.
+  Tema baru wajib lolos cek kontras pasangan yang dipakai komponen (teks `navy-950` di aksen 300–500 ≥ 4,5:1, teks aksen-300 di
+  `navy-900`/`navy-500`, `fg`/`fg-muted` di latar, dst.) + didaftarkan di `WARNA_LIST`, `WARNA_BILAH`, skrip awal `index.html`,
+  `NETRAL_TEMA`/`NAMA_AKSEN` (`palet.ts`), dan `OPSI_WARNA` (Pengaturan). Terpisah dari mode terang/gelap
   (kelas `.dark`). Warna kategori chart & status **tidak** ikut tema (bermakna data).
 - Gaya **liquid glass**: kelas `.glass` (backdrop blur + saturate, highlight specular, border gradien),
   latar gradien bergerak (blob) agar efek kaca terlihat. Hormati `prefers-reduced-motion` (`MotionConfig reducedMotion="user"`).

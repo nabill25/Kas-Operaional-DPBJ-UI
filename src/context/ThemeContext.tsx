@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 export type Tema = 'terang' | 'gelap';
 
 /** Tema warna (palet) — diatur di halaman Pengaturan. Nilai CSS-nya ada di index.css ([data-warna]). */
-export const WARNA_LIST = ['dpbj', 'ui'] as const;
+export const WARNA_LIST = ['dpbj', 'ui', 'pink'] as const;
 export type Warna = (typeof WARNA_LIST)[number];
 
 interface TemaNilai {
@@ -23,6 +23,7 @@ const TemaContext = createContext<TemaNilai | null>(null);
 const WARNA_BILAH: Record<Warna, Record<Tema, string>> = {
   dpbj: { terang: '#EEF2FA', gelap: '#050D24' },
   ui: { terang: '#F4F3ED', gelap: '#0C0C0B' },
+  pink: { terang: '#FAEFF4', gelap: '#13070E' },
 };
 
 function bacaTersimpan(): Tema | null {

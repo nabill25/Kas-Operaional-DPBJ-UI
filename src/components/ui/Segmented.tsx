@@ -66,7 +66,7 @@ export function Segmented<T extends string>({
             {aktif && (
               <motion.span
                 layoutId={layoutId}
-                className="absolute inset-0 rounded-xl bg-linear-to-b from-kuning-300 to-kuning-500 shadow-[inset_0_1px_0_rgb(255_255_255/0.7),0_6px_16px_-8px_rgb(230_170_0/0.9)]"
+                className="absolute inset-0 rounded-xl bg-linear-to-b from-kuning-300 to-kuning-500 shadow-[inset_0_1px_0_rgb(255_255_255/0.7),0_6px_16px_-8px_rgb(var(--aksen-kilau)/0.9)]"
                 transition={{ type: 'spring', stiffness: 430, damping: 34 }}
               />
             )}

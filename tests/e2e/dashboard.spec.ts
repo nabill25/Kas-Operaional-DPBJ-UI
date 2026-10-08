@@ -24,6 +24,13 @@ test('dashboard: KPI, grafik + tampilan tabel, tema gelap, notifikasi', async ({
   await expect(page.locator('html')).toHaveClass(/dark/);
   await page.reload();
   await expect(page.locator('html')).toHaveClass(/dark/);
+  // Daftar pilihan <select> bawaan browser terbaca di mode gelap: latar pilihan = surface gelap, teks terang.
+  const pilihan = await page
+    .getByLabel('Pilih tahun')
+    .locator('option')
+    .first()
+    .evaluate((o) => ({ latar: getComputedStyle(o).backgroundColor, teks: getComputedStyle(o).color }));
+  expect(pilihan).toEqual({ latar: 'rgb(17, 27, 54)', teks: 'rgb(232, 237, 249)' });
   await page.getByRole('button', { name: 'Ganti ke tema terang' }).click();
   await expect(page.locator('html')).not.toHaveClass(/dark/);
 
