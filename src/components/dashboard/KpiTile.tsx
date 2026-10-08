@@ -7,6 +7,7 @@ import { GlassCard } from '../ui/GlassCard';
 
 const NADA = {
   biru: 'bg-blue-500/12 text-blue-700 ring-blue-500/20 dark:text-blue-300',
+  cyan: 'bg-cyan-500/12 text-cyan-800 ring-cyan-600/20 dark:text-cyan-300',
   ungu: 'bg-violet-500/12 text-violet-700 ring-violet-500/20 dark:text-violet-300',
   kuning: 'bg-amber-400/20 text-amber-700 ring-amber-500/25 dark:text-amber-300',
   hijau: 'bg-emerald-500/12 text-emerald-700 ring-emerald-500/20 dark:text-emerald-300',
@@ -25,6 +26,7 @@ export function KpiTile({
   ke,
   indeks = 0,
   akhiran,
+  className,
 }: {
   label: string;
   nilai: number;
@@ -35,6 +37,7 @@ export function KpiTile({
   ke?: string;
   indeks?: number;
   akhiran?: string;
+  className?: string;
 }) {
   const isi = (
     <>
@@ -58,7 +61,7 @@ export function KpiTile({
   return (
     <GlassCard
       interaktif
-      className="group h-full p-0"
+      className={cn('group h-full p-0', className)}
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.06 * indeks, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}

@@ -43,12 +43,22 @@ async function centangSemua(agent: Agent, id: number): Promise<PengajuanDetail> 
   return detail!;
 }
 
+/** Draft berkas lengkap → diajukan → dicentang → diverifikasi PUM (→ opsional diajukan ke MDK). */
+async function sampaiTahap(tahap: 'diverifikasi_pum' | 'diajukan_mdk'): Promise<number> {
+  const id = await buatDraft(true);
+  expect((await op.post(`/api/pengajuan/${id}/ajukan`)).status).toBe(200);
+  await centangSemua(pum, id);
+  expect((await pum.post(`/api/pengajuan/${id}/verifikasi`).send({})).status).toBe(200);
+  if (tahap === 'diajukan_mdk') expect((await pum.post(`/api/pengajuan/${id}/ajukan-mdk`).send(invoice)).status).toBe(200);
+  return id;
+}
+
 async function notif(agent: Agent): Promise<NotifikasiData> {
   return (await agent.get('/api/notifikasi')).body as NotifikasiData;
 }
 
-describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
-  it('alur lengkap termasuk centang berkas, data PUM, invoice, dan notifikasi', async () => {
+describe('Alur status: Draft → PUM → Verifikasi PUM → Diajukan ke MDK → Selesai (paid)', () => {
+  it('alur lengkap termasuk centang berkas, verifikasi, invoice, selesai, dan notifikasi', async () => {
     const id = await buatDraft(true);
 
     // Operator mengajukan ke PUM
@@ -61,7 +71,7 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     let nPum = await notif(pum);
     expect(nPum.belumDibaca).toBe(1);
     expect(nPum.items[0]).toMatchObject({ pengajuan_id: id, jenis: 'diajukan', dibaca: false });
-    expect(nPum.antrian).toEqual({ diajukan_pum: 1, diajukan_mdk: 0, dikembalikan: 0, pendaftar: 0 });
+    expect(nPum.antrian).toEqual({ diajukan_pum: 1, diverifikasi_pum: 0, diajukan_mdk: 0, dikembalikan: 0, pendaftar: 0 });
     // Operator tidak menerima notifikasi atas aksinya sendiri
     expect((await notif(op)).belumDibaca).toBe(0);
 
@@ -69,10 +79,12 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     expect((await op.put(`/api/pengajuan/${id}`).send(dataKonsumsi(ctx.pegawai[0], { total: 1 }))).status).toBe(409);
     expect((await op.delete(`/api/pengajuan/${id}`)).status).toBe(409);
 
-    // Teruskan ke MDK ditolak sebelum semua berkas dicentang
-    res = await pum.post(`/api/pengajuan/${id}/teruskan`).send({});
+    // Verifikasi ditolak sebelum semua berkas dicentang; invoice & selesai belum boleh
+    res = await pum.post(`/api/pengajuan/${id}/verifikasi`).send({});
     expect(res.status).toBe(409);
     expect(res.body.message).toContain('0/4');
+    expect((await pum.post(`/api/pengajuan/${id}/ajukan-mdk`).send(invoice)).status).toBe(409);
+    expect((await pum.post(`/api/pengajuan/${id}/selesai`)).status).toBe(409);
 
     // PUM mencentang semua berkas
     const detail = await centangSemua(pum, id);
@@ -80,50 +92,83 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     expect(detail.berkas_sesuai).toBe(4);
     expect(detail.kelengkapan.items[0].cek).toMatchObject({ status: 'sesuai', diperiksa_by_nama: 'Petugas PUM' });
 
-    // Teruskan ke MDK dengan project costing & task name
-    res = await pum.post(`/api/pengajuan/${id}/teruskan`).send({ project_hosting: ' DPBJ-OPS-2026 ', task_name: 'Konsumsi Rapat' });
+    // Verifikasi PUM dengan project costing & task name
+    res = await pum.post(`/api/pengajuan/${id}/verifikasi`).send({ project_hosting: ' DPBJ-OPS-2026 ', task_name: 'Konsumsi Rapat' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      status: 'diajukan_mdk',
+      status: 'diverifikasi_pum',
       project_hosting: 'DPBJ-OPS-2026',
       task_name: 'Konsumsi Rapat',
-      diteruskan_by_nama: 'Petugas PUM',
+      diverifikasi_by_nama: 'Petugas PUM',
+      no_invoice_mdk: null,
+      diajukan_mdk_at: null,
     });
-    expect(res.body.diteruskan_at).toBeTruthy();
-    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'diteruskan_mdk' });
+    expect(res.body.diverifikasi_at).toBeTruthy();
+    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'diverifikasi' });
     expect(res.body.riwayat[0].keterangan).toContain('Project: DPBJ-OPS-2026');
+    expect((await notif(pum)).antrian).toMatchObject({ diajukan_pum: 0, diverifikasi_pum: 1, diajukan_mdk: 0 });
 
-    // Operator mendapat notifikasi diteruskan; tidak bisa lagi menarik kembali
+    // Operator mendapat notifikasi diverifikasi; tidak bisa lagi menarik kembali
     let nOp = await notif(op);
-    expect(nOp.items[0]).toMatchObject({ jenis: 'diteruskan_mdk', dibaca: false });
+    expect(nOp.items[0]).toMatchObject({ jenis: 'diverifikasi', judul: 'Berkas diverifikasi PUM', dibaca: false });
     expect((await op.post(`/api/pengajuan/${id}/tarik`)).status).toBe(409);
-    // Centang berkas terkunci setelah diteruskan
+    expect((await op.put(`/api/pengajuan/${id}`).send(dataKonsumsi(ctx.pegawai[0]))).body.message).toContain('diverifikasi PUM');
+    // Centang berkas & verifikasi ulang terkunci; selesai belum boleh (belum diajukan ke MDK)
     expect((await pum.put(`/api/pengajuan/${id}/cek-berkas`).send({ jenis: 'notulen', status: null })).status).toBe(409);
+    expect((await pum.post(`/api/pengajuan/${id}/verifikasi`).send({})).status).toBe(409);
+    expect((await pum.post(`/api/pengajuan/${id}/selesai`)).status).toBe(409);
+    expect((await pum.put(`/api/pengajuan/${id}/invoice`).send(invoice)).status).toBe(409);
 
-    // Ubah data PUM saat menunggu invoice
+    // Ubah data PUM sebelum input invoice
     res = await pum.put(`/api/pengajuan/${id}/data-pum`).send({ project_hosting: 'DPBJ-OPS-2026-B', task_name: 'Konsumsi Rapat' });
     expect(res.status).toBe(200);
     expect(res.body.project_hosting).toBe('DPBJ-OPS-2026-B');
     expect(res.body.riwayat[0].aksi).toBe('data_pum_diubah');
 
-    // Input invoice MDK → selesai (paid)
-    res = await pum.post(`/api/pengajuan/${id}/selesai`).send({ no_invoice_mdk: ' ', tanggal_invoice_mdk: 'x' });
+    // Input invoice MDK → diajukan ke MDK (belum selesai)
+    res = await pum.post(`/api/pengajuan/${id}/ajukan-mdk`).send({ no_invoice_mdk: ' ', tanggal_invoice_mdk: 'x' });
     expect(res.status).toBe(400);
-    res = await pum.post(`/api/pengajuan/${id}/selesai`).send({ ...invoice, catatan: 'Lunas' });
+    res = await pum.post(`/api/pengajuan/${id}/ajukan-mdk`).send({ ...invoice, catatan: 'Berkas fisik dikirim' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: 'diajukan_mdk',
+      no_invoice_mdk: 'MDK/INV/2026/0001',
+      tanggal_invoice_mdk: invoice.tanggal_invoice_mdk,
+      catatan_pum: 'Berkas fisik dikirim',
+      diajukan_mdk_by_nama: 'Petugas PUM',
+      diproses_at: null,
+    });
+    expect(res.body.diajukan_mdk_at).toBeTruthy();
+    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'diajukan_mdk', keterangan: 'No. Invoice MDK: MDK/INV/2026/0001' });
+    nOp = await notif(op);
+    expect(nOp.items[0]).toMatchObject({ jenis: 'diajukan_mdk', judul: 'Diajukan ke MDK, menunggu verifikasi MDK' });
+    expect(nOp.items[0].pesan).toContain('MDK/INV/2026/0001');
+    expect((await notif(pum)).antrian).toMatchObject({ diverifikasi_pum: 0, diajukan_mdk: 1 });
+    // Invoice tidak bisa diinput dua kali; data invoice boleh diubah saat menunggu MDK
+    expect((await pum.post(`/api/pengajuan/${id}/ajukan-mdk`).send(invoice)).status).toBe(409);
+    res = await pum.put(`/api/pengajuan/${id}/invoice`).send({ ...invoice, no_invoice_mdk: 'MDK/INV/2026/0009', catatan: 'Berkas fisik dikirim' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: 'diajukan_mdk', no_invoice_mdk: 'MDK/INV/2026/0009' });
+
+    // Proses MDK selesai → PUM menekan Selesai (paid); body tidak diperlukan
+    res = await pum.post(`/api/pengajuan/${id}/selesai`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       status: 'selesai',
-      no_invoice_mdk: 'MDK/INV/2026/0001',
-      catatan_pum: 'Lunas',
+      no_invoice_mdk: 'MDK/INV/2026/0009',
+      catatan_pum: 'Berkas fisik dikirim',
       diproses_by_nama: 'Petugas PUM',
     });
+    expect(res.body.diproses_at).toBeTruthy();
+    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'selesai', keterangan: 'No. Invoice MDK: MDK/INV/2026/0009' });
+    expect((await pum.post(`/api/pengajuan/${id}/selesai`)).status).toBe(409);
     nOp = await notif(op);
     expect(nOp.items[0]).toMatchObject({ jenis: 'selesai', judul: 'Pengajuan selesai (paid)' });
-    expect(nOp.belumDibaca).toBe(2);
+    expect(nOp.belumDibaca).toBe(3);
 
     // Tandai dibaca: satu, lalu semua
     res = await op.post('/api/notifikasi/baca').send({ id: nOp.items[0].id });
-    expect((res.body as NotifikasiData).belumDibaca).toBe(1);
+    expect((res.body as NotifikasiData).belumDibaca).toBe(2);
     res = await op.post('/api/notifikasi/baca').send({});
     expect((res.body as NotifikasiData).belumDibaca).toBe(0);
     // Tidak bisa menandai notifikasi milik orang lain
@@ -133,7 +178,7 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
 
     // Urutan aksi utama di riwayat
     const aksi = (res = await op.get(`/api/pengajuan/${id}`)).body.riwayat.map((r: { aksi: string }) => r.aksi);
-    expect(aksi.slice(0, 3)).toEqual(['selesai', 'data_pum_diubah', 'diteruskan_mdk']);
+    expect(aksi.slice(0, 5)).toEqual(['selesai', 'invoice_diubah', 'diajukan_mdk', 'data_pum_diubah', 'diverifikasi']);
     expect(aksi.filter((a: string) => a === 'berkas_dicek')).toHaveLength(4);
   });
 
@@ -186,14 +231,26 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     expect((await notif(pum)).items[0]).toMatchObject({ judul: 'Pengajuan diajukan ulang' });
   });
 
-  it('PUM dapat mengembalikan saat menunggu invoice MDK (ditolak MDK)', async () => {
-    const id = await buatDraft(true);
-    await op.post(`/api/pengajuan/${id}/ajukan`);
-    await centangSemua(pum, id);
-    await pum.post(`/api/pengajuan/${id}/teruskan`).send({});
-    const res = await pum.post(`/api/pengajuan/${id}/kembalikan`).send({ catatan: 'MDK meminta revisi nominal' });
+  it('PUM dapat mengembalikan setelah verifikasi (sebelum invoice)', async () => {
+    const id = await sampaiTahap('diverifikasi_pum');
+    const res = await pum.post(`/api/pengajuan/${id}/kembalikan`).send({ catatan: 'Data kegiatan perlu diperbaiki' });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('dikembalikan');
+  });
+
+  it('PUM dapat mengembalikan saat menunggu MDK (ditolak MDK) → invoice lama dihapus, tercatat di riwayat', async () => {
+    const id = await sampaiTahap('diajukan_mdk');
+    let res = await pum.post(`/api/pengajuan/${id}/kembalikan`).send({ catatan: 'MDK meminta revisi nominal' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: 'dikembalikan', no_invoice_mdk: null, tanggal_invoice_mdk: null });
+    expect(res.body.riwayat[0].keterangan).toContain('Invoice MDK sebelumnya: MDK/INV/2026/0001');
+
+    // Diajukan ulang → diverifikasi lagi → invoice baru → selesai
+    expect((await op.post(`/api/pengajuan/${id}/ajukan`)).status).toBe(200);
+    expect((await pum.post(`/api/pengajuan/${id}/verifikasi`).send({})).status).toBe(200);
+    res = await pum.post(`/api/pengajuan/${id}/ajukan-mdk`).send({ ...invoice, no_invoice_mdk: 'MDK/INV/2026/0002' });
+    expect(res.body).toMatchObject({ status: 'diajukan_mdk', no_invoice_mdk: 'MDK/INV/2026/0002' });
+    expect((await pum.post(`/api/pengajuan/${id}/selesai`)).body.status).toBe('selesai');
   });
 
   it('hak akses aksi per peran', async () => {
@@ -216,15 +273,19 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     expect((await pum.post(`/api/pengajuan/${id}/tarik`)).status).toBe(403);
     expect((await pum.put(`/api/pengajuan/${id}`).send(dataKonsumsi(ctx.pegawai[0]))).status).toBe(403);
     expect((await op.put(`/api/pengajuan/${id}/cek-berkas`).send({ jenis: 'notulen', status: 'sesuai' })).status).toBe(403);
-    expect((await op.post(`/api/pengajuan/${id}/teruskan`).send({})).status).toBe(403);
+    expect((await op.post(`/api/pengajuan/${id}/verifikasi`).send({})).status).toBe(403);
     expect((await op.post(`/api/pengajuan/${id}/kembalikan`).send({ catatan: 'abc' })).status).toBe(403);
     expect((await op.get('/api/pengajuan/saran-pum')).status).toBe(403);
 
     // Admin boleh memproses seluruh alur
     await centangSemua(admin, id);
-    expect((await admin.post(`/api/pengajuan/${id}/teruskan`).send({ project_hosting: 'P1' })).status).toBe(200);
-    expect((await op.post(`/api/pengajuan/${id}/selesai`).send(invoice)).status).toBe(403);
-    expect((await admin.post(`/api/pengajuan/${id}/selesai`).send(invoice)).status).toBe(200);
+    expect((await admin.post(`/api/pengajuan/${id}/verifikasi`).send({ project_hosting: 'P1' })).status).toBe(200);
+    expect((await op.post(`/api/pengajuan/${id}/ajukan-mdk`).send(invoice)).status).toBe(403);
+    expect((await pimpinan.post(`/api/pengajuan/${id}/ajukan-mdk`).send(invoice)).status).toBe(403);
+    expect((await admin.post(`/api/pengajuan/${id}/ajukan-mdk`).send(invoice)).status).toBe(200);
+    expect((await op.post(`/api/pengajuan/${id}/selesai`)).status).toBe(403);
+    expect((await pimpinan.post(`/api/pengajuan/${id}/selesai`)).status).toBe(403);
+    expect((await admin.post(`/api/pengajuan/${id}/selesai`)).status).toBe(200);
     const saran = await pum.get('/api/pengajuan/saran-pum');
     expect(saran.body.project_hosting).toContain('P1');
   });
@@ -234,14 +295,17 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     expect((await op.post(`/api/pengajuan/${id}/tarik`)).status).toBe(409); // draft tidak bisa ditarik
     await op.post(`/api/pengajuan/${id}/ajukan`);
     expect((await op.post(`/api/pengajuan/${id}/ajukan`)).status).toBe(409); // sudah diajukan
-    expect((await pum.post(`/api/pengajuan/${id}/selesai`).send(invoice)).status).toBe(409); // belum diteruskan
-    expect((await pum.put(`/api/pengajuan/${id}/invoice`).send(invoice)).status).toBe(409); // belum selesai
+    expect((await pum.post(`/api/pengajuan/${id}/ajukan-mdk`).send(invoice)).status).toBe(409); // belum diverifikasi
+    expect((await pum.post(`/api/pengajuan/${id}/selesai`)).status).toBe(409); // belum diajukan ke MDK
+    expect((await pum.put(`/api/pengajuan/${id}/invoice`).send(invoice)).status).toBe(409); // belum ada invoice
     expect((await pum.post(`/api/pengajuan/${id}/batal-selesai`).send({ catatan: 'salah' })).status).toBe(409);
     await pum.post(`/api/pengajuan/${id}/kembalikan`).send({ catatan: 'Revisi nominal' });
-    expect((await pum.post(`/api/pengajuan/${id}/teruskan`).send({})).status).toBe(409); // dikembalikan
+    expect((await pum.post(`/api/pengajuan/${id}/verifikasi`).send({})).status).toBe(409); // dikembalikan
     expect((await pum.post(`/api/pengajuan/${id}/kembalikan`).send({ catatan: 'lagi' })).status).toBe(409);
     expect((await pum.put(`/api/pengajuan/${id}/cek-berkas`).send({ jenis: 'notulen', status: 'sesuai' })).status).toBe(409);
     expect((await pum.put(`/api/pengajuan/${id}/data-pum`).send({ task_name: 'x' })).status).toBe(409);
+    // Endpoint lama "teruskan" sudah tidak ada
+    expect((await pum.post(`/api/pengajuan/${id}/teruskan`).send({})).status).toBe(404);
   });
 
   it('tarik kembali: hanya saat masih di PUM, lalu tersembunyi lagi dari PUM', async () => {
@@ -253,15 +317,13 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     expect((await pum.get(`/api/pengajuan/${id}`)).status).toBe(404);
   });
 
-  it('ubah invoice & batalkan status selesai', async () => {
-    const id = await buatDraft(true);
-    await op.post(`/api/pengajuan/${id}/ajukan`);
-    await centangSemua(pum, id);
-    await pum.post(`/api/pengajuan/${id}/teruskan`).send({});
-    await pum.post(`/api/pengajuan/${id}/selesai`).send(invoice);
+  it('ubah invoice & batalkan status selesai → kembali menunggu MDK, invoice tetap', async () => {
+    const id = await sampaiTahap('diajukan_mdk');
+    expect((await pum.post(`/api/pengajuan/${id}/selesai`)).status).toBe(200);
 
     let res = await pum.put(`/api/pengajuan/${id}/invoice`).send({ ...invoice, no_invoice_mdk: 'MDK/INV/2026/0002' });
     expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: 'selesai', no_invoice_mdk: 'MDK/INV/2026/0002' });
     expect(res.body.riwayat[0]).toMatchObject({
       aksi: 'invoice_diubah',
       keterangan: 'No. Invoice: MDK/INV/2026/0001 → MDK/INV/2026/0002',
@@ -270,14 +332,21 @@ describe('Alur status: Draft → PUM → MDK → Selesai (paid)', () => {
     expect((await op.put(`/api/pengajuan/${id}`).send(dataKonsumsi(ctx.pegawai[0]))).status).toBe(409);
     res = await pum.post(`/api/pengajuan/${id}/batal-selesai`).send({ catatan: '' });
     expect(res.status).toBe(400);
-    res = await pum.post(`/api/pengajuan/${id}/batal-selesai`).send({ catatan: 'Salah pilih pengajuan' });
+    res = await pum.post(`/api/pengajuan/${id}/batal-selesai`).send({ catatan: 'MDK belum membayar' });
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ status: 'diajukan_mdk', no_invoice_mdk: null, diproses_by: null });
-    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'selesai_dibatalkan' });
-    expect(res.body.riwayat[0].keterangan).toContain('MDK/INV/2026/0002');
+    expect(res.body).toMatchObject({
+      status: 'diajukan_mdk',
+      no_invoice_mdk: 'MDK/INV/2026/0002',
+      diproses_by: null,
+      diproses_at: null,
+    });
+    expect(res.body.diajukan_mdk_at).toBeTruthy();
+    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'selesai_dibatalkan', keterangan: 'MDK belum membayar' });
     // Pengaju menerima notifikasi berjenis "selesai_dibatalkan" (ikon & label khusus di klien)
     const nOp = await notif(op);
     expect(nOp.items[0]).toMatchObject({ pengajuan_id: id, jenis: 'selesai_dibatalkan', judul: 'Status selesai dibatalkan PUM' });
+    // Bisa ditandai selesai lagi
+    expect((await pum.post(`/api/pengajuan/${id}/selesai`)).body.status).toBe('selesai');
   });
 
   it('PUM membatalkan centang berkas → tercatat "berkas_cek_batal"', async () => {

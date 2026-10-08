@@ -370,7 +370,8 @@ function RekapPengajuanView({ q, tampilDraft }: { q: ReturnType<typeof useRekapP
           />
         ))}
       </div>
-      <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2', tampilDraft ? 'xl:grid-cols-5' : 'xl:grid-cols-4')}>
+      {/* 6 status (dengan draft) = 2 baris × 3; 5 status = satu baris di layar lebar. */}
+      <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3', !tampilDraft && 'xl:grid-cols-5')}>
         {STATUS_LIST.filter((s) => tampilDraft || s !== 'draft').map((s) => (
           <div
             key={s}

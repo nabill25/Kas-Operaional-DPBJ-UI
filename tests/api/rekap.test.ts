@@ -36,7 +36,8 @@ describe('Dashboard', () => {
     expect(totalKategori).toBe(d.kpi.total.nilai);
     expect(totalMekanisme).toBe(d.kpi.total.nilai);
     expect(d.kpi.total.jumlah).toBe(
-      d.kpi.diajukan_pum.jumlah + d.kpi.dikembalikan.jumlah + d.kpi.diajukan_mdk.jumlah + d.kpi.selesai.jumlah,
+      d.kpi.diajukan_pum.jumlah + d.kpi.dikembalikan.jumlah + d.kpi.diverifikasi_pum.jumlah + d.kpi.diajukan_mdk.jumlah +
+        d.kpi.selesai.jumlah,
     );
     expect(jumlah(d.perBulan.map((b) => b.jumlah))).toBe(d.kpi.total.jumlah);
 
@@ -69,8 +70,11 @@ describe('Dashboard', () => {
     }
     const dPum = (await pum.get(`/api/dashboard?tahun=${TAHUN_INI}`)).body as DashboardData;
     expect(dPum.perluTindakan.length).toBeGreaterThan(0);
-    for (const p of dPum.perluTindakan) expect(['diajukan_pum', 'diajukan_mdk']).toContain(p.status);
+    for (const p of dPum.perluTindakan) expect(['diajukan_pum', 'diverifikasi_pum', 'diajukan_mdk']).toContain(p.status);
     expect(dPum.perluTindakan[0].status).toBe('diajukan_pum');
+    // Urutan tahap: diperiksa → input invoice → menunggu MDK
+    const urutan = dPum.perluTindakan.map((p) => ['diajukan_pum', 'diverifikasi_pum', 'diajukan_mdk'].indexOf(p.status));
+    expect([...urutan].sort((a, b) => a - b)).toEqual(urutan);
   });
 
   it('versi operator: perlu tindakan = dikembalikan & draft', async () => {
@@ -106,6 +110,10 @@ describe('Rekap', () => {
 
     r = (await admin.get('/api/rekap/pengajuan?status=selesai')).body as RekapPengajuanData;
     expect(r.rows.every((x) => x.status === 'selesai' && x.no_invoice_mdk)).toBe(true);
+    r = (await admin.get('/api/rekap/pengajuan?status=diverifikasi_pum')).body as RekapPengajuanData;
+    expect(r.rows.length).toBeGreaterThan(0);
+    expect(r.rows.every((x) => x.status === 'diverifikasi_pum' && !x.no_invoice_mdk)).toBe(true);
+    expect(r.ringkasan.perStatus.diverifikasi_pum.jumlah).toBe(r.rows.length);
 
     const dari = `${TAHUN_INI}-03-01`;
     const sampai = `${TAHUN_INI}-06-30`;
@@ -151,33 +159,57 @@ describe('Rekap', () => {
     expect(list.total).toBe(semua);
   });
 
-  it('antrian PUM & menunggu invoice diurutkan dari yang paling lama menunggu', async () => {
+  it('antrian PUM, input invoice & menunggu MDK diurutkan dari yang paling lama menunggu', async () => {
     const list = (await pum.get('/api/pengajuan?status=diajukan_pum&sort=antrian')).body as { data: PengajuanRingkas[] };
     expect(list.data.length).toBeGreaterThan(0);
     const waktu = list.data.map((x) => x.diajukan_at!);
     expect([...waktu].sort()).toEqual(waktu);
+
+    const verif = (await pum.get('/api/pengajuan?status=diverifikasi_pum&sort=antrian_verifikasi')).body as { data: PengajuanRingkas[] };
+    expect(verif.data.length).toBeGreaterThan(0);
+    const tVerif = verif.data.map((x) => x.diverifikasi_at!);
+    expect(tVerif.every(Boolean)).toBe(true);
+    expect([...tVerif].sort()).toEqual(tVerif);
+    for (const p of verif.data) {
+      expect(p.berkas_sesuai).toBe(p.berkas_wajib);
+      expect(p.project_hosting).toBeTruthy();
+      expect(p.no_invoice_mdk).toBeNull();
+    }
+
     const mdk = (await pum.get('/api/pengajuan?status=diajukan_mdk&sort=antrian_mdk')).body as { data: PengajuanRingkas[] };
     expect(mdk.data.length).toBeGreaterThan(0);
-    const teruskan = mdk.data.map((x) => x.diteruskan_at!);
-    expect(teruskan.every(Boolean)).toBe(true);
-    expect([...teruskan].sort()).toEqual(teruskan);
+    const tMdk = mdk.data.map((x) => x.diajukan_mdk_at!);
+    expect(tMdk.every(Boolean)).toBe(true);
+    expect([...tMdk].sort()).toEqual(tMdk);
     for (const p of mdk.data) {
       expect(p.berkas_sesuai).toBe(p.berkas_wajib);
       expect(p.project_hosting).toBeTruthy();
+      expect(p.no_invoice_mdk).toBeTruthy();
+      expect(p.diverifikasi_at! < p.diajukan_mdk_at!).toBe(true);
     }
   });
 
   it('data demo: notifikasi & centang berkas konsisten dengan status', async () => {
     const n = (await pum.get('/api/notifikasi')).body;
     expect(n.antrian.diajukan_pum).toBeGreaterThan(0);
+    expect(n.antrian.diverifikasi_pum).toBeGreaterThan(0);
     expect(n.antrian.diajukan_mdk).toBeGreaterThan(0);
     expect(n.items.length).toBeGreaterThan(0);
-    // Semua yang sudah diteruskan/selesai: seluruh berkas wajib dicentang sesuai
+    // Semua yang sudah diverifikasi/diajukan ke MDK/selesai: seluruh berkas wajib dicentang sesuai
     const salah = (await ctx.db.get<{ c: number }>(
-      `SELECT COUNT(*) AS c FROM pengajuan p WHERE p.status IN ('diajukan_mdk','selesai')
+      `SELECT COUNT(*) AS c FROM pengajuan p WHERE p.status IN ('diverifikasi_pum','diajukan_mdk','selesai')
          AND (SELECT COUNT(*) FROM cek_berkas c WHERE c.pengajuan_id = p.id AND c.status = 'sesuai') <> p.berkas_wajib`,
     ))!.c;
     expect(salah).toBe(0);
+    // Invoice MDK ada tepat pada status diajukan_mdk & selesai; waktu tiap tahap terisi berurutan
+    const invoiceSalah = (await ctx.db.get<{ c: number }>(
+      `SELECT COUNT(*) AS c FROM pengajuan
+        WHERE (status IN ('diajukan_mdk','selesai')) <> (no_invoice_mdk IS NOT NULL)
+           OR (status IN ('diverifikasi_pum','diajukan_mdk','selesai') AND diverifikasi_at IS NULL)
+           OR (status IN ('diajukan_mdk','selesai') AND (diajukan_mdk_at IS NULL OR diajukan_mdk_at <= diverifikasi_at))
+           OR (status = 'selesai' AND (diproses_at IS NULL OR diproses_at <= diajukan_mdk_at))`,
+    ))!.c;
+    expect(invoiceSalah).toBe(0);
     // Yang dikembalikan memiliki minimal satu berkas berstatus revisi & catatan PUM
     const kembali = await ctx.db.all<{ id: number; catatan_pum: string | null }>(
       `SELECT id, catatan_pum FROM pengajuan WHERE status = 'dikembalikan'`,

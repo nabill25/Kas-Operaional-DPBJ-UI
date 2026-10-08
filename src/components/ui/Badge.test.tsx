@@ -9,11 +9,12 @@ describe('Badge', () => {
         <StatusBadge status="draft" />
         <StatusBadge status="diajukan_pum" />
         <StatusBadge status="dikembalikan" />
+        <StatusBadge status="diverifikasi_pum" />
         <StatusBadge status="diajukan_mdk" />
         <StatusBadge status="selesai" />
       </>,
     );
-    for (const label of ['Draft', 'Diajukan ke PUM', 'Dikembalikan', 'Diajukan ke MDK', 'Selesai (Paid)']) {
+    for (const label of ['Draft', 'Diajukan ke PUM', 'Dikembalikan', 'Diverifikasi PUM', 'Diajukan ke MDK', 'Selesai (Paid)']) {
       expect(screen.getByText(label)).toBeTruthy();
     }
   });

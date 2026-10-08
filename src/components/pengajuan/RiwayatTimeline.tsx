@@ -4,6 +4,7 @@ import {
   Banknote,
   CircleCheck,
   CircleX,
+  ClipboardCheck,
   Hourglass,
   ListChecks,
   CloudUpload,
@@ -44,6 +45,8 @@ const GAYA: Record<AksiRiwayat, { ikon: LucideIcon; warna: string }> = {
   selesai_dibatalkan: { ikon: Ban, warna: 'bg-red-500/15 text-red-600 dark:text-red-400' },
   dibayarkan: { ikon: Banknote, warna: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
   dibayarkan_batal: { ikon: RotateCcw, warna: 'bg-slate-500/15 text-slate-600 dark:text-slate-300' },
+  diverifikasi: { ikon: ClipboardCheck, warna: 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-300' },
+  diajukan_mdk: { ikon: Hourglass, warna: 'bg-violet-500/15 text-violet-700 dark:text-violet-300' },
 };
 
 export function gayaAksi(aksi: AksiRiwayat) {

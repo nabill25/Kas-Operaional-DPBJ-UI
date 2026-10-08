@@ -185,8 +185,8 @@ export async function seedDemo(
     tanggalList.sort();
 
     const POLA_TERBARU: Status[] = [
-      'draft', 'diajukan_pum', 'draft', 'diajukan_pum', 'dikembalikan', 'diajukan_mdk',
-      'selesai', 'diajukan_pum', 'dikembalikan', 'diajukan_mdk', 'selesai', 'diajukan_mdk',
+      'draft', 'diajukan_pum', 'draft', 'diajukan_pum', 'dikembalikan', 'diverifikasi_pum',
+      'selesai', 'diajukan_pum', 'dikembalikan', 'diajukan_mdk', 'selesai', 'diverifikasi_pum', 'diajukan_mdk',
     ];
     const POLA_KATEGORI_TERBARU: Kategori[] = [
       'konsumsi', 'perjadin', 'rumah_tangga', 'konsumsi', 'perjadin', 'konsumsi',
@@ -200,7 +200,8 @@ export async function seedDemo(
       diajukan?: number;
       kembali?: number;
       diajukanUlang?: number;
-      diteruskan?: number;
+      diverifikasi?: number;
+      diajukanMdk?: number;
       diproses?: number;
     }
     interface Rencana {
@@ -231,20 +232,24 @@ export async function seedDemo(
       if (status !== 'draft') nama.push('diajukan');
       if (siklusKembali) nama.push('kembali', 'diajukanUlang');
       if (status === 'dikembalikan') nama.push('kembali');
-      if (status === 'diajukan_mdk' || status === 'selesai') nama.push('diteruskan');
+      if (status === 'diverifikasi_pum' || status === 'diajukan_mdk' || status === 'selesai') nama.push('diverifikasi');
+      if (status === 'diajukan_mdk' || status === 'selesai') nama.push('diajukanMdk');
       if (status === 'selesai') nama.push('diproses');
       const jeda: Record<keyof Waktu, [number, number]> = {
         dibuat: [0, 30],
         diajukan: [2, 30],
         kembali: [18, 60],
         diajukanUlang: [4, 30],
-        diteruskan: [18, 72],
+        diverifikasi: [18, 72],
+        // Jeda tetap (tanpa rnd) agar urutan acak data demo lainnya tidak bergeser.
+        diajukanMdk: [20, 20],
         diproses: [24, 140],
       };
       const titik: number[] = [];
       for (const k of nama) {
         const dasar = titik.length ? titik[titik.length - 1] : mulai;
-        let t = dasar + antara(jeda[k][0], jeda[k][1]) * JAM;
+        const [min, maks] = jeda[k];
+        let t = dasar + (min === maks ? min : antara(min, maks)) * JAM;
         if (titik.length && t < dasar + JAM) t = dasar + antara(1, 3) * JAM;
         titik.push(keJamKerja(t));
       }
@@ -257,8 +262,9 @@ export async function seedDemo(
     });
 
     const nomorPerTahun = new Map<number, number>();
-    for (const x of rencana.filter((r) => r.status === 'selesai').sort((a, b) => a.waktu.diproses! - b.waktu.diproses!)) {
-      const tgl = new Date(x.waktu.diproses!);
+    // Invoice diinput PUM saat mengajukan ke MDK (status diajukan_mdk & selesai).
+    for (const x of rencana.filter((r) => r.waktu.diajukanMdk).sort((a, b) => a.waktu.diajukanMdk! - b.waktu.diajukanMdk!)) {
+      const tgl = new Date(x.waktu.diajukanMdk!);
       const th = tgl.getFullYear();
       const no = (nomorPerTahun.get(th) ?? 0) + 1;
       nomorPerTahun.set(th, no);
@@ -374,25 +380,26 @@ export async function seedDemo(
       const alasanKembali = (b: RencanaBerkas | null) =>
         b ? `${JENIS_BERKAS_LABEL[b.jenis]} belum dilampirkan, mohon dilengkapi.` : 'Data kegiatan perlu diperbaiki.';
 
-      const proyek = x.status === 'diajukan_mdk' || x.status === 'selesai';
+      const proyek = x.status === 'diverifikasi_pum' || x.status === 'diajukan_mdk' || x.status === 'selesai';
       const nomorKode = Number(kode.slice(-4));
       const pt = projectTask(x.kategori, nomorKode);
       const rekening = x.kategori === 'konsumsi' && uangSiapa !== null ? rekeningContoh(nomorKode, uangSiapa) : null;
-      // Konsumsi selesai yang punya rekening: uang sudah dibayarkan PUM 45 menit setelah invoice.
+      // Konsumsi selesai yang punya rekening: uang sudah dibayarkan PUM 45 menit setelah ditandai selesai.
       const dibayar = x.kategori === 'konsumsi' && x.status === 'selesai' && rekening && x.waktu.diproses
         ? Math.min(x.waktu.diproses + 45 * MENIT, now)
         : null;
       const terakhir =
-        x.waktu.diproses ?? x.waktu.diteruskan ?? x.waktu.kembali ?? x.waktu.diajukanUlang ?? x.waktu.diajukan ??
+        x.waktu.diproses ?? x.waktu.diajukanMdk ?? x.waktu.diverifikasi ?? x.waktu.kembali ?? x.waktu.diajukanUlang ??
+        x.waktu.diajukan ??
         x.waktu.dibuat + (diunggah.length + na.length) * 4 * MENIT;
 
       const { lastInsertRowid: id } = await txDb.run(
         `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang, lokasi_tujuan,
            mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, rekening_bank, rekening_nomor, dibayar_at,
            dibayar_by, total, catatan, berkas_na, status, no_invoice_mdk, tanggal_invoice_mdk, catatan_pum, project_hosting,
-           task_name, created_by, updated_by, diajukan_at, diteruskan_by, diteruskan_at, diproses_by, diproses_at, created_at,
-           updated_at, berkas_terpenuhi, berkas_wajib)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
+           task_name, created_by, updated_by, diajukan_at, diverifikasi_by, diverifikasi_at, diajukan_mdk_by, diajukan_mdk_at,
+           diproses_by, diproses_at, created_at, updated_at, berkas_terpenuhi, berkas_wajib)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
         kode,
         x.kategori,
         nama,
@@ -423,8 +430,10 @@ export async function seedDemo(
         userId.operator,
         x.status === 'draft' || x.status === 'diajukan_pum' ? userId.operator : userId.pum,
         x.status === 'draft' ? null : iso(x.waktu.diajukanUlang ?? x.waktu.diajukan!),
-        x.waktu.diteruskan ? userId.pum : null,
-        x.waktu.diteruskan ? iso(x.waktu.diteruskan) : null,
+        x.waktu.diverifikasi ? userId.pum : null,
+        x.waktu.diverifikasi ? iso(x.waktu.diverifikasi) : null,
+        x.waktu.diajukanMdk ? userId.pum : null,
+        x.waktu.diajukanMdk ? iso(x.waktu.diajukanMdk) : null,
         x.waktu.diproses || x.status === 'dikembalikan' ? userId.pum : null,
         x.waktu.diproses ? iso(x.waktu.diproses) : x.status === 'dikembalikan' ? iso(x.waktu.kembali!) : null,
         iso(x.waktu.dibuat),
@@ -568,11 +577,11 @@ export async function seedDemo(
           pesan: alasanKembali(kurang),
         });
       }
-      if (x.waktu.diteruskan) {
-        const tTeruskan = x.waktu.diteruskan;
+      if (x.waktu.diverifikasi) {
+        const tVerifikasi = x.waktu.diverifikasi;
         for (let i = 0; i < wajib.length; i++) {
           const j = wajib[i];
-          const t = tTeruskan - (wajib.length - i) * 4 * MENIT;
+          const t = tVerifikasi - (wajib.length - i) * 4 * MENIT;
           await cek(id, j, 'sesuai', null, t);
           await catatRiwayat(txDb, ref, userId.pum, 'berkas_dicek', JENIS_BERKAS_LABEL[j], iso(t));
         }
@@ -580,16 +589,26 @@ export async function seedDemo(
           txDb,
           ref,
           userId.pum,
-          'diteruskan_mdk',
+          'diverifikasi',
           `Berkas ${totalWajib}/${totalWajib} sesuai · Project: ${pt.project} · Task: ${pt.task}`,
-          iso(tTeruskan),
+          iso(tVerifikasi),
         );
-        await notif(userId.operator, tTeruskan, {
+        await notif(userId.operator, tVerifikasi, {
           pengajuan_id: id,
           kode,
-          jenis: 'diteruskan_mdk',
-          judul: 'Berkas disetujui PUM & diteruskan ke MDK',
-          pesan: `${nama} · menunggu invoice MDK`,
+          jenis: 'diverifikasi',
+          judul: 'Berkas diverifikasi PUM',
+          pesan: `${nama} · menunggu input invoice untuk diajukan ke MDK`,
+        });
+      }
+      if (x.waktu.diajukanMdk && x.invoice) {
+        await catatRiwayat(txDb, ref, userId.pum, 'diajukan_mdk', `No. Invoice MDK: ${x.invoice.no}`, iso(x.waktu.diajukanMdk));
+        await notif(userId.operator, x.waktu.diajukanMdk, {
+          pengajuan_id: id,
+          kode,
+          jenis: 'diajukan_mdk',
+          judul: 'Diajukan ke MDK, menunggu verifikasi MDK',
+          pesan: `No. Invoice MDK: ${x.invoice.no} · ${nama}`,
         });
       }
       if (x.status === 'selesai' && x.waktu.diproses && x.invoice) {

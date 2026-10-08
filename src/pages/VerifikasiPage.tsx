@@ -6,7 +6,7 @@ import {
   Hourglass,
   Inbox,
   ReceiptText,
-  Send,
+  Timer,
   Undo2,
   Wallet,
 } from 'lucide-react';
@@ -15,7 +15,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { formatRentangTanggal, formatRupiah, formatRupiahRingkas, formatTanggal, formatWaktu, selisihHari } from '../../shared/format';
 import type { PengajuanRingkas } from '../../shared/types';
-import { CatatanModal, InvoiceModal, TeruskanModal } from '../components/pengajuan/AksiModal';
+import { CatatanModal, InvoiceModal, SelesaiModal, VerifikasiModal } from '../components/pengajuan/AksiModal';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { Chip, KategoriBadge, MekanismeBadge } from '../components/ui/Badge';
 import { Button, kelasTombol } from '../components/ui/Button';
@@ -28,11 +28,12 @@ import { Segmented } from '../components/ui/Segmented';
 import { cn } from '../lib/cn';
 import { useNotifikasi, usePengajuanDaftar } from '../lib/queries';
 
-type Tab = 'periksa' | 'mdk' | 'dikembalikan' | 'selesai';
-const DAFTAR_TAB: Tab[] = ['periksa', 'mdk', 'dikembalikan', 'selesai'];
+type Tab = 'periksa' | 'invoice' | 'mdk' | 'dikembalikan' | 'selesai';
+const DAFTAR_TAB: Tab[] = ['periksa', 'invoice', 'mdk', 'dikembalikan', 'selesai'];
 
 const FILTER_TAB: Record<Tab, { status: string; sort: string }> = {
   periksa: { status: 'diajukan_pum', sort: 'antrian' },
+  invoice: { status: 'diverifikasi_pum', sort: 'antrian_verifikasi' },
   mdk: { status: 'diajukan_mdk', sort: 'antrian_mdk' },
   dikembalikan: { status: 'dikembalikan', sort: 'diperbarui' },
   selesai: { status: 'selesai', sort: 'diperbarui' },
@@ -43,15 +44,19 @@ const KOSONG: Record<Tab, { judul: string; deskripsi: string }> = {
     judul: 'Tidak ada yang perlu diperiksa',
     deskripsi: 'Semua pengajuan sudah diperiksa. Pengajuan baru dari operator akan muncul di sini (notifikasi otomatis).',
   },
+  invoice: {
+    judul: 'Tidak ada yang perlu diinput invoice',
+    deskripsi: 'Pengajuan yang sudah diverifikasi PUM muncul di sini sampai No. Invoice MDK diinput (diajukan ke MDK).',
+  },
   mdk: {
-    judul: 'Tidak ada yang menunggu invoice',
-    deskripsi: 'Pengajuan yang sudah diteruskan ke MDK akan muncul di sini sampai No. Invoice MDK diinput.',
+    judul: 'Tidak ada yang menunggu MDK',
+    deskripsi: 'Pengajuan yang sudah diajukan ke MDK muncul di sini sampai ditandai Selesai setelah proses di MDK selesai.',
   },
   dikembalikan: { judul: 'Tidak ada yang dikembalikan', deskripsi: 'Pengajuan yang dikembalikan ke pengaju akan muncul di sini.' },
-  selesai: { judul: 'Belum ada yang selesai', deskripsi: 'Pengajuan yang sudah diinput invoice MDK (paid) akan muncul di sini.' },
+  selesai: { judul: 'Belum ada yang selesai', deskripsi: 'Pengajuan yang sudah ditandai selesai (paid) akan muncul di sini.' },
 };
 
-type JenisAksi = 'teruskan' | 'kembalikan' | 'selesai';
+type JenisAksi = 'verifikasi' | 'kembalikan' | 'ajukan-mdk' | 'selesai';
 
 function Lencana({ children, nada }: { children: ReactNode; nada: 'biru' | 'kuning' | 'merah' | 'hijau' | 'ungu' }) {
   return (
@@ -86,9 +91,11 @@ export default function VerifikasiPage() {
 
   const ganti = (t: Tab) => setParams(t === 'periksa' ? {} : { tab: t }, { replace: true });
   const daftar = data?.data ?? [];
-  const acuanTunggu = (p: PengajuanRingkas) => (tab === 'mdk' ? p.diteruskan_at : p.diajukan_at);
+  const acuanTunggu = (p: PengajuanRingkas) =>
+    tab === 'invoice' ? p.diverifikasi_at : tab === 'mdk' ? p.diajukan_mdk_at : p.diajukan_at;
   const awal = daftar[0] ? acuanTunggu(daftar[0]) : null;
-  const tertua = (tab === 'periksa' || tab === 'mdk') && page === 1 && awal ? selisihHari(awal) : null;
+  const antre = tab === 'periksa' || tab === 'invoice' || tab === 'mdk';
+  const tertua = antre && page === 1 && awal ? selisihHari(awal) : null;
 
   const statistik = [
     {
@@ -98,10 +105,24 @@ export default function VerifikasiPage() {
       nada: 'bg-blue-500/12 text-blue-700 ring-blue-500/20 dark:text-blue-300',
     },
     {
-      label: 'Menunggu invoice MDK',
+      label: 'Input invoice',
+      nilai: notif?.antrian.diverifikasi_pum ?? 0,
+      ikon: <ClipboardCheck className="size-[18px]" />,
+      nada: 'bg-cyan-500/12 text-cyan-800 ring-cyan-600/20 dark:text-cyan-300',
+    },
+    {
+      label: 'Menunggu MDK',
       nilai: notif?.antrian.diajukan_mdk ?? 0,
       ikon: <Hourglass className="size-[18px]" />,
       nada: 'bg-violet-500/12 text-violet-700 ring-violet-500/20 dark:text-violet-300',
+    },
+    {
+      label: 'Menunggu terlama',
+      nilai: tertua ?? 0,
+      akhiran: tertua === null ? undefined : 'hari',
+      format: tertua === null ? () => '–' : undefined,
+      ikon: <Timer className="size-[18px]" />,
+      nada: 'bg-amber-400/20 text-amber-700 ring-amber-500/25 dark:text-amber-300',
     },
     {
       label: 'Nilai pada tab ini',
@@ -111,14 +132,8 @@ export default function VerifikasiPage() {
       sub: formatRupiah(data?.nilai ?? 0),
       ikon: <Wallet className="size-[18px]" />,
       nada: 'bg-navy-900/[0.07] text-navy-800 ring-navy-900/15 dark:bg-white/10 dark:text-kuning-300 dark:ring-white/15',
-    },
-    {
-      label: tab === 'mdk' ? 'Invoice ditunggu terlama' : 'Menunggu terlama',
-      nilai: tertua ?? 0,
-      akhiran: tertua === null ? undefined : 'hari',
-      format: tertua === null ? () => '–' : undefined,
-      ikon: <Hourglass className="size-[18px]" />,
-      nada: 'bg-amber-400/20 text-amber-700 ring-amber-500/25 dark:text-amber-300',
+      // Kartu terakhir melebar agar grid genap (HP: 2+2+1; tablet: 3+2) dan mendatar selagi lebar.
+      kelas: 'col-span-2 flex-row items-center gap-4 xl:col-span-1',
     },
   ];
 
@@ -126,14 +141,15 @@ export default function VerifikasiPage() {
     <div>
       <PageHeader
         judul="Verifikasi PUM"
-        deskripsi="Periksa & centang berkas pengajuan, teruskan ke MDK, lalu input No. Invoice setelah invoice dari MDK diterima."
+        deskripsi="Periksa & centang berkas, verifikasi, input No. Invoice untuk mengajukan ke MDK, lalu tandai Selesai setelah proses di MDK selesai."
       />
 
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
         {statistik.map((s, i) => (
           <GlassCard
             key={s.label}
-            className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-5"
+            // Layar lebar (5 kolom): ikon di atas agar label tidak terpotong.
+            className={cn('flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-5 xl:flex-col xl:items-start xl:gap-3', s.kelas)}
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.06 }}
@@ -156,11 +172,12 @@ export default function VerifikasiPage() {
         layoutId="seg-verifikasi"
         value={tab}
         onChange={ganti}
-        // Ponsel: 2×2 agar keempat tab terlihat tanpa geser; layar lebar: satu baris.
-        className="mb-5 grid w-full grid-cols-2 sm:inline-flex sm:w-auto"
+        // Ponsel/tablet/laptop kecil: grid agar semua tab terlihat tanpa geser; layar lebar: satu baris.
+        className="mb-5 grid w-full grid-cols-2 sm:grid-cols-3 xl:inline-flex xl:w-auto"
         opsi={[
-          { value: 'periksa', label: 'Perlu diperiksa', ikon: <ClipboardCheck />, jumlah: notif?.antrian.diajukan_pum },
-          { value: 'mdk', label: 'Menunggu invoice', ikon: <Hourglass />, jumlah: notif?.antrian.diajukan_mdk },
+          { value: 'periksa', label: 'Perlu diperiksa', ikon: <Inbox />, jumlah: notif?.antrian.diajukan_pum },
+          { value: 'invoice', label: 'Input invoice', ikon: <ClipboardCheck />, jumlah: notif?.antrian.diverifikasi_pum },
+          { value: 'mdk', label: 'Di MDK', ikon: <Hourglass />, jumlah: notif?.antrian.diajukan_mdk },
           { value: 'dikembalikan', label: 'Dikembalikan', ikon: <Undo2 /> },
           { value: 'selesai', label: 'Selesai (Paid)', ikon: <BadgeCheck /> },
         ]}
@@ -236,10 +253,10 @@ export default function VerifikasiPage() {
                       </Lencana>
                     </div>
                   )}
-                  {tab === 'mdk' && (
+                  {tab === 'invoice' && (
                     <div className="mt-3 space-y-2 text-xs">
-                      <Lencana nada={tunggu >= 14 ? 'kuning' : 'ungu'}>
-                        {tunggu === 0 ? 'Diteruskan hari ini' : `Menunggu invoice ${tunggu} hari`}
+                      <Lencana nada={tunggu >= 7 ? 'kuning' : 'biru'}>
+                        {tunggu === 0 ? 'Diverifikasi hari ini' : `Menunggu invoice ${tunggu} hari`}
                       </Lencana>
                       <p className="flex items-center gap-1.5 truncate text-fg-muted">
                         <FolderKanban className="size-3.5 shrink-0" />
@@ -250,6 +267,18 @@ export default function VerifikasiPage() {
                         ) : (
                           'Project costing / task name belum diisi'
                         )}
+                      </p>
+                    </div>
+                  )}
+                  {tab === 'mdk' && (
+                    <div className="mt-3 space-y-2 text-xs">
+                      <Lencana nada={tunggu >= 14 ? 'kuning' : 'ungu'}>
+                        {tunggu === 0 ? 'Diajukan ke MDK hari ini' : `Menunggu MDK ${tunggu} hari`}
+                      </Lencana>
+                      <p className="flex items-center gap-1.5 truncate text-fg-muted">
+                        <ReceiptText className="size-3.5 shrink-0" />
+                        <span className="truncate font-mono font-semibold text-fg">{p.no_invoice_mdk ?? '-'}</span>·{' '}
+                        {formatTanggal(p.tanggal_invoice_mdk, 'pendek')}
                       </p>
                     </div>
                   )}
@@ -277,8 +306,8 @@ export default function VerifikasiPage() {
                           <Undo2 className="size-4" />
                         </Button>
                         {semuaSesuai && (
-                          <Button ukuran="sm" className="flex-1" ikon={<Send className="size-4" />} onClick={() => setAksi(p, 'teruskan')}>
-                            Teruskan
+                          <Button ukuran="sm" className="flex-1" ikon={<ClipboardCheck className="size-4" />} onClick={() => setAksi(p, 'verifikasi')}>
+                            Verifikasi
                           </Button>
                         )}
                       </>
@@ -287,15 +316,20 @@ export default function VerifikasiPage() {
                         <Link to={`/pengajuan/${p.id}`} className={kelasTombol('kedua', 'sm', 'flex-1')}>
                           <Eye className="size-4" /> Detail
                         </Link>
+                        {tab === 'invoice' && (
+                          <Button ukuran="sm" className="flex-1" ikon={<ReceiptText className="size-4" />} onClick={() => setAksi(p, 'ajukan-mdk')}>
+                            Input invoice
+                          </Button>
+                        )}
                         {tab === 'mdk' && (
                           <Button
                             varian="sukses"
                             ukuran="sm"
                             className="flex-1"
-                            ikon={<ReceiptText className="size-4" />}
+                            ikon={<BadgeCheck className="size-4" />}
                             onClick={() => setAksi(p, 'selesai')}
                           >
-                            Input invoice
+                            Selesai
                           </Button>
                         )}
                       </>
@@ -325,8 +359,9 @@ export default function VerifikasiPage() {
 
       {target && (
         <>
-          <TeruskanModal p={target} open={jenisAksi === 'teruskan'} onOpenChange={(o) => !o && setJenisAksi(null)} />
-          <InvoiceModal p={target} mode="selesai" open={jenisAksi === 'selesai'} onOpenChange={(o) => !o && setJenisAksi(null)} />
+          <VerifikasiModal p={target} open={jenisAksi === 'verifikasi'} onOpenChange={(o) => !o && setJenisAksi(null)} />
+          <InvoiceModal p={target} mode="ajukan" open={jenisAksi === 'ajukan-mdk'} onOpenChange={(o) => !o && setJenisAksi(null)} />
+          <SelesaiModal p={target} open={jenisAksi === 'selesai'} onOpenChange={(o) => !o && setJenisAksi(null)} />
           <CatatanModal p={target} mode="kembalikan" open={jenisAksi === 'kembalikan'} onOpenChange={(o) => !o && setJenisAksi(null)} />
         </>
       )}

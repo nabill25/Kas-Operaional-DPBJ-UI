@@ -37,19 +37,24 @@ export const KATEGORI_INFO: Record<Kategori, KategoriInfo> = {
 };
 
 /**
- * Alur: draft → diajukan_pum → (dikembalikan ↺) → diajukan_mdk → selesai (paid).
- * MDK berada di luar sistem: "diajukan_mdk" hanya status menunggu invoice; No. Invoice MDK diinput oleh PUM.
+ * Alur: draft → diajukan_pum → (dikembalikan ↺) → diverifikasi_pum → diajukan_mdk → selesai (paid).
+ * MDK berada di luar sistem: PUM menginput No. Invoice MDK saat mengajukan ke MDK (status "diajukan_mdk",
+ * menunggu verifikasi MDK), lalu menekan "Selesai" setelah proses di MDK selesai.
  */
-export const STATUS_LIST = ['draft', 'diajukan_pum', 'dikembalikan', 'diajukan_mdk', 'selesai'] as const;
+export const STATUS_LIST = ['draft', 'diajukan_pum', 'dikembalikan', 'diverifikasi_pum', 'diajukan_mdk', 'selesai'] as const;
 export type Status = (typeof STATUS_LIST)[number];
 
 export const STATUS_INFO: Record<Status, { label: string; deskripsi: string }> = {
   draft: { label: 'Draft', deskripsi: 'Disimpan, belum diajukan' },
   diajukan_pum: { label: 'Diajukan ke PUM', deskripsi: 'Menunggu pemeriksaan berkas oleh PUM' },
   dikembalikan: { label: 'Dikembalikan', deskripsi: 'Perlu revisi sesuai catatan PUM' },
-  diajukan_mdk: { label: 'Diajukan ke MDK', deskripsi: 'Diteruskan PUM ke MDK, menunggu invoice' },
-  selesai: { label: 'Selesai (Paid)', deskripsi: 'No. Invoice MDK sudah diinput PUM' },
+  diverifikasi_pum: { label: 'Diverifikasi PUM', deskripsi: 'Berkas sudah diverifikasi PUM, menunggu input invoice MDK' },
+  diajukan_mdk: { label: 'Diajukan ke MDK', deskripsi: 'Invoice sudah diinput PUM, menunggu verifikasi MDK' },
+  selesai: { label: 'Selesai (Paid)', deskripsi: 'Proses MDK selesai, ditandai selesai oleh PUM' },
 };
+
+/** Status yang sudah melewati verifikasi PUM (berkas & data terkunci, project costing/task bisa diubah PUM). */
+export const STATUS_LEWAT_VERIFIKASI: readonly Status[] = ['diverifikasi_pum', 'diajukan_mdk', 'selesai'];
 
 export const MEKANISME_LIST = ['KO', 'LS'] as const;
 export type Mekanisme = (typeof MEKANISME_LIST)[number];
@@ -126,7 +131,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 export const ROLE_KETERANGAN: Record<Role, string> = {
   operator: 'Membuat pengajuan, mengunggah berkas, dan mengajukan ke PUM',
-  pum: 'Memeriksa & mencentang berkas, mengembalikan, meneruskan ke MDK, dan menginput No. Invoice MDK',
+  pum: 'Memeriksa & mencentang berkas, mengembalikan, memverifikasi, menginput No. Invoice MDK, dan menandai selesai',
   pimpinan: 'Memantau dashboard, daftar pengajuan, serta rekap & laporan (hanya lihat)',
   admin: 'Semua akses termasuk kelola pengguna & master data',
 };
@@ -139,7 +144,7 @@ export const ROLE_PENGAJU: readonly Role[] = ['operator', 'admin'];
 export const ROLE_PUM: readonly Role[] = ['pum', 'admin'];
 
 /** Status saat PUM boleh menandai uang konsumsi "sudah dibayarkan" ke pemilik uang. */
-export const STATUS_BISA_DIBAYARKAN: readonly Status[] = ['diajukan_pum', 'diajukan_mdk', 'selesai'];
+export const STATUS_BISA_DIBAYARKAN: readonly Status[] = ['diajukan_pum', 'diverifikasi_pum', 'diajukan_mdk', 'selesai'];
 
 /** Saran nama bank untuk rekening "uang siapa" (isian tetap bebas). */
 export const BANK_SARAN = [
@@ -208,6 +213,8 @@ export const AKSI_RIWAYAT_LIST = [
   'selesai_dibatalkan',
   'dibayarkan',
   'dibayarkan_batal',
+  'diverifikasi',
+  'diajukan_mdk',
 ] as const;
 export type AksiRiwayat = (typeof AKSI_RIWAYAT_LIST)[number];
 
@@ -225,18 +232,22 @@ export const AKSI_RIWAYAT_LABEL: Record<AksiRiwayat, string> = {
   berkas_revisi: 'Berkas ditandai perlu revisi',
   berkas_cek_batal: 'Centang berkas dibatalkan',
   dikembalikan: 'Dikembalikan oleh PUM',
+  // Data lama (alur sebelum Okt 2026): PUM menyetujui berkas & meneruskan ke MDK sekaligus.
   diteruskan_mdk: 'Diteruskan ke MDK',
   data_pum_diubah: 'Project costing / task name diperbarui',
-  selesai: 'Invoice MDK diinput — selesai (paid)',
+  selesai: 'Selesai (paid)',
   invoice_diubah: 'Data invoice MDK diubah',
   selesai_dibatalkan: 'Status selesai dibatalkan',
   dibayarkan: 'Uang ditandai sudah dibayarkan',
   dibayarkan_batal: 'Tanda sudah dibayarkan dibatalkan',
+  diverifikasi: 'Diverifikasi PUM',
+  diajukan_mdk: 'Diajukan ke MDK (invoice diinput)',
 };
 
 export const JENIS_NOTIFIKASI_LIST = [
   'diajukan',
   'dikembalikan',
+  /** Data lama (alur sebelum Okt 2026). */
   'diteruskan_mdk',
   'selesai',
   'selesai_dibatalkan',
@@ -244,5 +255,9 @@ export const JENIS_NOTIFIKASI_LIST = [
   'registrasi',
   /** Uang konsumsi sudah dibayarkan PUM ke pemilik uang (ke pengaju). */
   'dibayarkan',
+  /** Berkas diverifikasi PUM (ke pengaju). */
+  'diverifikasi',
+  /** Invoice diinput PUM → diajukan ke MDK (ke pengaju). */
+  'diajukan_mdk',
 ] as const;
 export type JenisNotifikasi = (typeof JENIS_NOTIFIKASI_LIST)[number];

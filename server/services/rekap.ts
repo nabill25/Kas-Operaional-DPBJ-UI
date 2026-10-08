@@ -186,7 +186,7 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
     perStatus[r.status] = { jumlah: r.jumlah, nilai: r.nilai };
   }
   
-  const tahapAktif: Status[] = ['diajukan_pum', 'dikembalikan', 'diajukan_mdk', 'selesai'];
+  const tahapAktif: Status[] = ['diajukan_pum', 'dikembalikan', 'diverifikasi_pum', 'diajukan_mdk', 'selesai'];
   const total: JumlahNilai = {
     jumlah: tahapAktif.reduce((s, st) => s + perStatus[st].jumlah, 0),
     nilai: tahapAktif.reduce((s, st) => s + perStatus[st].nilai, 0),
@@ -260,25 +260,30 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
   );
   const topPegawai = topPegawaiRows.map(r => ({...r, pegawai_id: Number(r.pegawai_id)}));
 
+  // Acuan lama menunggu sesuai tahap (dipakai untuk mengurutkan: terlama di atas).
+  const acuanTunggu = `COALESCE(CASE p.status WHEN 'diverifikasi_pum' THEN p.diverifikasi_at
+                                              WHEN 'diajukan_mdk' THEN p.diajukan_mdk_at
+                                              ELSE p.diajukan_at END, p.updated_at)`;
   let tindakan: string;
   switch (user.role) {
     case 'pum':
-      tindakan = `WHERE p.status IN ('diajukan_pum','diajukan_mdk')
-                  ORDER BY CASE p.status WHEN 'diajukan_pum' THEN 0 ELSE 1 END,
-                           COALESCE(p.diajukan_at, p.updated_at) ASC`;
+      tindakan = `WHERE p.status IN ('diajukan_pum','diverifikasi_pum','diajukan_mdk')
+                  ORDER BY CASE p.status WHEN 'diajukan_pum' THEN 0 WHEN 'diverifikasi_pum' THEN 1 ELSE 2 END,
+                           ${acuanTunggu} ASC`;
       break;
     case 'operator':
       tindakan = `WHERE p.status IN ('dikembalikan','draft')
                   ORDER BY CASE p.status WHEN 'dikembalikan' THEN 0 ELSE 1 END, p.updated_at DESC`;
       break;
     case 'pimpinan':
-      tindakan = `WHERE p.status IN ('diajukan_pum','diajukan_mdk','dikembalikan')
+      tindakan = `WHERE p.status IN ('diajukan_pum','diverifikasi_pum','diajukan_mdk','dikembalikan')
                   ORDER BY COALESCE(p.diajukan_at, p.updated_at) ASC`;
       break;
     default:
-      tindakan = `WHERE p.status IN ('dikembalikan','diajukan_pum','diajukan_mdk')
-                  ORDER BY CASE p.status WHEN 'dikembalikan' THEN 0 WHEN 'diajukan_pum' THEN 1 ELSE 2 END,
-                           COALESCE(p.diajukan_at, p.updated_at) ASC`;
+      tindakan = `WHERE p.status IN ('dikembalikan','diajukan_pum','diverifikasi_pum','diajukan_mdk')
+                  ORDER BY CASE p.status WHEN 'dikembalikan' THEN 0 WHEN 'diajukan_pum' THEN 1
+                                         WHEN 'diverifikasi_pum' THEN 2 ELSE 3 END,
+                           ${acuanTunggu} ASC`;
   }
   const tindakanRows = await db.all<PengajuanRow>(`${SELECT_PENGAJUAN} ${tindakan} LIMIT 6`);
 
@@ -289,6 +294,7 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
       total,
       diajukan_pum: perStatus.diajukan_pum,
       dikembalikan: perStatus.dikembalikan,
+      diverifikasi_pum: perStatus.diverifikasi_pum,
       diajukan_mdk: perStatus.diajukan_mdk,
       selesai: perStatus.selesai,
       draft: draftTerlihat ? perStatus.draft : null,
@@ -314,6 +320,7 @@ async function antrian(db: Db, user: SessionUser): Promise<NotifikasiData['antri
       : 0;
   return {
     diajukan_pum: pum ? await hitung('diajukan_pum') : 0,
+    diverifikasi_pum: pum ? await hitung('diverifikasi_pum') : 0,
     diajukan_mdk: pum ? await hitung('diajukan_mdk') : 0,
     dikembalikan: pengaju ? await hitung('dikembalikan') : 0,
     pendaftar,

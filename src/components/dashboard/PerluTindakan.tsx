@@ -17,7 +17,7 @@ const TEKS: Record<Role, { judul: string; deskripsi: string; ke: string }> = {
   },
   pum: {
     judul: 'Perlu tindakan',
-    deskripsi: 'Berkas yang perlu diperiksa, lalu yang menunggu invoice MDK (terlama di atas)',
+    deskripsi: 'Berkas yang perlu diperiksa, perlu input invoice, lalu yang menunggu MDK (terlama di atas)',
     ke: '/verifikasi',
   },
   pimpinan: {
@@ -27,7 +27,7 @@ const TEKS: Record<Role, { judul: string; deskripsi: string; ke: string }> = {
   },
   admin: {
     judul: 'Perlu tindakan',
-    deskripsi: 'Dikembalikan, menunggu pemeriksaan PUM, dan menunggu invoice MDK',
+    deskripsi: 'Dikembalikan, menunggu pemeriksaan PUM, input invoice, dan verifikasi MDK',
     ke: '/verifikasi',
   },
 };
@@ -38,9 +38,13 @@ function lamaTunggu(p: PengajuanRingkas): { teks: string; hari: number } | null 
     const hari = selisihHari(p.diajukan_at);
     return { teks: `menunggu PUM ${hari === 0 ? 'sejak hari ini' : `${hari} hari`}`, hari };
   }
-  if (p.status === 'diajukan_mdk' && p.diteruskan_at) {
-    const hari = selisihHari(p.diteruskan_at);
-    return { teks: `menunggu invoice MDK ${hari === 0 ? 'sejak hari ini' : `${hari} hari`}`, hari };
+  if (p.status === 'diverifikasi_pum' && p.diverifikasi_at) {
+    const hari = selisihHari(p.diverifikasi_at);
+    return { teks: `menunggu input invoice ${hari === 0 ? 'sejak hari ini' : `${hari} hari`}`, hari };
+  }
+  if (p.status === 'diajukan_mdk' && p.diajukan_mdk_at) {
+    const hari = selisihHari(p.diajukan_mdk_at);
+    return { teks: `menunggu verifikasi MDK ${hari === 0 ? 'sejak hari ini' : `${hari} hari`}`, hari };
   }
   return null;
 }

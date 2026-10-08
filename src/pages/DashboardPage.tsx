@@ -1,5 +1,6 @@
 import {
   BadgeCheck,
+  ClipboardCheck,
   FileExclamationPoint,
   FilePlus,
   Hourglass,
@@ -113,7 +114,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-4 border-t border-line pt-4">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-fg-muted">Sudah selesai (paid · invoice MDK diinput)</span>
+              <span className="font-semibold text-fg-muted">Sudah selesai (paid · proses MDK selesai)</span>
               <span className="angka font-bold text-fg">{persenSelesai}%</span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full" style={{ background: w.jalur }}>
@@ -131,9 +132,11 @@ export default function DashboardPage() {
           </div>
         </GlassCard>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:col-span-8">
+        {/* Baris atas = urutan alur (PUM → verifikasi → MDK → paid); baris bawah = 3 kartu pemantauan. */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-12 xl:col-span-8">
           <KpiTile
             indeks={1}
+            className="sm:col-span-6 md:col-span-3"
             label="Diajukan ke PUM"
             nilai={k.diajukan_pum.jumlah}
             sub={formatRupiah(k.diajukan_pum.nilai)}
@@ -143,6 +146,17 @@ export default function DashboardPage() {
           />
           <KpiTile
             indeks={2}
+            className="sm:col-span-6 md:col-span-3"
+            label="Diverifikasi PUM"
+            nilai={k.diverifikasi_pum.jumlah}
+            sub={formatRupiah(k.diverifikasi_pum.nilai)}
+            ikon={<ClipboardCheck />}
+            nada="cyan"
+            ke={pum ? '/verifikasi?tab=invoice' : '/pengajuan?status=diverifikasi_pum'}
+          />
+          <KpiTile
+            indeks={3}
+            className="sm:col-span-6 md:col-span-3"
             label="Diajukan ke MDK"
             nilai={k.diajukan_mdk.jumlah}
             sub={formatRupiah(k.diajukan_mdk.nilai)}
@@ -151,7 +165,8 @@ export default function DashboardPage() {
             ke={pum ? '/verifikasi?tab=mdk' : '/pengajuan?status=diajukan_mdk'}
           />
           <KpiTile
-            indeks={3}
+            indeks={4}
+            className="sm:col-span-6 md:col-span-3"
             label="Selesai (Paid)"
             nilai={k.selesai.jumlah}
             sub={formatRupiah(k.selesai.nilai)}
@@ -160,7 +175,8 @@ export default function DashboardPage() {
             ke="/pengajuan?status=selesai"
           />
           <KpiTile
-            indeks={4}
+            indeks={5}
+            className="sm:col-span-4"
             label="Dikembalikan (revisi)"
             nilai={k.dikembalikan.jumlah}
             sub={formatRupiah(k.dikembalikan.nilai)}
@@ -169,7 +185,8 @@ export default function DashboardPage() {
             ke="/pengajuan?status=dikembalikan"
           />
           <KpiTile
-            indeks={5}
+            indeks={6}
+            className="sm:col-span-4"
             label="Berkas belum lengkap"
             nilai={k.belumLengkap}
             sub="Perlu dilengkapi pengaju"
@@ -179,7 +196,8 @@ export default function DashboardPage() {
           />
           {k.draft ? (
             <KpiTile
-              indeks={6}
+              indeks={7}
+              className="col-span-2 sm:col-span-4"
               label="Draft belum diajukan"
               nilai={k.draft.jumlah}
               sub={formatRupiah(k.draft.nilai)}
@@ -189,7 +207,8 @@ export default function DashboardPage() {
             />
           ) : (
             <KpiTile
-              indeks={6}
+              indeks={7}
+              className="col-span-2 sm:col-span-4"
               label="Rata-rata waktu proses"
               nilai={Math.round((k.rataProsesHari ?? 0) * 10)}
               format={(n) => (k.rataProsesHari === null ? '–' : (n / 10).toFixed(1).replace('.', ','))}

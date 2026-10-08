@@ -97,9 +97,10 @@ export type AksiPengajuan =
   | { aksi: 'ajukan' }
   | { aksi: 'tarik' }
   | { aksi: 'kembalikan'; catatan: string }
-  | { aksi: 'teruskan'; project_hosting: string; task_name: string; catatan?: string }
+  | { aksi: 'verifikasi'; project_hosting: string; task_name: string; catatan?: string }
   | { aksi: 'data-pum'; project_hosting: string; task_name: string }
-  | { aksi: 'selesai'; no_invoice_mdk: string; tanggal_invoice_mdk: string; catatan?: string }
+  | { aksi: 'ajukan-mdk'; no_invoice_mdk: string; tanggal_invoice_mdk: string; catatan?: string }
+  | { aksi: 'selesai' }
   | { aksi: 'invoice'; no_invoice_mdk: string; tanggal_invoice_mdk: string; catatan?: string }
   | { aksi: 'batal-selesai'; catatan: string }
   | { aksi: 'dibayarkan'; dibayarkan: boolean };
@@ -116,7 +117,7 @@ export function useAksiPengajuan(id: number) {
     },
     onSuccess: (detail, a) => {
       segarkanSemua(qc, detail);
-      if (a.aksi === 'teruskan' || a.aksi === 'data-pum') void qc.invalidateQueries({ queryKey: qk.saranPum });
+      if (a.aksi === 'verifikasi' || a.aksi === 'data-pum') void qc.invalidateQueries({ queryKey: qk.saranPum });
     },
   });
 }

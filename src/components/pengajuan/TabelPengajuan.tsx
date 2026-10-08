@@ -92,7 +92,7 @@ export function TabelPengajuan({ data, redup = false }: { data: PengajuanRingkas
                           Dicek PUM {p.berkas_sesuai}/{p.berkas_wajib} sesuai
                         </p>
                       )}
-                      {p.status === 'diajukan_mdk' && p.task_name && (
+                      {p.status === 'diverifikasi_pum' && p.task_name && (
                         <p className="mt-1 max-w-[160px] truncate text-[11px] text-fg-muted" title={`${p.project_hosting ?? '-'} · ${p.task_name}`}>
                           {p.task_name}
                         </p>

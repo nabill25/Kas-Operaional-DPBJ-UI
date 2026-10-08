@@ -6,7 +6,7 @@ test('dashboard: KPI, grafik + tampilan tabel, tema gelap, notifikasi', async ({
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
   // Kartu KPI berupa tautan "<label> <angka> …" (label status yang sama juga muncul sebagai badge di "Perlu tindakan").
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  for (const label of ['Diajukan ke PUM', 'Diajukan ke MDK', 'Selesai (Paid)', 'Dikembalikan (revisi)', 'Berkas belum lengkap', 'Draft belum diajukan']) {
+  for (const label of ['Diajukan ke PUM', 'Diverifikasi PUM', 'Diajukan ke MDK', 'Selesai (Paid)', 'Dikembalikan (revisi)', 'Berkas belum lengkap', 'Draft belum diajukan']) {
     await expect(page.getByRole('link', { name: new RegExp(`^${esc(label)} \\d`) })).toBeVisible();
   }
   await expect(page.locator('.recharts-surface').first()).toBeVisible();

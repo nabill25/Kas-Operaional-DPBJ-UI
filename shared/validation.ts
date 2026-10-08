@@ -380,6 +380,7 @@ export interface InvoiceBersih {
   catatan: string | null;
 }
 
+/** No. Invoice MDK (diinput PUM saat mengajukan ke MDK, atau saat mengubah data invoice). */
 export function validateInvoice(raw: unknown): Hasil<InvoiceBersih> {
   const r = objek(raw);
   const e: FieldErrors = {};
@@ -444,12 +445,12 @@ export function validateDataPum(raw: unknown): Hasil<DataPumBersih> {
   return { ok: true, data: { project_hosting: project || null, task_name: task || null } };
 }
 
-export interface TeruskanBersih extends DataPumBersih {
+export interface VerifikasiBersih extends DataPumBersih {
   catatan: string | null;
 }
 
-/** Teruskan ke MDK: project costing, task name, catatan (semua opsional). */
-export function validateTeruskan(raw: unknown): Hasil<TeruskanBersih> {
+/** Verifikasi PUM: project costing, task name, catatan untuk pengaju (semua opsional). */
+export function validateVerifikasi(raw: unknown): Hasil<VerifikasiBersih> {
   const r = objek(raw);
   const pum = validateDataPum(raw);
   const catatan = teksPanjang(r.catatan);

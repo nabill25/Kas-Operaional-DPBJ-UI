@@ -1,8 +1,8 @@
-import { Ban, CircleAlert, CircleCheck, CircleX, FolderKanban, Info, ReceiptText, Send, Undo2 } from 'lucide-react';
+import { Ban, BadgeCheck, CircleAlert, CircleCheck, CircleX, ClipboardCheck, FolderKanban, Hourglass, Info, ReceiptText, Undo2 } from 'lucide-react';
 import { useId, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { KATEGORI_INFO, type Kategori } from '../../../shared/constants';
-import { formatRupiah, tanggalLokalIso } from '../../../shared/format';
+import { formatRupiah, formatTanggal, formatWaktu, tanggalLokalIso } from '../../../shared/format';
 import {
   DAFTAR_PROJECT,
   DAFTAR_TASK,
@@ -13,7 +13,7 @@ import {
   type ProjectTask,
 } from '../../../shared/project-task';
 import type { PengajuanDetail, PengajuanRingkas } from '../../../shared/types';
-import { validateCatatanWajib, validateDataPum, validateInvoice, validateTeruskan } from '../../../shared/validation';
+import { validateCatatanWajib, validateDataPum, validateInvoice, validateVerifikasi } from '../../../shared/validation';
 import { ApiError } from '../../lib/api';
 import { useAksiPengajuan, useSaranPum } from '../../lib/queries';
 import { Chip } from '../ui/Badge';
@@ -152,25 +152,25 @@ function IsianPum({
   );
 }
 
-// ───────────────────────────── Teruskan ke MDK ─────────────────────────────
+// ───────────────────────────── Verifikasi PUM ─────────────────────────────
 
-export function TeruskanModal(props: PropsModal) {
+export function VerifikasiModal(props: PropsModal) {
   const aksi = useAksiPengajuan(props.p.id);
   return (
     <Modal
       open={props.open}
       onOpenChange={props.onOpenChange}
       terkunci={aksi.isPending}
-      judul="Setujui & teruskan ke MDK"
-      deskripsi="MDK berada di luar sistem. Setelah invoice dari MDK diterima, input No. Invoice pada pengajuan ini."
-      ikon={<Send className="size-5" />}
+      judul="Verifikasi pengajuan"
+      deskripsi="Setelah diverifikasi, input No. Invoice MDK untuk mengajukan pengajuan ini ke MDK."
+      ikon={<ClipboardCheck className="size-5" />}
     >
-      <IsiTeruskan {...props} aksi={aksi} />
+      <IsiVerifikasi {...props} aksi={aksi} />
     </Modal>
   );
 }
 
-function IsiTeruskan({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'open'> & { aksi: MutasiAksi }) {
+function IsiVerifikasi({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'open'> & { aksi: MutasiAksi }) {
   const [project, setProject] = useState(p.project_hosting ?? '');
   const [task, setTask] = useState(p.task_name ?? '');
   const [catatan, setCatatan] = useState('');
@@ -178,19 +178,19 @@ function IsiTeruskan({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'op
 
   const kirim = async (e: FormEvent) => {
     e.preventDefault();
-    const h = validateTeruskan({ project_hosting: project, task_name: task, catatan });
+    const h = validateVerifikasi({ project_hosting: project, task_name: task, catatan });
     if (!h.ok) {
       setErrors(h.errors);
       return;
     }
     try {
       const d = await aksi.mutateAsync({
-        aksi: 'teruskan',
+        aksi: 'verifikasi',
         project_hosting: project,
         task_name: task,
         catatan,
       });
-      toast.success(`${p.kode} diteruskan ke MDK`, { description: 'Pengaju menerima notifikasi otomatis.' });
+      toast.success(`${p.kode} diverifikasi PUM`, { description: 'Pengaju menerima notifikasi otomatis.' });
       onOpenChange(false);
       onBerhasil?.(d);
     } catch (err) {
@@ -215,13 +215,13 @@ function IsiTeruskan({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'op
             <Info className="mt-px size-3.5 shrink-0" /> Project costing & task name boleh dilengkapi nanti dari halaman detail.
           </p>
         )}
-        <Field label="Catatan untuk pengaju (opsional)" htmlFor="catatan_teruskan" error={errors.catatan}>
+        <Field label="Catatan untuk pengaju (opsional)" htmlFor="catatan_verifikasi" error={errors.catatan}>
           <Textarea
-            id="catatan_teruskan"
+            id="catatan_verifikasi"
             rows={2}
             maxLength={1000}
             value={catatan}
-            placeholder="mis. Berkas fisik sudah diserahkan ke MDK"
+            placeholder="mis. Berkas fisik sudah diterima PUM"
             onChange={(e) => setCatatan(e.target.value)}
           />
         </Field>
@@ -229,8 +229,8 @@ function IsiTeruskan({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'op
           <Button varian="kedua" onClick={() => onOpenChange(false)} disabled={aksi.isPending}>
             Batal
           </Button>
-          <Button type="submit" varian="navy" memuat={aksi.isPending} ikon={<Send className="size-4" />}>
-            Teruskan ke MDK
+          <Button type="submit" varian="navy" memuat={aksi.isPending} ikon={<ClipboardCheck className="size-4" />}>
+            Verifikasi
           </Button>
         </div>
       </form>
@@ -299,19 +299,22 @@ function IsiDataPum({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'ope
 
 // ───────────────────────────── Invoice MDK ─────────────────────────────
 
-/** Input / ubah No. Invoice MDK (oleh PUM) — menjadikan pengajuan selesai (paid). */
-export function InvoiceModal({ mode, ...props }: PropsModal & { mode: 'selesai' | 'ubah' }) {
+/**
+ * Input No. Invoice MDK (oleh PUM) = mengajukan ke MDK; status menjadi Diajukan ke MDK (menunggu verifikasi MDK).
+ * Mode "ubah": perbaiki data invoice yang sudah tercatat (Diajukan ke MDK / Selesai).
+ */
+export function InvoiceModal({ mode, ...props }: PropsModal & { mode: 'ajukan' | 'ubah' }) {
   const aksi = useAksiPengajuan(props.p.id);
   return (
     <Modal
       open={props.open}
       onOpenChange={props.onOpenChange}
       terkunci={aksi.isPending}
-      judul={mode === 'ubah' ? 'Ubah data invoice MDK' : 'Input No. Invoice dari MDK'}
+      judul={mode === 'ubah' ? 'Ubah data invoice MDK' : 'Input No. Invoice MDK'}
       deskripsi={
         mode === 'ubah'
           ? 'Perbaiki nomor/tanggal invoice yang sudah tercatat.'
-          : 'Invoice diterima dari MDK (di luar sistem). Status pengajuan menjadi Selesai (Paid).'
+          : 'Pengajuan menjadi Diajukan ke MDK dan menunggu verifikasi MDK (di luar sistem). Setelah proses di MDK selesai, tekan Selesai.'
       }
       ikon={<ReceiptText className="size-5" />}
     >
@@ -326,7 +329,7 @@ function IsiInvoice({
   onBerhasil,
   mode,
   aksi,
-}: Omit<PropsModal, 'open'> & { mode: 'selesai' | 'ubah'; aksi: MutasiAksi }) {
+}: Omit<PropsModal, 'open'> & { mode: 'ajukan' | 'ubah'; aksi: MutasiAksi }) {
   // State dibuat sekali saat modal dibuka (komponen ini hanya hidup selama modal terbuka).
   const [no, setNo] = useState(mode === 'ubah' ? (p.no_invoice_mdk ?? '') : '');
   const [tanggal, setTanggal] = useState(mode === 'ubah' ? (p.tanggal_invoice_mdk ?? tanggalLokalIso()) : tanggalLokalIso());
@@ -342,12 +345,12 @@ function IsiInvoice({
     }
     try {
       const d = await aksi.mutateAsync({
-        aksi: mode === 'ubah' ? 'invoice' : 'selesai',
+        aksi: mode === 'ubah' ? 'invoice' : 'ajukan-mdk',
         no_invoice_mdk: h.data.no_invoice_mdk,
         tanggal_invoice_mdk: h.data.tanggal_invoice_mdk,
         catatan: h.data.catatan ?? '',
       });
-      toast.success(mode === 'ubah' ? 'Data invoice diperbarui' : `${p.kode} selesai (paid)`, {
+      toast.success(mode === 'ubah' ? 'Data invoice diperbarui' : `${p.kode} diajukan ke MDK`, {
         description: `No. Invoice MDK: ${h.data.no_invoice_mdk}`,
       });
       onOpenChange(false);
@@ -402,11 +405,78 @@ function IsiInvoice({
           <Button varian="kedua" onClick={() => onOpenChange(false)} disabled={aksi.isPending}>
             Batal
           </Button>
-          <Button type="submit" varian={mode === 'ubah' ? 'utama' : 'sukses'} memuat={aksi.isPending}>
-            {mode === 'ubah' ? 'Simpan perubahan' : 'Simpan invoice — selesai (paid)'}
+          <Button type="submit" memuat={aksi.isPending}>
+            {mode === 'ubah' ? 'Simpan perubahan' : 'Simpan invoice & ajukan ke MDK'}
           </Button>
         </div>
       </form>
+    </>
+  );
+}
+
+// ───────────────────────────── Selesai (paid) ─────────────────────────────
+
+/** PUM menekan Selesai setelah proses di MDK (di luar sistem) selesai → status Selesai (Paid). */
+export function SelesaiModal(props: PropsModal) {
+  const aksi = useAksiPengajuan(props.p.id);
+  return (
+    <Modal
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      terkunci={aksi.isPending}
+      judul="Tandai selesai (paid)?"
+      deskripsi="Tekan setelah proses di MDK selesai. Pengaju menerima notifikasi otomatis."
+      ikon={<BadgeCheck className="size-5" />}
+      lebar="sm"
+    >
+      <IsiSelesai {...props} aksi={aksi} />
+    </Modal>
+  );
+}
+
+function IsiSelesai({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'open'> & { aksi: MutasiAksi }) {
+  const kirim = async () => {
+    try {
+      const d = await aksi.mutateAsync({ aksi: 'selesai' });
+      toast.success(`${p.kode} selesai (paid)`, { description: 'Notifikasi otomatis terkirim ke pengaju.' });
+      onOpenChange(false);
+      onBerhasil?.(d);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Gagal menandai selesai');
+    }
+  };
+
+  return (
+    <>
+      <Ringkasan p={p} />
+      <dl className="mb-4 space-y-2 rounded-xl bg-fg/[0.04] px-3 py-2.5 text-xs ring-1 ring-fg/[0.06]">
+        <div className="flex items-start justify-between gap-3">
+          <dt className="flex items-center gap-1.5 text-fg-muted">
+            <ReceiptText className="size-3.5" aria-hidden /> No. Invoice MDK
+          </dt>
+          <dd className="min-w-0 text-right font-mono font-bold break-all text-fg">{p.no_invoice_mdk ?? '-'}</dd>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <dt className="flex items-center gap-1.5 text-fg-muted">
+            <Hourglass className="size-3.5" aria-hidden /> Diajukan ke MDK
+          </dt>
+          <dd className="text-right font-semibold text-fg">
+            {p.diajukan_mdk_at ? formatWaktu(p.diajukan_mdk_at) : formatTanggal(p.tanggal_invoice_mdk)}
+          </dd>
+        </div>
+      </dl>
+      <p className="mb-4 flex items-start gap-2 text-xs text-fg-muted">
+        <Info className="mt-px size-3.5 shrink-0" aria-hidden /> Pastikan MDK sudah selesai memverifikasi & membayar. Bila
+        keliru, status selesai masih bisa dibatalkan dari menu Aksi PUM.
+      </p>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button varian="kedua" onClick={() => onOpenChange(false)} disabled={aksi.isPending}>
+          Batal
+        </Button>
+        <Button varian="sukses" ikon={<BadgeCheck className="size-4" />} memuat={aksi.isPending} onClick={() => void kirim()}>
+          Ya, selesai (paid)
+        </Button>
+      </div>
     </>
   );
 }
@@ -433,7 +503,7 @@ export function CatatanModal({ mode, ...props }: PropsModal & { mode: 'kembalika
       deskripsi={
         kembalikan
           ? 'Pengaju menerima notifikasi otomatis berisi catatan ini, lalu dapat memperbaiki dan mengajukan ulang.'
-          : 'No. Invoice MDK akan dihapus dan status kembali menjadi Diajukan ke MDK.'
+          : 'Status kembali menjadi Diajukan ke MDK (menunggu verifikasi MDK). No. Invoice tetap tersimpan.'
       }
       ikon={kembalikan ? <Undo2 className="size-5" /> : <Ban className="size-5" />}
     >

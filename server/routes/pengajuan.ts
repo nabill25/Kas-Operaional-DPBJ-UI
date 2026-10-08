@@ -9,7 +9,7 @@ import {
   validateDibayarkan,
   validateInvoice,
   validatePengajuan,
-  validateTeruskan,
+  validateVerifikasi,
 } from '../../shared/validation';
 import { requireRole, userOf } from '../auth';
 import type { Db } from '../db-pg';
@@ -17,6 +17,7 @@ import { HttpError, assertValid, badRequest, conflict, parseId, q } from '../htt
 import type { StorageProvider } from '../providers';
 import {
   ajukan,
+  ajukanMdk,
   ambilBerkas,
   batalkanSelesai,
   buatPengajuan,
@@ -35,10 +36,10 @@ import {
   tambahBerkas,
   tandaiDibayarkan,
   tarikKembali,
-  teruskanMdk,
   ubahDataPum,
   ubahInvoice,
   ubahPengajuan,
+  verifikasi,
   type FilterPengajuan,
 } from '../services/pengajuan';
 
@@ -179,10 +180,10 @@ export function pengajuanRoutes(db: Db, storage: StorageProvider): Router {
     res.json(await getDetail(db, user, id));
   });
 
-  r.post('/:id/teruskan', async (req, res) => {
+  r.post('/:id/verifikasi', async (req, res) => {
     const user = userOf(req);
     const id = parseId(req.params.id, 'Pengajuan');
-    await teruskanMdk(db, user, id, assertValid(validateTeruskan(req.body)));
+    await verifikasi(db, user, id, assertValid(validateVerifikasi(req.body)));
     res.json(await getDetail(db, user, id));
   });
 
@@ -209,10 +210,19 @@ export function pengajuanRoutes(db: Db, storage: StorageProvider): Router {
     res.json(await getDetail(db, user, id));
   });
 
+  // Input No. Invoice MDK = mengajukan ke MDK (menunggu verifikasi MDK di luar sistem).
+  r.post('/:id/ajukan-mdk', async (req, res) => {
+    const user = userOf(req);
+    const id = parseId(req.params.id, 'Pengajuan');
+    await ajukanMdk(db, user, id, assertValid(validateInvoice(req.body)));
+    res.json(await getDetail(db, user, id));
+  });
+
+  // Proses MDK selesai → PUM menandai selesai (paid).
   r.post('/:id/selesai', async (req, res) => {
     const user = userOf(req);
     const id = parseId(req.params.id, 'Pengajuan');
-    await selesaikan(db, user, id, assertValid(validateInvoice(req.body)));
+    await selesaikan(db, user, id);
     res.json(await getDetail(db, user, id));
   });
 

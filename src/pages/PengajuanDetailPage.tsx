@@ -1,4 +1,5 @@
 import {
+  BadgeCheck,
   Ban,
   Banknote,
   CalendarDays,
@@ -35,11 +36,12 @@ import {
   JENIS_TRANSPORT_LABEL,
   KATEGORI_INFO,
   STATUS_BISA_DIBAYARKAN,
+  STATUS_LEWAT_VERIFIKASI,
   isBankMandiri,
 } from '../../shared/constants';
 import { formatAngka, formatRentangTanggal, formatRupiah, formatTanggal, formatWaktu, lamaHari, selisihHari } from '../../shared/format';
 import type { PengajuanDetail, Peserta } from '../../shared/types';
-import { CatatanModal, DataPumModal, InvoiceModal, TeruskanModal } from '../components/pengajuan/AksiModal';
+import { CatatanModal, DataPumModal, InvoiceModal, SelesaiModal, VerifikasiModal } from '../components/pengajuan/AksiModal';
 import { BerkasPanel } from '../components/pengajuan/BerkasPanel';
 import { RiwayatTimeline } from '../components/pengajuan/RiwayatTimeline';
 import { StatusStepper } from '../components/pengajuan/StatusStepper';
@@ -59,7 +61,7 @@ import { ApiError } from '../lib/api';
 import { cn } from '../lib/cn';
 import { useAksiPengajuan, useBacaNotifikasi, useHapusPengajuan, useNotifikasi, usePengajuan } from '../lib/queries';
 
-type ModalAksi = 'teruskan' | 'data-pum' | 'selesai' | 'ubah' | 'kembalikan' | 'batal-selesai';
+type ModalAksi = 'verifikasi' | 'data-pum' | 'ajukan-mdk' | 'selesai' | 'ubah' | 'kembalikan' | 'batal-selesai';
 
 function Info2({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
@@ -240,8 +242,8 @@ function Detail({ p }: { p: PengajuanDetail }) {
   const pum = punyaPeran('pum', 'admin');
   const bisaEdit = kelola && (p.status === 'draft' || p.status === 'dikembalikan');
   const bisaCek = pum && p.status === 'diajukan_pum';
-  const lewatPum = p.status === 'diajukan_mdk' || p.status === 'selesai';
-  const bisaDataPum = pum && (p.status === 'diajukan_pum' || lewatPum);
+  const lewatVerifikasi = STATUS_LEWAT_VERIFIKASI.includes(p.status);
+  const bisaDataPum = pum && (p.status === 'diajukan_pum' || lewatVerifikasi);
   const transport = p.kategori !== 'konsumsi';
   const k = p.kelengkapan;
   const revisi = k.items.filter((i) => i.cek?.status === 'revisi');
@@ -349,9 +351,11 @@ function Detail({ p }: { p: PengajuanDetail }) {
   const menunggu =
     p.status === 'diajukan_pum' && p.diajukan_at
       ? { hari: selisihHari(p.diajukan_at), teks: 'Menunggu pemeriksaan PUM' }
-      : p.status === 'diajukan_mdk' && p.diteruskan_at
-        ? { hari: selisihHari(p.diteruskan_at), teks: 'Menunggu invoice MDK' }
-        : null;
+      : p.status === 'diverifikasi_pum' && p.diverifikasi_at
+        ? { hari: selisihHari(p.diverifikasi_at), teks: 'Menunggu input invoice MDK' }
+        : p.status === 'diajukan_mdk' && p.diajukan_mdk_at
+          ? { hari: selisihHari(p.diajukan_mdk_at), teks: 'Menunggu verifikasi MDK' }
+          : null;
 
   return (
     <div>
@@ -393,12 +397,12 @@ function Detail({ p }: { p: PengajuanDetail }) {
                 <Button varian="kedua" ikon={<Undo2 className="size-4" />} onClick={() => setModal('kembalikan')}>
                   Kembalikan
                 </Button>
-                <Button ikon={<Send className="size-4" />} onClick={() => setModal('teruskan')} disabled={!k.semuaSesuai}>
-                  Teruskan ke MDK
+                <Button ikon={<ClipboardCheck className="size-4" />} onClick={() => setModal('verifikasi')} disabled={!k.semuaSesuai}>
+                  Verifikasi
                 </Button>
               </>
             )}
-            {pum && p.status === 'diajukan_mdk' && (
+            {pum && p.status === 'diverifikasi_pum' && (
               <>
                 <Menu
                   pemicu={
@@ -414,8 +418,32 @@ function Detail({ p }: { p: PengajuanDetail }) {
                     Kembalikan ke pengaju
                   </MenuItem>
                 </Menu>
-                <Button varian="sukses" ikon={<ReceiptText className="size-4" />} onClick={() => setModal('selesai')}>
+                <Button ikon={<ReceiptText className="size-4" />} onClick={() => setModal('ajukan-mdk')}>
                   Input No. Invoice MDK
+                </Button>
+              </>
+            )}
+            {pum && p.status === 'diajukan_mdk' && (
+              <>
+                <Menu
+                  pemicu={
+                    <Button varian="kedua" ikon={<Ellipsis className="size-4" />}>
+                      Aksi PUM
+                    </Button>
+                  }
+                >
+                  <MenuItem ikon={<ReceiptText />} onSelect={() => setModal('ubah')}>
+                    Ubah data invoice
+                  </MenuItem>
+                  <MenuItem ikon={<FolderKanban />} onSelect={() => setModal('data-pum')}>
+                    Ubah project costing / task name
+                  </MenuItem>
+                  <MenuItem ikon={<Undo2 />} onSelect={() => setModal('kembalikan')}>
+                    Kembalikan ke pengaju
+                  </MenuItem>
+                </Menu>
+                <Button varian="sukses" ikon={<BadgeCheck className="size-4" />} onClick={() => setModal('selesai')}>
+                  Selesai
                 </Button>
               </>
             )}
@@ -506,6 +534,26 @@ function Detail({ p }: { p: PengajuanDetail }) {
         </div>
       )}
 
+      {p.status === 'diverifikasi_pum' && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mb-5 flex flex-col gap-3 rounded-2xl bg-cyan-500/10 px-4 py-4 ring-1 ring-cyan-600/25 sm:flex-row sm:items-center"
+        >
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-cyan-600 text-white shadow-lg shadow-cyan-600/30">
+            <ClipboardCheck className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1 text-sm">
+            <p className="font-bold text-fg">Diverifikasi PUM — menunggu input invoice MDK</p>
+            <p className="text-xs text-fg-muted">
+              Oleh {p.diverifikasi_by_nama ?? 'PUM'} · {formatWaktu(p.diverifikasi_at)}. PUM menginput No. Invoice untuk
+              mengajukan pengajuan ini ke MDK.
+            </p>
+            {p.catatan_pum && <p className="mt-1 text-xs text-fg">Catatan PUM: {p.catatan_pum}</p>}
+          </div>
+        </motion.div>
+      )}
+
       {p.status === 'diajukan_mdk' && (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
@@ -516,12 +564,16 @@ function Detail({ p }: { p: PengajuanDetail }) {
             <Hourglass className="size-5" />
           </span>
           <div className="min-w-0 flex-1 text-sm">
-            <p className="font-bold text-fg">Disetujui PUM & diteruskan ke MDK — menunggu invoice</p>
-            <p className="text-xs text-fg-muted">
-              Oleh {p.diteruskan_by_nama ?? 'PUM'} · {formatWaktu(p.diteruskan_at)}. MDK memproses di luar sistem; PUM akan
-              menginput No. Invoice setelah invoice diterima.
+            <p className="text-xs font-bold tracking-wider text-violet-800 uppercase dark:text-violet-300">
+              Diajukan ke MDK · menunggu verifikasi MDK
             </p>
-            {p.catatan_pum && <p className="mt-1 text-xs text-fg">Catatan PUM: {p.catatan_pum}</p>}
+            <p className="font-mono text-lg font-bold break-all text-fg">{p.no_invoice_mdk}</p>
+            <p className="text-xs text-fg-muted">
+              Tanggal invoice {formatTanggal(p.tanggal_invoice_mdk)} · diinput {p.diajukan_mdk_by_nama ?? 'PUM'} ·{' '}
+              {formatWaktu(p.diajukan_mdk_at)}. MDK memproses di luar sistem; PUM menekan <b className="text-fg">Selesai</b>{' '}
+              setelah proses di MDK selesai.
+            </p>
+            {p.catatan_pum && <p className="mt-1 text-xs text-fg">Catatan: {p.catatan_pum}</p>}
           </div>
         </motion.div>
       )}
@@ -533,7 +585,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
           className="mb-5 flex flex-col gap-3 rounded-2xl bg-emerald-500/10 px-4 py-4 ring-1 ring-emerald-500/25 sm:flex-row sm:items-center"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/30">
-            <ReceiptText className="size-5" />
+            <BadgeCheck className="size-5" />
           </span>
           <div className="min-w-0 flex-1 text-sm">
             <p className="text-xs font-bold tracking-wider text-emerald-800 uppercase dark:text-emerald-300">
@@ -541,7 +593,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
             </p>
             <p className="font-mono text-lg font-bold break-all text-fg">{p.no_invoice_mdk}</p>
             <p className="text-xs text-fg-muted">
-              Tanggal invoice {formatTanggal(p.tanggal_invoice_mdk)} · diinput {p.diproses_by_nama ?? 'PUM'} ·{' '}
+              Tanggal invoice {formatTanggal(p.tanggal_invoice_mdk)} · ditandai selesai oleh {p.diproses_by_nama ?? 'PUM'} ·{' '}
               {formatWaktu(p.diproses_at)}
             </p>
             {p.catatan_pum && <p className="mt-1 text-xs text-fg">Catatan: {p.catatan_pum}</p>}
@@ -719,15 +771,16 @@ function Detail({ p }: { p: PengajuanDetail }) {
                       <>
                         <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
                         <span>
-                          <b>Semua berkas wajib sesuai.</b> Setujui & teruskan ke MDK untuk diproses invoice-nya.
+                          <b>Semua berkas wajib sesuai.</b> Verifikasi pengajuan ini, lalu input No. Invoice untuk mengajukan
+                          ke MDK.
                         </span>
                       </>
                     ) : (
                       <>
                         <Info className="mt-0.5 size-4 shrink-0 text-fg-muted" />
                         <span className="text-fg-muted">
-                          Centang <b className="text-fg">{k.total - k.sesuai} berkas lagi</b> sebagai “Sesuai” untuk dapat meneruskan
-                          ke MDK{k.revisi > 0 ? ', atau kembalikan ke pengaju karena ada berkas yang perlu direvisi' : ''}.
+                          Centang <b className="text-fg">{k.total - k.sesuai} berkas lagi</b> sebagai “Sesuai” untuk dapat
+                          memverifikasi{k.revisi > 0 ? ', atau kembalikan ke pengaju karena ada berkas yang perlu direvisi' : ''}.
                         </span>
                       </>
                     )}
@@ -736,8 +789,8 @@ function Detail({ p }: { p: PengajuanDetail }) {
                     <Button varian="kedua" ikon={<Undo2 className="size-4" />} onClick={() => setModal('kembalikan')}>
                       Kembalikan ke pengaju
                     </Button>
-                    <Button ikon={<Send className="size-4" />} disabled={!k.semuaSesuai} onClick={() => setModal('teruskan')}>
-                      Setujui & teruskan ke MDK
+                    <Button ikon={<ClipboardCheck className="size-4" />} disabled={!k.semuaSesuai} onClick={() => setModal('verifikasi')}>
+                      Verifikasi pengajuan
                     </Button>
                   </div>
                 </div>
@@ -801,9 +854,15 @@ function Detail({ p }: { p: PengajuanDetail }) {
         </GlassCard>
       </div>
 
-      <TeruskanModal p={p} open={modal === 'teruskan'} onOpenChange={(o) => !o && setModal(null)} />
+      <VerifikasiModal p={p} open={modal === 'verifikasi'} onOpenChange={(o) => !o && setModal(null)} />
       <DataPumModal p={p} open={modal === 'data-pum'} onOpenChange={(o) => !o && setModal(null)} />
-      <InvoiceModal p={p} open={modal === 'selesai' || modal === 'ubah'} mode={modal === 'ubah' ? 'ubah' : 'selesai'} onOpenChange={(o) => !o && setModal(null)} />
+      <InvoiceModal
+        p={p}
+        open={modal === 'ajukan-mdk' || modal === 'ubah'}
+        mode={modal === 'ubah' ? 'ubah' : 'ajukan'}
+        onOpenChange={(o) => !o && setModal(null)}
+      />
+      <SelesaiModal p={p} open={modal === 'selesai'} onOpenChange={(o) => !o && setModal(null)} />
       <CatatanModal
         p={p}
         open={modal === 'kembalikan' || modal === 'batal-selesai'}
@@ -861,12 +920,21 @@ function KartuPum({ p, bisaDataPum, onUbahData }: { p: PengajuanDetail; bisaData
             {p.task_name ?? <span className="font-normal text-fg-subtle">Belum diisi</span>}
           </dd>
         </div>
+        {STATUS_LEWAT_VERIFIKASI.includes(p.status) && (
+          <div className="flex items-start justify-between gap-3">
+            <dt className="text-xs text-fg-muted">Diverifikasi PUM</dt>
+            <dd className="text-right text-sm font-semibold text-fg">
+              {p.diverifikasi_by_nama ?? '-'}
+              <span className="block text-xs font-normal text-fg-muted">{formatWaktu(p.diverifikasi_at)}</span>
+            </dd>
+          </div>
+        )}
         {(p.status === 'diajukan_mdk' || p.status === 'selesai') && (
           <div className="flex items-start justify-between gap-3">
-            <dt className="text-xs text-fg-muted">Diteruskan ke MDK</dt>
+            <dt className="text-xs text-fg-muted">Diajukan ke MDK</dt>
             <dd className="text-right text-sm font-semibold text-fg">
-              {p.diteruskan_by_nama ?? '-'}
-              <span className="block text-xs font-normal text-fg-muted">{formatWaktu(p.diteruskan_at)}</span>
+              {p.diajukan_mdk_by_nama ?? '-'}
+              <span className="block text-xs font-normal text-fg-muted">{formatWaktu(p.diajukan_mdk_at)}</span>
             </dd>
           </div>
         )}

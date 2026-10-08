@@ -2,7 +2,7 @@ import { centangSesuai, expect, keluarAPI, masukAPI, pilihPegawai, test, unggahB
 
 const BERKAS_KONSUMSI = ['notulen', 'undangan', 'invoice', 'daftar_hadir'];
 
-test('alur lengkap Konsumsi: rekening → ajukan ke PUM → centang berkas → teruskan ke MDK (project/task dari master) → invoice → sudah dibayarkan', async ({ page }) => {
+test('alur lengkap Konsumsi: rekening → ajukan ke PUM → centang berkas → verifikasi (project/task dari master) → invoice/ajukan ke MDK → selesai (paid) → sudah dibayarkan', async ({ page }) => {
   const nama = `Rapat Uji E2E ${Date.now()}`;
 
   // 1. Operator membuat draft
@@ -64,17 +64,21 @@ test('alur lengkap Konsumsi: rekening → ajukan ke PUM → centang berkas → t
   await kartu.getByRole('link', { name: 'Periksa berkas' }).click();
   await expect(page).toHaveURL(new RegExp(`/pengajuan/${id}$`));
 
-  // 5. Belum bisa diteruskan sebelum semua berkas dicentang sesuai
-  const teruskanHeader = page.getByRole('button', { name: 'Teruskan ke MDK', exact: true });
-  await expect(teruskanHeader).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Setujui & teruskan ke MDK' })).toBeDisabled();
+  // 5. Stepper 5 tahap; belum bisa diverifikasi sebelum semua berkas dicentang sesuai
+  const tahapan = page.getByRole('list', { name: 'Tahapan pengajuan' });
+  await expect(tahapan.getByRole('listitem')).toHaveText([/^Draft dibuat/, /^Diajukan ke PUM/, /^Verifikasi PUM/, /^Diajukan ke MDK/, /^Paid/]);
+  const tahapAktif = tahapan.locator('[aria-current="step"]');
+  await expect(tahapAktif).toContainText('Diajukan ke PUM');
+  const verifikasiHeader = page.getByRole('button', { name: 'Verifikasi', exact: true });
+  await expect(verifikasiHeader).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Verifikasi pengajuan' })).toBeDisabled();
   for (const jenis of BERKAS_KONSUMSI) await centangSesuai(page, jenis);
   await expect(page.getByTestId('kartu-pum')).toContainText('Semua berkas sesuai');
   await expect(page.getByTestId('aksi-pum')).toContainText('Semua berkas wajib sesuai.');
 
-  // 6. Teruskan ke MDK dengan project costing & task name
-  await teruskanHeader.click();
-  const dialog = page.getByRole('dialog', { name: 'Setujui & teruskan ke MDK' });
+  // 6. Verifikasi PUM dengan project costing & task name
+  await verifikasiHeader.click();
+  const dialog = page.getByRole('dialog', { name: 'Verifikasi pengajuan' });
   await expect(dialog).toContainText('Semua berkas wajib sudah dicentang sesuai (4/4)');
   // Project dipilih lewat kotak cari (master Kasubdit); task Konsumsi project itu terisi otomatis
   await dialog.getByRole('combobox', { name: 'Project Costing' }).click();
@@ -88,18 +92,35 @@ test('alur lengkap Konsumsi: rekening → ajukan ke PUM → centang berkas → t
   await page.getByLabel('Cari task').fill('honor');
   await expect(page.getByText('Tidak ada yang cocok di daftar.')).toBeVisible();
   await page.keyboard.press('Escape');
-  await dialog.getByRole('button', { name: 'Teruskan ke MDK' }).click();
+  await dialog.getByRole('button', { name: 'Verifikasi', exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText('Disetujui PUM & diteruskan ke MDK — menunggu invoice')).toBeVisible();
+  await expect(page.getByText('Diverifikasi PUM — menunggu input invoice MDK')).toBeVisible();
+  await expect(tahapAktif).toContainText('Verifikasi PUM');
+  await expect(page.getByRole('button', { name: 'Selesai', exact: true })).toHaveCount(0); // invoice belum diinput
   await expect(page.getByTestId('kartu-pum')).toContainText('D0030.09.01.6.002:Koordinasi Tata Kelola Pengadaan');
   await expect(page.getByTestId('kartu-pum')).toContainText('723207_Beban Konsumsi');
 
-  // 7. Invoice dari MDK (di luar sistem) diinput PUM → selesai (paid)
+  // 7. PUM menginput No. Invoice → Diajukan ke MDK, menunggu verifikasi MDK (BELUM selesai)
   await page.getByRole('button', { name: 'Input No. Invoice MDK' }).click();
-  await page.locator('#no_invoice_mdk').fill('MDK/INV/E2E/0001');
-  await page.getByRole('button', { name: 'Simpan invoice — selesai (paid)' }).click();
+  const dInvoice = page.getByRole('dialog', { name: 'Input No. Invoice MDK' });
+  await dInvoice.locator('#no_invoice_mdk').fill('MDK/INV/E2E/0001');
+  await dInvoice.getByRole('button', { name: 'Simpan invoice & ajukan ke MDK' }).click();
+  await expect(dInvoice).toBeHidden();
+  await expect(page.getByText('Diajukan ke MDK · menunggu verifikasi MDK')).toBeVisible();
   await expect(page.getByText('MDK/INV/E2E/0001').first()).toBeVisible();
-  await expect(page.getByText('Selesai (Paid)').first()).toBeVisible();
+  await expect(tahapAktif).toContainText('Diajukan ke MDK');
+  await expect(tahapan).toContainText('Menunggu verifikasi MDK');
+  expect(((await (await page.request.get(`/api/pengajuan/${id}`)).json()) as { status: string }).status).toBe('diajukan_mdk');
+
+  // 7a. Setelah proses di MDK selesai, PUM menekan Selesai → paid
+  await page.getByRole('button', { name: 'Selesai', exact: true }).click();
+  const dSelesai = page.getByRole('dialog', { name: 'Tandai selesai (paid)?' });
+  await expect(dSelesai).toContainText('MDK/INV/E2E/0001');
+  await dSelesai.getByRole('button', { name: 'Ya, selesai (paid)' }).click();
+  await expect(dSelesai).toBeHidden();
+  await expect(page.getByText('Selesai (paid) · No. Invoice MDK')).toBeVisible();
+  await expect(tahapAktif).toContainText('Paid');
+  await expect(page.getByRole('button', { name: 'Selesai', exact: true })).toHaveCount(0);
 
   // 7b. PUM menandai uang sudah dibayarkan ke pemilik uang (tombol di dekat "Uang siapa")
   await uangSiapa.getByRole('button', { name: 'Sudah dibayarkan' }).click();
@@ -115,7 +136,8 @@ test('alur lengkap Konsumsi: rekening → ajukan ke PUM → centang berkas → t
   await page.goto('/');
   await page.getByRole('button', { name: /^Notifikasi, \d+ belum dibaca$/ }).click();
   const panel = page.getByRole('dialog', { name: 'Notifikasi' });
-  await expect(panel.getByRole('link').filter({ hasText: kode }).filter({ hasText: 'Berkas disetujui PUM & diteruskan ke MDK' })).toBeVisible();
+  await expect(panel.getByRole('link').filter({ hasText: kode }).filter({ hasText: 'Berkas diverifikasi PUM' })).toBeVisible();
+  await expect(panel.getByRole('link').filter({ hasText: kode }).filter({ hasText: 'Diajukan ke MDK, menunggu verifikasi MDK' })).toBeVisible();
   await expect(panel.getByRole('link').filter({ hasText: kode }).filter({ hasText: 'Uang konsumsi sudah dibayarkan' })).toBeVisible();
   await panel.getByRole('link').filter({ hasText: kode }).filter({ hasText: 'Pengajuan selesai (paid)' }).click();
   await expect(page).toHaveURL(new RegExp(`/pengajuan/${id}$`));
@@ -197,7 +219,7 @@ test('Pimpinan hanya memantau: tanpa menu & tombol aksi', async ({ page }) => {
   const id = (await r.json()).data[0].id as number;
   await page.goto(`/pengajuan/${id}`);
   await expect(page.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
-  for (const tombol of ['Ajukan ke PUM', 'Tarik kembali', 'Kembalikan', 'Teruskan ke MDK', 'Input No. Invoice MDK', 'Aksi PUM']) {
+  for (const tombol of ['Ajukan ke PUM', 'Tarik kembali', 'Kembalikan', 'Verifikasi', 'Input No. Invoice MDK', 'Selesai', 'Aksi PUM']) {
     await expect(page.getByRole('button', { name: tombol, exact: true })).toHaveCount(0);
   }
   await expect(page.getByRole('link', { name: 'Ubah', exact: true })).toHaveCount(0);
@@ -211,4 +233,41 @@ test('Pimpinan hanya memantau: tanpa menu & tombol aksi', async ({ page }) => {
   // Draft tidak terlihat oleh pimpinan
   const draft = await page.request.get('/api/pengajuan?status=draft');
   expect((await draft.json()).total).toBe(0);
+});
+
+test('Halaman Verifikasi PUM: input invoice → tab Di MDK → Selesai (paid)', async ({ page }) => {
+  await masukAPI(page, 'pum');
+  const r = await page.request.get('/api/pengajuan?status=diverifikasi_pum&sort=antrian_verifikasi&limit=1');
+  const { id, kode } = (await r.json()).data[0] as { id: number; kode: string };
+
+  // Tab "Input invoice": pengajuan yang sudah diverifikasi PUM
+  await page.goto('/verifikasi?tab=invoice');
+  await expect(page.getByRole('radio', { name: /Input invoice/ })).toBeChecked();
+  const kartu = page.locator(`[data-kode="${kode}"]`);
+  await expect(kartu).toContainText(/Diverifikasi hari ini|Menunggu invoice \d+ hari/);
+  await kartu.getByRole('button', { name: 'Input invoice' }).click();
+  const dInvoice = page.getByRole('dialog', { name: 'Input No. Invoice MDK' });
+  await dInvoice.getByRole('button', { name: 'Simpan invoice & ajukan ke MDK' }).click();
+  await expect(dInvoice.getByText('No. Invoice MDK wajib diisi')).toBeVisible();
+  await dInvoice.locator('#no_invoice_mdk').fill('MDK/INV/E2E/0002');
+  await dInvoice.getByRole('button', { name: 'Simpan invoice & ajukan ke MDK' }).click();
+  await expect(dInvoice).toBeHidden();
+  await expect(kartu).toHaveCount(0);
+
+  // Tab "Di MDK": menunggu verifikasi MDK, tombol Selesai
+  await page.getByRole('radio', { name: /Di MDK/ }).click();
+  await expect(page).toHaveURL(/tab=mdk/);
+  await expect(kartu).toContainText('MDK/INV/E2E/0002');
+  await expect(kartu).toContainText('Diajukan ke MDK hari ini');
+  await kartu.getByRole('button', { name: 'Selesai' }).click();
+  const dSelesai = page.getByRole('dialog', { name: 'Tandai selesai (paid)?' });
+  await dSelesai.getByRole('button', { name: 'Ya, selesai (paid)' }).click();
+  await expect(dSelesai).toBeHidden();
+  await expect(kartu).toHaveCount(0);
+
+  await page.getByRole('radio', { name: /Selesai \(Paid\)/ }).click();
+  await expect(kartu).toContainText('MDK/INV/E2E/0002');
+  const p = (await (await page.request.get(`/api/pengajuan/${id}`)).json()) as { status: string; riwayat: { aksi: string }[] };
+  expect(p.status).toBe('selesai');
+  expect(p.riwayat.slice(0, 2).map((x) => x.aksi)).toEqual(['selesai', 'diajukan_mdk']);
 });

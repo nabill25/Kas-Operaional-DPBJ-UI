@@ -11,8 +11,9 @@ tambahkan ke bagian "Pertanyaan Terbuka" dan tanyakan.
 
 Sistem web untuk **mencatat dan melacak (tracking) kas operasional DPBJ Universitas Indonesia**:
 pengajuan biaya **Konsumsi** (rapat) dan **Transport** (Rumah Tangga & Perjadin), kelengkapan
-berkasnya, **pemeriksaan berkas oleh PUM**, penerusan ke **MDK (di luar sistem)**, input **No. Invoice MDK**
-oleh PUM hingga **selesai (paid)**, notifikasi otomatis, serta **rekap & laporan PDF/Excel**.
+berkasnya, **pemeriksaan & verifikasi berkas oleh PUM**, pengajuan ke **MDK (di luar sistem)** dengan input
+**No. Invoice MDK** oleh PUM, hingga PUM menandai **selesai (paid)** setelah proses MDK selesai, notifikasi otomatis,
+serta **rekap & laporan PDF/Excel**.
 
 Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liquid glass, kuning–biru dongker UI).
 
@@ -24,11 +25,12 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 | Kategori | `konsumsi`, `rumah_tangga`, `perjadin` (dua terakhir = jenis Transport) |
 | KO / LS | Dropdown mekanisme pembayaran, disimpan apa adanya `KO` / `LS` (kepanjangan belum dikonfirmasi — lihat §12) |
 | Operator / Pengaju | Pembuat pengajuan: mengisi data, mengunggah berkas, mengajukan ke PUM |
-| PUM | Pemeriksa di dalam sistem: mencentang berkas, mengembalikan, meneruskan ke MDK, menginput No. Invoice MDK |
-| MDK | Pihak **di luar sistem** yang menerbitkan invoice. Tidak punya akun & tidak ada tampilan input untuk MDK |
+| PUM | Pemeriksa di dalam sistem: mencentang berkas, mengembalikan, **memverifikasi**, menginput No. Invoice MDK (= mengajukan ke MDK), menekan **Selesai** setelah proses MDK selesai |
+| MDK | Pihak **di luar sistem** yang memverifikasi & membayar pengajuan yang invoice-nya diinput PUM. Tidak punya akun & tidak ada tampilan input untuk MDK |
+| Verifikasi PUM | Persetujuan PUM setelah semua berkas wajib dicentang sesuai → status `diverifikasi_pum` (label "Diverifikasi PUM"; tahap stepper "Verifikasi PUM") |
 | Pimpinan | Pemantau (hanya lihat): dashboard, daftar, detail, rekap & laporan |
 | Centang berkas | Hasil pemeriksaan PUM per berkas wajib: `sesuai` atau `revisi` (+ catatan) — tabel `cek_berkas` |
-| Project Costing / Task Name | Dua isian (opsional, maks. 150; kolom/API tetap `project_hosting` & `task_name`) yang diisi PUM saat/setelah meneruskan ke MDK. Dipilih lewat kotak cari dari **master Kasubdit** (`shared/project-task.ts`): project `<kode>:<nama>`, task `<kode>_<nama>`; teks lain tetap diterima |
+| Project Costing / Task Name | Dua isian (opsional, maks. 150; kolom/API tetap `project_hosting` & `task_name`) yang diisi PUM saat/setelah verifikasi. Dipilih lewat kotak cari dari **master Kasubdit** (`shared/project-task.ts`): project `<kode>:<nama>`, task `<kode>_<nama>`; teks lain tetap diterima |
 | Rekening | Bank & No. Rekening milik "uang siapa" (konsumsi, opsional) — tujuan pembayaran oleh PUM |
 | Sudah dibayarkan | Tanda PUM bahwa uang konsumsi sudah dibayarkan ke pemilik uang (`dibayar_at`/`dibayar_by`) |
 | Pegawai | Master data orang (punya `id` sendiri) → dipakai untuk "Uang siapa" & peserta transport, agar bisa **direkap per orang** |
@@ -47,7 +49,7 @@ wajib berpasangan; spasi/titik/strip pada nomor dibuang), mekanisme* `KO`/`LS`, 
 Catatan tetap di form & detail: "Jika bukan Bank Mandiri, biaya transfer akan dibebankan kepada pemilik rekening."
 (`CATATAN_BIAYA_TRANSFER`; ditonjolkan bila bank bukan Mandiri — `isBankMandiri`). Jenis konsumsi & rekening selalu `null`
 untuk transport; pengajuan lama boleh `null` (jenis wajib dipilih saat diedit). Perubahan jenis/rekening tercatat di riwayat `diubah`.
-**Sudah dibayarkan**: tombol PUM/admin di dekat nama "uang siapa" (status `diajukan_pum`, `diajukan_mdk`, `selesai`;
+**Sudah dibayarkan**: tombol PUM/admin di dekat nama "uang siapa" (status `diajukan_pum`, `diverifikasi_pum`, `diajukan_mdk`, `selesai`;
 boleh tanpa rekening, mis. tunai) → `dibayar_at`, `dibayar_by`, riwayat `dibayarkan` + notifikasi ke pengaju.
 Bisa dibatalkan (riwayat `dibayarkan_batal`, tanpa notifikasi). Tanda tetap tersimpan bila pengajuan kemudian dikembalikan.
 Berkas wajib: **Notula, Undangan, Invoice, Daftar Hadir**. Berkas tambahan: **Dokumen Lainnya** (bebas, banyak, beri nama).
@@ -83,20 +85,33 @@ Berkas wajib: **Surat Tugas, Laporan Kegiatan, Invoice Hotel, Invoice Tiket**.
                                                                                    │
    PUM: centang tiap berkas wajib  [Sesuai] / [Perlu revisi + catatan]             │
    PUM: Kembalikan (alasan wajib) ──► DIKEMBALIKAN ──(operator perbaiki)──► Ajukan ulang ke PUM
-   PUM: Teruskan ke MDK (hanya bila SEMUA berkas wajib dicentang sesuai;
-        isi Project Costing & Task Name — opsional) ──► DIAJUKAN KE MDK   (MDK di luar sistem)
-   PUM: Input No. Invoice dari MDK + tanggal ──► SELESAI (PAID)
-   PUM: Ubah data invoice (tetap SELESAI) · Batalkan selesai (alasan wajib) ──► DIAJUKAN KE MDK
-   PUM: dari DIAJUKAN KE MDK masih boleh Kembalikan ke pengaju (mis. ditolak MDK)
+   PUM: Verifikasi (hanya bila SEMUA berkas wajib dicentang sesuai;
+        isi Project Costing & Task Name — opsional) ──► DIVERIFIKASI PUM
+   PUM: Input No. Invoice MDK + tanggal ──► DIAJUKAN KE MDK   (menunggu verifikasi MDK, di luar sistem)
+   PUM: Selesai (setelah proses di MDK selesai) ──► SELESAI (PAID)
+   PUM: Ubah data invoice (DIAJUKAN KE MDK / SELESAI) · Batalkan selesai (alasan wajib) ──► DIAJUKAN KE MDK
+   PUM: dari DIVERIFIKASI PUM / DIAJUKAN KE MDK masih boleh Kembalikan ke pengaju (mis. ditolak MDK;
+        No. Invoice lama dihapus & dicatat di riwayat)
 ```
+
+Stepper detail (5 tahap, label persis permintaan pemilik project, Okt 2026):
+**Draft dibuat → Diajukan ke PUM → Verifikasi PUM → Diajukan ke MDK → Paid**. Tahap berjalan = status saat ini
+(`aria-current="step"`); dikembalikan = tahap 2 berwarna amber "Dikembalikan PUM".
 
 | Status (`status`) | Label UI | Arti | Bisa diedit pengaju? |
 |---|---|---|---|
 | `draft` | Draft | Disimpan, belum diajukan. **Tidak terlihat oleh PUM & pimpinan** | Ya |
 | `diajukan_pum` | Diajukan ke PUM | Menunggu pemeriksaan/centang berkas PUM | Tidak (boleh **tarik kembali**) |
 | `dikembalikan` | Dikembalikan | PUM minta revisi (`catatan_pum` + catatan per berkas) | Ya |
-| `diajukan_mdk` | Diajukan ke MDK | Diverifikasi PUM & diteruskan ke MDK, menunggu invoice | Tidak |
-| `selesai` | Selesai (Paid) | PUM sudah menginput **No. Invoice MDK** | Tidak |
+| `diverifikasi_pum` | Diverifikasi PUM | Semua berkas sesuai & diverifikasi PUM, menunggu input No. Invoice MDK | Tidak |
+| `diajukan_mdk` | Diajukan ke MDK | PUM sudah menginput **No. Invoice MDK**, menunggu verifikasi MDK (di luar sistem) | Tidak |
+| `selesai` | Selesai (Paid) | Proses MDK selesai; PUM menekan **Selesai** | Tidak |
+
+No. Invoice MDK terisi tepat pada status `diajukan_mdk` & `selesai`. Waktu & pelaku per tahap: `diajukan_at`,
+`diverifikasi_by/at`, `diajukan_mdk_by/at`, `diproses_by/at` (dikembalikan atau ditandai selesai).
+Data lama (alur 4 tahap sebelum Okt 2026, migrasi `2026-10-08-alur-verifikasi-mdk.sql`): "Teruskan ke MDK" = verifikasi
+(`diteruskan_by/at` disalin ke `diverifikasi_*`); "Diajukan ke MDK" lama tanpa invoice → `diverifikasi_pum`; pengajuan
+Selesai lama tetap Selesai (invoice dulu langsung menjadikan selesai; `diajukan_mdk_*` diisi dari `diproses_*`).
 
 Aturan centang berkas (`cek_berkas`):
 - Hanya PUM/admin, hanya saat status `diajukan_pum`, hanya jenis berkas **wajib** kategori tsb.
@@ -114,7 +129,7 @@ Notifikasi otomatis (in-app; **tanpa email/WA**):
 |---|---|
 | Diajukan / diajukan ulang ke PUM | Semua PUM aktif (bila tidak ada PUM aktif → admin) |
 | Dikembalikan (berisi alasan + daftar berkas revisi) | Pembuat pengajuan (bila nonaktif → semua operator aktif) |
-| Diteruskan ke MDK · Selesai (paid) · Selesai dibatalkan · Uang konsumsi sudah dibayarkan | Pembuat pengajuan (aturan sama) |
+| Diverifikasi PUM · Diajukan ke MDK (invoice diinput) · Selesai (paid) · Selesai dibatalkan · Uang konsumsi sudah dibayarkan | Pembuat pengajuan (aturan sama) |
 
 Pelaku aksi tidak menerima notifikasinya sendiri. UI: lonceng + jumlah belum dibaca (polling 30 detik), toast saat ada
 notifikasi baru, ringkasan "n notifikasi belum dibaca" sekali per tab setelah login, membuka detail pengajuan
@@ -129,9 +144,9 @@ otomatis menandai notifikasi pengajuan itu dibaca. Pimpinan tidak menerima notif
 | Buat / edit / hapus (draft & dikembalikan) | ✓ | ✗ | ✗ | ✓ |
 | Unggah / hapus berkas, tandai N/A (draft & dikembalikan) | ✓ | ✗ | ✗ | ✓ |
 | Ajukan / ajukan ulang ke PUM / tarik kembali | ✓ | ✗ | ✗ | ✓ |
-| Halaman **Verifikasi PUM**, centang berkas, kembalikan, teruskan ke MDK | ✗ | ✓ | ✗ | ✓ |
-| Isi/ubah Project Costing & Task Name (diajukan_pum, diajukan_mdk, selesai) | ✗ | ✓ | ✗ | ✓ |
-| Input / ubah No. Invoice MDK, batalkan selesai | ✗ | ✓ | ✗ | ✓ |
+| Halaman **Verifikasi PUM**, centang berkas, kembalikan, verifikasi | ✗ | ✓ | ✗ | ✓ |
+| Isi/ubah Project Costing & Task Name (diajukan_pum, diverifikasi_pum, diajukan_mdk, selesai) | ✗ | ✓ | ✗ | ✓ |
+| Input No. Invoice MDK (ajukan ke MDK), ubah invoice, tandai **Selesai**, batalkan selesai | ✗ | ✓ | ✗ | ✓ |
 | Tandai uang konsumsi "sudah dibayarkan" / batalkan | ✗ | ✓ | ✗ | ✓ |
 | Master Pegawai: lihat | ✓ | ✓ | ✓ | ✓ |
 | Master Pegawai: tambah/ubah | ✓ | ✗ | ✗ | ✓ |
@@ -163,7 +178,8 @@ Perubahan skema berikutnya = **file baru di `supabase/migrasi/`** (idempoten, ha
   lokasi_tujuan, mekanisme, jenis_uang (data lama), jenis_transport, **jenis_konsumsi**, uang_siapa_id→pegawai,
   **rekening_bank, rekening_nomor, dibayar_at, dibayar_by**→users, total BIGINT, catatan,
   berkas_na JSONB, berkas_terpenuhi/berkas_wajib (denormalisasi), status, no_invoice_mdk, tanggal_invoice_mdk,
-  catatan_pum, project_hosting, task_name, created_by, updated_by, diajukan_at, diteruskan_by/at, diproses_by/at, …)
+  catatan_pum, project_hosting, task_name, created_by, updated_by, diajukan_at, **diverifikasi_by/at, diajukan_mdk_by/at**,
+  diproses_by/at (dikembalikan / selesai), diteruskan_by/at (data lama), …)
 - `pengajuan_peserta` (pengajuan_id, pegawai_id, nilai, **uang_harian, uang_transport** (Perjadin; Rumah Tangga `null`), urutan)
   — UNIQUE(pengajuan_id, pegawai_id)
 - `berkas` (pengajuan_id, jenis, nama_berkas, nama_asli, **nama_file = kunci objek Storage** `<pengajuan_id>/<uuid>.<ext>`,
@@ -206,8 +222,9 @@ docs/          PANDUAN-UJI-MANUAL.md
 ```
 
 Endpoint alur (semua `/api/pengajuan/:id/...`): `POST ajukan`, `POST tarik`, `PUT cek-berkas` {jenis, status, catatan},
-`POST kembalikan` {catatan}, `POST teruskan` {project_hosting, task_name, catatan}, `PUT data-pum`,
-`POST selesai` & `PUT invoice` {no_invoice_mdk, tanggal_invoice_mdk, catatan}, `POST batal-selesai` {catatan},
+`POST kembalikan` {catatan}, `POST verifikasi` {project_hosting, task_name, catatan}, `PUT data-pum`,
+`POST ajukan-mdk` & `PUT invoice` {no_invoice_mdk, tanggal_invoice_mdk, catatan}, `POST selesai` (tanpa body),
+`POST batal-selesai` {catatan},
 `PUT dibayarkan` {dibayarkan: boolean} (konsumsi).
 Berkas: `POST berkas/siapkan` {jenis, nama_berkas?, nama_asli, ukuran} → URL unggah bertanda tangan; browser `PUT` file
 langsung ke Storage; `POST berkas/konfirmasi` {key, …} (server cek isi & ukuran lalu mencatat). `GET /api/berkas/:id/file`
@@ -249,7 +266,8 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 - Fixture E2E (`tests/e2e/fixtures.ts`) **menggagalkan test bila ada `console.error`/error JS** di browser.
   Respons 4xx yang disengaja ikut tercatat browser sebagai error → kosongkan `galat` setelahnya.
 - Kait test di UI: `data-berkas` + `data-keadaan` + `data-cek` (baris berkas), `data-kode` (kartu Verifikasi PUM),
-  `data-testid="kartu-pum" | "aksi-pum" | "catatan-pengembalian"`, `data-pendaftar` (baris pendaftar),
+  `data-testid="kartu-pum" | "aksi-pum" | "catatan-pengembalian"`, stepper = list "Tahapan pengajuan" + `aria-current="step"`,
+  `data-pendaftar` (baris pendaftar),
   `data-warna-opsi` + `data-terpilih` (tema), `data-jenis-konsumsi` (pilihan jenis konsumsi), `data-testid="uang-siapa"`
   (nama, rekening, tombol "Sudah dibayarkan"), `data-peserta` (rincian per orang di detail),
   id stabil pada input form (mis. `#peserta-0-nilai`, `#peserta-0-uang_harian`, `#peserta-0-uang_transport`,
@@ -271,7 +289,10 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
   Konsumsi `#eda100`/`#c98500`, Rumah Tangga `#2a78d6`/`#3987e5`, Perjadin `#1baf7a`/`#199e70` (light/dark).
   Kontras < 3:1 di light → wajib ada legenda + tampilan tabel (sudah ada). Teks tidak pernah memakai warna seri.
 - Status selalu **ikon + label** (bukan warna saja): Draft (abu), Diajukan ke PUM (biru), Dikembalikan (amber),
-  Diajukan ke MDK (ungu), Selesai (Paid) (hijau). Bahasa UI: **Indonesia**.
+  Diverifikasi PUM (cyan), Diajukan ke MDK (ungu), Selesai (Paid) (hijau). Bahasa UI: **Indonesia**.
+- Dashboard: baris KPI atas = urutan alur (Diajukan ke PUM → Diverifikasi PUM → Diajukan ke MDK → Selesai), baris bawah
+  = Dikembalikan, Berkas belum lengkap, Draft/Rata-rata. Verifikasi PUM: tab Perlu diperiksa · Input invoice · Di MDK ·
+  Dikembalikan · Selesai (Paid).
 - Tampilan per peran: menu & tombol aksi hanya muncul untuk peran yang berhak (lihat §5); pimpinan baca-saja.
 - **Kelengkapan berkas = tabel** (Berkas & file · Pemeriksaan PUM · Aksi), kolom mengikuti lebar panel (container query:
   3 kolom ≥ 42rem, 2 kolom ≥ 28rem, bertumpuk di HP). Aksi PUM: centang **Sesuai** + **Revisi** (retur, dengan catatan);
@@ -330,7 +351,10 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
    sebelumnya "Project Hosting" — kolom DB/API tetap `project_hosting`). Perlu wajib diisi?
 12. **Sudah dibayarkan** diasumsikan boleh ditandai PUM sejak status Diajukan ke PUM sampai Selesai. Perlu dibatasi
     (mis. hanya setelah Selesai)? Perlu kolom pembayaran di Excel/rekap?
-8. **Teruskan ke MDK** diasumsikan hanya boleh bila **semua berkas wajib dicentang sesuai**. Benar?
+13. **Alur 5 tahap** (Okt 2026) — asumsi: label status "Diverifikasi PUM" (tahap stepper "Verifikasi PUM"), status
+    "Selesai (Paid)" (tahap stepper "Paid"); Kembalikan dari Diajukan ke MDK menghapus No. Invoice (tercatat di riwayat);
+    Batalkan selesai → kembali Diajukan ke MDK dengan invoice tetap; pengajuan yang sudah Selesai pada alur lama tetap Selesai.
+8. **Verifikasi** (dulu "Teruskan ke MDK") diasumsikan hanya boleh bila **semua berkas wajib dicentang sesuai**. Benar?
 9. **Notifikasi** saat ini hanya di dalam aplikasi (lonceng + toast). Perlu email/WhatsApp? Perlu notifikasi untuk pimpinan?
 10. **Pimpinan** diasumsikan hanya memantau (tanpa aksi & tanpa melihat draft). Perlu persetujuan pimpinan di alur?
 11. Data lama (sebelum revisi) dimigrasikan: akun `mdk` → `pum`, status `diajukan` → `diajukan_pum`, pengajuan

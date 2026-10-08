@@ -2,8 +2,8 @@
 
 Sistem web untuk **mencatat, mengajukan, dan melacak kas operasional DPBJ UI**:
 pengajuan **Konsumsi** (rapat) dan **Transport** (Rumah Tangga & Perjadin), kelengkapan berkas,
-pemeriksaan & centang berkas oleh **PUM**, penerusan ke **MDK** (di luar sistem) hingga **No. Invoice MDK**
-diinput (**paid**), notifikasi otomatis, dashboard, rekap per pengajuan/per orang, serta unduh laporan **PDF** dan **Excel**.
+pemeriksaan & centang berkas oleh **PUM**, verifikasi PUM, pengajuan ke **MDK** (di luar sistem) dengan **No. Invoice MDK**,
+hingga **Selesai (Paid)** setelah proses MDK selesai, notifikasi otomatis, dashboard, rekap per pengajuan/per orang, serta unduh laporan **PDF** dan **Excel**.
 
 > Acuan aturan bisnis, alur, model data, dan keputusan desain ada di **[CLAUDE.md](CLAUDE.md)**.
 > Skenario uji manual ada di **[docs/PANDUAN-UJI-MANUAL.md](docs/PANDUAN-UJI-MANUAL.md)**.
@@ -17,11 +17,11 @@ diinput (**paid**), notifikasi otomatis, dashboard, rekap per pengajuan/per oran
   Total dijumlahkan otomatis & bisa direkap per orang.
 - **Kelengkapan berkas** dalam bentuk tabel (berkas & file · pemeriksaan PUM · aksi): unggah (klik / seret-lepas) PDF,
   gambar, Word, Excel; pratinjau; tandai "tidak diperlukan"; dokumen tambahan bebas.
-- **Alur status**: Draft → **Diajukan ke PUM** → (Dikembalikan → Diajukan ulang) → **Diajukan ke MDK** → **Selesai (Paid)**.
-  Riwayat (audit trail) lengkap.
-- **Verifikasi PUM**: centang tiap berkas wajib (*Sesuai* / *Revisi* + catatan), kembalikan dengan alasan, teruskan ke MDK
+- **Alur status** (stepper 5 tahap): Draft → **Diajukan ke PUM** → (Dikembalikan → Diajukan ulang) → **Diverifikasi PUM** →
+  **Diajukan ke MDK** (No. Invoice diinput, menunggu verifikasi MDK) → **Selesai (Paid)**. Riwayat (audit trail) lengkap.
+- **Verifikasi PUM**: centang tiap berkas wajib (*Sesuai* / *Revisi* + catatan), kembalikan dengan alasan, **Verifikasi**
   (hanya bila semua berkas sesuai) sambil memilih **Project Costing** & **Task Name** dari kotak cari (master Kasubdit),
-  lalu input No. Invoice MDK.
+  input No. Invoice MDK (= diajukan ke MDK), lalu tekan **Selesai** setelah proses di MDK selesai.
 - **Notifikasi otomatis** di aplikasi (lonceng + toast).
 - **Peran**: Operator/Pengaju, PUM, Pimpinan (hanya memantau), Administrator. Pendaftaran akun mandiri dengan persetujuan admin.
 - **Dashboard**, **rekap & laporan** (PDF dan Excel), tema warna (Biru Dongker DPBJ / Kuning UI), terang/gelap, responsif hingga ponsel.

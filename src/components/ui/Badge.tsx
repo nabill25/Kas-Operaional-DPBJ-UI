@@ -1,4 +1,4 @@
-import { BadgeCheck, Car, Coffee, Hourglass, PencilLine, Plane, Send, Undo2, type LucideIcon } from 'lucide-react';
+import { BadgeCheck, Car, ClipboardCheck, Coffee, Hourglass, PencilLine, Plane, Send, Undo2, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { KATEGORI_INFO, STATUS_INFO, type Kategori, type Mekanisme, type Status } from '../../../shared/constants';
 import { cn } from '../../lib/cn';
@@ -7,6 +7,7 @@ export const IKON_STATUS: Record<Status, LucideIcon> = {
   draft: PencilLine,
   diajukan_pum: Send,
   dikembalikan: Undo2,
+  diverifikasi_pum: ClipboardCheck,
   diajukan_mdk: Hourglass,
   selesai: BadgeCheck,
 };
@@ -15,6 +16,8 @@ const GAYA_STATUS: Record<Status, string> = {
   draft: 'bg-slate-500/10 text-slate-600 ring-slate-500/20 dark:bg-slate-400/10 dark:text-slate-300 dark:ring-slate-400/20',
   diajukan_pum:
     'bg-blue-500/10 text-blue-700 ring-blue-500/20 dark:bg-blue-400/12 dark:text-blue-300 dark:ring-blue-400/25',
+  diverifikasi_pum:
+    'bg-cyan-500/10 text-cyan-800 ring-cyan-600/25 dark:bg-cyan-400/12 dark:text-cyan-300 dark:ring-cyan-400/25',
   diajukan_mdk:
     'bg-violet-500/10 text-violet-700 ring-violet-500/20 dark:bg-violet-400/12 dark:text-violet-300 dark:ring-violet-400/25',
   dikembalikan:

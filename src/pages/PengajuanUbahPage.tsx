@@ -54,9 +54,11 @@ export default function PengajuanUbahPage() {
             deskripsi={
               p.status === 'diajukan_pum'
                 ? 'Pengajuan sedang diperiksa PUM. Tarik kembali pengajuan terlebih dahulu bila perlu mengubah data.'
-                : p.status === 'diajukan_mdk'
-                  ? 'Pengajuan sudah diverifikasi PUM dan diteruskan ke MDK sehingga tidak dapat diubah.'
-                  : 'Pengajuan yang sudah selesai (paid) tidak dapat diubah.'
+                : p.status === 'diverifikasi_pum'
+                  ? 'Pengajuan sudah diverifikasi PUM sehingga tidak dapat diubah.'
+                  : p.status === 'diajukan_mdk'
+                    ? 'Pengajuan sudah diverifikasi PUM dan diajukan ke MDK sehingga tidak dapat diubah.'
+                    : 'Pengajuan yang sudah selesai (paid) tidak dapat diubah.'
             }
             aksi={<TautanTombol to={`/pengajuan/${p.id}`}>Kembali ke detail</TautanTombol>}
           />

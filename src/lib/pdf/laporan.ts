@@ -10,6 +10,7 @@ import {
   KATEGORI_LIST,
   MEKANISME_LIST,
   STATUS_INFO,
+  STATUS_LEWAT_VERIFIKASI,
   STATUS_LIST,
   AKSI_RIWAYAT_LABEL,
   isBankMandiri,
@@ -556,7 +557,8 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
 
   y = cukupRuang(doc, y, 26);
   y = judulBagian(doc, 'Proses PUM & MDK', y);
-  const lewatPum = p.status === 'diajukan_mdk' || p.status === 'selesai';
+  const lewatPum = STATUS_LEWAT_VERIFIKASI.includes(p.status);
+  const diMdk = p.status === 'diajukan_mdk' || p.status === 'selesai';
   const proses: [string, string][] = [
     ['Status', STATUS_INFO[p.status].label],
     ['Diajukan ke PUM', p.diajukan_at ? formatWaktu(p.diajukan_at) : 'Belum diajukan'],
@@ -567,16 +569,19 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
     proses.push(['Alasan pengembalian', b(p.catatan_pum)]);
   }
   if (lewatPum) {
-    proses.push(['Diteruskan ke MDK', `${b(p.diteruskan_by_nama)} - ${formatWaktu(p.diteruskan_at)}`]);
+    proses.push(['Diverifikasi PUM', `${b(p.diverifikasi_by_nama)} - ${formatWaktu(p.diverifikasi_at)}`]);
   }
   if (lewatPum || p.project_hosting || p.task_name) {
     proses.push(['Project costing', b(p.project_hosting)]);
     proses.push(['Task name', b(p.task_name)]);
   }
-  if (p.status === 'selesai') {
+  if (diMdk) {
     proses.push(['No. Invoice MDK', b(p.no_invoice_mdk)]);
     proses.push(['Tanggal invoice', formatTanggal(p.tanggal_invoice_mdk)]);
-    proses.push(['Invoice diinput oleh', `${b(p.diproses_by_nama)} - ${formatWaktu(p.diproses_at)}`]);
+    proses.push(['Diajukan ke MDK', `${b(p.diajukan_mdk_by_nama)} - ${formatWaktu(p.diajukan_mdk_at)}`]);
+  }
+  if (p.status === 'selesai') {
+    proses.push(['Selesai (paid)', `${b(p.diproses_by_nama)} - ${formatWaktu(p.diproses_at)}`]);
   }
   if (lewatPum && p.catatan_pum) proses.push(['Catatan PUM', p.catatan_pum]);
   tabel(doc, {
@@ -613,8 +618,8 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string)
   const ttd = [
     { judul: 'Diajukan oleh,', nama: p.created_by_nama, peran: 'Operator / Pengaju DPBJ' },
     {
-      judul: 'Diverifikasi & diteruskan ke MDK,',
-      nama: p.status === 'diajukan_mdk' || p.status === 'selesai' ? (p.diteruskan_by_nama ?? '') : '',
+      judul: 'Diverifikasi PUM,',
+      nama: STATUS_LEWAT_VERIFIKASI.includes(p.status) ? (p.diverifikasi_by_nama ?? '') : '',
       peran: 'PUM',
     },
   ];

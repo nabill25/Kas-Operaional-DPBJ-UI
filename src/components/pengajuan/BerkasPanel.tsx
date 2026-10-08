@@ -67,8 +67,10 @@ function teksTerkunci(p: PengajuanDetail, bisaCek: boolean): string | null {
       return bisaCek
         ? null
         : 'Pengajuan sedang diperiksa PUM — berkas terkunci. Tarik kembali pengajuan bila perlu mengubah berkas.';
+    case 'diverifikasi_pum':
+      return 'Berkas sudah diverifikasi PUM — berkas terkunci.';
     case 'diajukan_mdk':
-      return 'Berkas sudah diverifikasi PUM dan diteruskan ke MDK — berkas terkunci.';
+      return 'Berkas sudah diverifikasi PUM dan diajukan ke MDK — berkas terkunci.';
     case 'selesai':
       return 'Pengajuan sudah selesai (paid) — berkas terkunci.';
     default:
@@ -221,7 +223,7 @@ export function BerkasPanel({
           <CircleCheck className="mt-px size-4 shrink-0 text-kuning-700 dark:text-kuning-300" />
           <p>
             Buka setiap berkas, lalu centang <b>Sesuai</b> bila sudah benar atau klik <b>Revisi</b> (retur) beserta catatannya.
-            Pengajuan dapat diteruskan ke MDK setelah semua berkas wajib dicentang sesuai.
+            Pengajuan dapat diverifikasi setelah semua berkas wajib dicentang sesuai.
           </p>
         </div>
       )}

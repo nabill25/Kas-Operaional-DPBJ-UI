@@ -43743,14 +43743,16 @@ var KATEGORI_INFO = {
     deskripsi: "Perjalanan dinas dalam / luar kota (maks. 2 orang)"
   }
 };
-var STATUS_LIST = ["draft", "diajukan_pum", "dikembalikan", "diajukan_mdk", "selesai"];
+var STATUS_LIST = ["draft", "diajukan_pum", "dikembalikan", "diverifikasi_pum", "diajukan_mdk", "selesai"];
 var STATUS_INFO = {
   draft: { label: "Draft", deskripsi: "Disimpan, belum diajukan" },
   diajukan_pum: { label: "Diajukan ke PUM", deskripsi: "Menunggu pemeriksaan berkas oleh PUM" },
   dikembalikan: { label: "Dikembalikan", deskripsi: "Perlu revisi sesuai catatan PUM" },
-  diajukan_mdk: { label: "Diajukan ke MDK", deskripsi: "Diteruskan PUM ke MDK, menunggu invoice" },
-  selesai: { label: "Selesai (Paid)", deskripsi: "No. Invoice MDK sudah diinput PUM" }
+  diverifikasi_pum: { label: "Diverifikasi PUM", deskripsi: "Berkas sudah diverifikasi PUM, menunggu input invoice MDK" },
+  diajukan_mdk: { label: "Diajukan ke MDK", deskripsi: "Invoice sudah diinput PUM, menunggu verifikasi MDK" },
+  selesai: { label: "Selesai (Paid)", deskripsi: "Proses MDK selesai, ditandai selesai oleh PUM" }
 };
+var STATUS_LEWAT_VERIFIKASI = ["diverifikasi_pum", "diajukan_mdk", "selesai"];
 var MEKANISME_LIST = ["KO", "LS"];
 var JENIS_TRANSPORT_LIST = ["dalam_kota", "luar_kota"];
 var JENIS_KONSUMSI_LIST = ["kudapan", "makan_siang", "kudapan_makan_siang"];
@@ -43781,7 +43783,7 @@ var ROLE_LIST = ["operator", "pum", "pimpinan", "admin"];
 var ROLE_LIHAT_DRAFT = ["operator", "admin"];
 var ROLE_PENGAJU = ["operator", "admin"];
 var ROLE_PUM = ["pum", "admin"];
-var STATUS_BISA_DIBAYARKAN = ["diajukan_pum", "diajukan_mdk", "selesai"];
+var STATUS_BISA_DIBAYARKAN = ["diajukan_pum", "diverifikasi_pum", "diajukan_mdk", "selesai"];
 var MAX_PESERTA_TRANSPORT = 2;
 var MAX_NILAI = 1e12;
 var MAX_UPLOAD_MB = 10;
@@ -44131,7 +44133,7 @@ function validateDataPum(raw) {
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return { ok: true, data: { project_hosting: project || null, task_name: task || null } };
 }
-function validateTeruskan(raw) {
+function validateVerifikasi(raw) {
   const r = objek(raw);
   const pum = validateDataPum(raw);
   const catatan = teksPanjang(r.catatan);
@@ -44228,7 +44230,8 @@ var SELECT_PENGAJUAN = `
          us.nama AS uang_siapa_nama,
          cb.nama AS created_by_nama,
          ub.nama AS updated_by_nama,
-         dt.nama AS diteruskan_by_nama,
+         dv.nama AS diverifikasi_by_nama,
+         dm.nama AS diajukan_mdk_by_nama,
          dp.nama AS diproses_by_nama,
          dbr.nama AS dibayar_by_nama,
          (SELECT COUNT(*) FROM cek_berkas ck WHERE ck.pengajuan_id = p.id AND ck.status = 'sesuai')::int AS berkas_sesuai,
@@ -44237,7 +44240,8 @@ var SELECT_PENGAJUAN = `
     LEFT JOIN pegawai us ON us.id = p.uang_siapa_id
     LEFT JOIN users cb ON cb.id = p.created_by
     LEFT JOIN users ub ON ub.id = p.updated_by
-    LEFT JOIN users dt ON dt.id = p.diteruskan_by
+    LEFT JOIN users dv ON dv.id = p.diverifikasi_by
+    LEFT JOIN users dm ON dm.id = p.diajukan_mdk_by
     LEFT JOIN users dp ON dp.id = p.diproses_by
     LEFT JOIN users dbr ON dbr.id = p.dibayar_by`;
 function keRingkas(row, pesertaNama) {
@@ -44287,7 +44291,8 @@ function keRingkas(row, pesertaNama) {
     created_at: normTs(row.created_at),
     updated_at: normTs(row.updated_at),
     diajukan_at: normTs(row.diajukan_at),
-    diteruskan_at: normTs(row.diteruskan_at),
+    diverifikasi_at: normTs(row.diverifikasi_at),
+    diajukan_mdk_at: normTs(row.diajukan_mdk_at),
     diproses_at: normTs(row.diproses_at)
   };
 }
@@ -44382,7 +44387,8 @@ var URUTAN = {
   nilai_tertinggi: "p.total DESC, p.id DESC",
   nilai_terendah: "p.total ASC, p.id ASC",
   antrian: "p.diajukan_at ASC, p.id ASC",
-  antrian_mdk: "p.diteruskan_at ASC, p.id ASC",
+  antrian_verifikasi: "p.diverifikasi_at ASC, p.id ASC",
+  antrian_mdk: "p.diajukan_mdk_at ASC, p.id ASC",
   diperbarui: "p.updated_at DESC, p.id DESC"
 };
 async function listPengajuan(db, user, f) {
@@ -44468,8 +44474,10 @@ async function getDetail(db, user, id) {
     riwayat: await getRiwayat(db, id),
     kelengkapan: hitungKelengkapan(row.kategori, berkas, berkasNa, cekList),
     updated_by_nama: row.updated_by_nama,
-    diteruskan_by: row.diteruskan_by ? Number(row.diteruskan_by) : null,
-    diteruskan_by_nama: row.diteruskan_by_nama,
+    diverifikasi_by: row.diverifikasi_by ? Number(row.diverifikasi_by) : null,
+    diverifikasi_by_nama: row.diverifikasi_by_nama,
+    diajukan_mdk_by: row.diajukan_mdk_by ? Number(row.diajukan_mdk_by) : null,
+    diajukan_mdk_by_nama: row.diajukan_mdk_by_nama,
     diproses_by: row.diproses_by ? Number(row.diproses_by) : null,
     diproses_by_nama: row.diproses_by_nama
   };
@@ -44629,7 +44637,7 @@ function pastikanBisaEdit(user, row) {
   if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat mengubah pengajuan");
   if (!STATUS_BISA_EDIT.includes(row.status)) {
     throw conflict(
-      row.status === "diajukan_pum" ? "Pengajuan sedang diperiksa PUM sehingga tidak dapat diubah. Tarik kembali terlebih dahulu." : row.status === "diajukan_mdk" ? "Pengajuan sudah diteruskan ke MDK sehingga tidak dapat diubah." : "Pengajuan yang sudah selesai tidak dapat diubah"
+      row.status === "diajukan_pum" ? "Pengajuan sedang diperiksa PUM sehingga tidak dapat diubah. Tarik kembali terlebih dahulu." : row.status === "diverifikasi_pum" ? "Pengajuan sudah diverifikasi PUM sehingga tidak dapat diubah." : row.status === "diajukan_mdk" ? "Pengajuan sudah diajukan ke MDK sehingga tidak dapat diubah." : "Pengajuan yang sudah selesai tidak dapat diubah"
     );
   }
 }
@@ -44736,7 +44744,7 @@ async function tarikKembali(db, user, id) {
     const row = await ambilPengajuan(txDb, user, id);
     if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat menarik pengajuan");
     if (row.status !== "diajukan_pum") {
-      throw conflict("Hanya pengajuan yang masih di PUM (belum diteruskan ke MDK) yang dapat ditarik kembali");
+      throw conflict("Hanya pengajuan yang masih diperiksa PUM (belum diverifikasi) yang dapat ditarik kembali");
     }
     const waktu = nowIso();
     await txDb.run(
@@ -44798,13 +44806,13 @@ async function kembalikan(db, user, id, catatan) {
   await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
     if (!bolehProsesPum(user)) throw forbidden("Hanya PUM atau admin yang dapat mengembalikan pengajuan");
-    if (row.status !== "diajukan_pum" && row.status !== "diajukan_mdk") {
+    if (row.status !== "diajukan_pum" && row.status !== "diverifikasi_pum" && row.status !== "diajukan_mdk") {
       throw conflict("Hanya pengajuan yang sedang diproses PUM/MDK yang dapat dikembalikan");
     }
     const waktu = nowIso();
     await txDb.run(
       `UPDATE pengajuan SET status = 'dikembalikan', catatan_pum = ?, diproses_by = ?, diproses_at = ?,
-         updated_by = ?, updated_at = ? WHERE id = ?`,
+         no_invoice_mdk = NULL, tanggal_invoice_mdk = NULL, updated_by = ?, updated_at = ? WHERE id = ?`,
       catatan,
       user.id,
       waktu,
@@ -44817,7 +44825,8 @@ async function kembalikan(db, user, id, catatan) {
       id
     )).map((r) => `${JENIS_BERKAS_LABEL[r.jenis]}${r.catatan ? ` (${r.catatan})` : ""}`);
     const rincian = revisi.length ? ` \xB7 Berkas perlu revisi: ${revisi.join("; ")}` : "";
-    await catatRiwayat(txDb, row, user.id, "dikembalikan", `${catatan}${rincian}`, waktu);
+    const invoiceLama = row.no_invoice_mdk ? ` \xB7 Invoice MDK sebelumnya: ${row.no_invoice_mdk}` : "";
+    await catatRiwayat(txDb, row, user.id, "dikembalikan", `${catatan}${rincian}${invoiceLama}`, waktu);
     await kirimNotifikasi(
       txDb,
       await penerimaPengaju(txDb, row),
@@ -44833,12 +44842,12 @@ async function kembalikan(db, user, id, catatan) {
     );
   });
 }
-async function teruskanMdk(db, user, id, data) {
+async function verifikasi(db, user, id, data) {
   await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
-    if (!bolehProsesPum(user)) throw forbidden("Hanya PUM atau admin yang dapat meneruskan ke MDK");
+    if (!bolehProsesPum(user)) throw forbidden("Hanya PUM atau admin yang dapat memverifikasi pengajuan");
     if (row.status !== "diajukan_pum") {
-      throw conflict("Hanya pengajuan berstatus Diajukan ke PUM yang dapat diteruskan ke MDK");
+      throw conflict("Hanya pengajuan berstatus Diajukan ke PUM yang dapat diverifikasi");
     }
     const berkasNaStr = typeof row.berkas_na === "string" ? row.berkas_na : JSON.stringify(row.berkas_na);
     const k = hitungKelengkapan(
@@ -44848,14 +44857,12 @@ async function teruskanMdk(db, user, id, data) {
       await getCekBerkas(txDb, id)
     );
     if (!k.semuaSesuai) {
-      throw conflict(
-        `Centang semua berkas wajib sebagai "sesuai" sebelum meneruskan ke MDK (baru ${k.sesuai}/${k.total}).`
-      );
+      throw conflict(`Centang semua berkas wajib sebagai "sesuai" sebelum memverifikasi (baru ${k.sesuai}/${k.total}).`);
     }
     const waktu = nowIso();
     await txDb.run(
-      `UPDATE pengajuan SET status = 'diajukan_mdk', project_hosting = ?, task_name = ?, catatan_pum = ?,
-         diteruskan_by = ?, diteruskan_at = ?, updated_by = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE pengajuan SET status = 'diverifikasi_pum', project_hosting = ?, task_name = ?, catatan_pum = ?,
+         diverifikasi_by = ?, diverifikasi_at = ?, updated_by = ?, updated_at = ? WHERE id = ?`,
       data.project_hosting,
       data.task_name,
       data.catatan,
@@ -44870,7 +44877,7 @@ async function teruskanMdk(db, user, id, data) {
       data.project_hosting ? `Project: ${data.project_hosting}` : null,
       data.task_name ? `Task: ${data.task_name}` : null
     ].filter(Boolean).join(" \xB7 ");
-    await catatRiwayat(txDb, row, user.id, "diteruskan_mdk", ket, waktu);
+    await catatRiwayat(txDb, row, user.id, "diverifikasi", ket, waktu);
     await kirimNotifikasi(
       txDb,
       await penerimaPengaju(txDb, row),
@@ -44878,9 +44885,9 @@ async function teruskanMdk(db, user, id, data) {
       {
         pengajuan_id: id,
         kode: row.kode,
-        jenis: "diteruskan_mdk",
-        judul: "Berkas disetujui PUM & diteruskan ke MDK",
-        pesan: `${row.nama_kegiatan} \xB7 menunggu invoice MDK`
+        jenis: "diverifikasi",
+        judul: "Berkas diverifikasi PUM",
+        pesan: `${row.nama_kegiatan} \xB7 menunggu input invoice untuk diajukan ke MDK`
       },
       waktu
     );
@@ -44890,7 +44897,7 @@ async function ubahDataPum(db, user, id, data) {
   await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
     if (!bolehProsesPum(user)) throw forbidden("Hanya PUM atau admin yang dapat mengubah data PUM");
-    if (row.status !== "diajukan_pum" && row.status !== "diajukan_mdk" && row.status !== "selesai") {
+    if (row.status !== "diajukan_pum" && !STATUS_LEWAT_VERIFIKASI.includes(row.status)) {
       throw conflict("Data PUM hanya dapat diubah setelah pengajuan diajukan ke PUM");
     }
     if (row.project_hosting === data.project_hosting && row.task_name === data.task_name) return;
@@ -44947,17 +44954,17 @@ async function tandaiDibayarkan(db, user, id, dibayarkan) {
     }
   });
 }
-async function selesaikan(db, user, id, inv) {
+async function ajukanMdk(db, user, id, inv) {
   await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
     if (!bolehProsesPum(user)) throw forbidden("Hanya PUM atau admin yang dapat menginput invoice MDK");
-    if (row.status !== "diajukan_mdk") {
-      throw conflict("Invoice MDK hanya dapat diinput untuk pengajuan berstatus Diajukan ke MDK");
+    if (row.status !== "diverifikasi_pum") {
+      throw conflict("Invoice MDK hanya dapat diinput untuk pengajuan berstatus Diverifikasi PUM");
     }
     const waktu = nowIso();
     await txDb.run(
-      `UPDATE pengajuan SET status = 'selesai', no_invoice_mdk = ?, tanggal_invoice_mdk = ?, catatan_pum = ?,
-         diproses_by = ?, diproses_at = ?, updated_by = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE pengajuan SET status = 'diajukan_mdk', no_invoice_mdk = ?, tanggal_invoice_mdk = ?, catatan_pum = ?,
+         diajukan_mdk_by = ?, diajukan_mdk_at = ?, updated_by = ?, updated_at = ? WHERE id = ?`,
       inv.no_invoice_mdk,
       inv.tanggal_invoice_mdk,
       inv.catatan,
@@ -44967,7 +44974,41 @@ async function selesaikan(db, user, id, inv) {
       waktu,
       id
     );
-    await catatRiwayat(txDb, row, user.id, "selesai", `No. Invoice MDK: ${inv.no_invoice_mdk}`, waktu);
+    await catatRiwayat(txDb, row, user.id, "diajukan_mdk", `No. Invoice MDK: ${inv.no_invoice_mdk}`, waktu);
+    await kirimNotifikasi(
+      txDb,
+      await penerimaPengaju(txDb, row),
+      user.id,
+      {
+        pengajuan_id: id,
+        kode: row.kode,
+        jenis: "diajukan_mdk",
+        judul: "Diajukan ke MDK, menunggu verifikasi MDK",
+        pesan: `No. Invoice MDK: ${inv.no_invoice_mdk} \xB7 ${row.nama_kegiatan}`
+      },
+      waktu
+    );
+  });
+}
+async function selesaikan(db, user, id) {
+  await db.tx(async (txDb) => {
+    const row = await ambilPengajuan(txDb, user, id);
+    if (!bolehProsesPum(user)) throw forbidden("Hanya PUM atau admin yang dapat menandai pengajuan selesai");
+    if (row.status !== "diajukan_mdk") {
+      throw conflict("Hanya pengajuan berstatus Diajukan ke MDK yang dapat ditandai selesai");
+    }
+    if (!row.no_invoice_mdk) throw conflict("Input No. Invoice MDK terlebih dahulu sebelum menandai selesai");
+    const waktu = nowIso();
+    await txDb.run(
+      `UPDATE pengajuan SET status = 'selesai', diproses_by = ?, diproses_at = ?, updated_by = ?, updated_at = ?
+       WHERE id = ?`,
+      user.id,
+      waktu,
+      user.id,
+      waktu,
+      id
+    );
+    await catatRiwayat(txDb, row, user.id, "selesai", `No. Invoice MDK: ${row.no_invoice_mdk}`, waktu);
     await kirimNotifikasi(
       txDb,
       await penerimaPengaju(txDb, row),
@@ -44977,7 +45018,7 @@ async function selesaikan(db, user, id, inv) {
         kode: row.kode,
         jenis: "selesai",
         judul: "Pengajuan selesai (paid)",
-        pesan: `No. Invoice MDK: ${inv.no_invoice_mdk} \xB7 ${formatRupiah(Number(row.total))}`
+        pesan: `No. Invoice MDK: ${row.no_invoice_mdk} \xB7 ${formatRupiah(Number(row.total))}`
       },
       waktu
     );
@@ -44987,7 +45028,9 @@ async function ubahInvoice(db, user, id, inv) {
   await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
     if (!bolehProsesPum(user)) throw forbidden("Hanya PUM atau admin yang dapat mengubah data invoice");
-    if (row.status !== "selesai") throw conflict("Data invoice hanya dapat diubah pada pengajuan berstatus Selesai");
+    if (row.status !== "diajukan_mdk" && row.status !== "selesai") {
+      throw conflict("Data invoice hanya dapat diubah pada pengajuan berstatus Diajukan ke MDK atau Selesai");
+    }
     const waktu = nowIso();
     await txDb.run(
       `UPDATE pengajuan SET no_invoice_mdk = ?, tanggal_invoice_mdk = ?, catatan_pum = ?, updated_by = ?, updated_at = ?
@@ -45010,13 +45053,13 @@ async function batalkanSelesai(db, user, id, alasan) {
     if (row.status !== "selesai") throw conflict("Hanya pengajuan berstatus Selesai yang dapat dibatalkan");
     const waktu = nowIso();
     await txDb.run(
-      `UPDATE pengajuan SET status = 'diajukan_mdk', no_invoice_mdk = NULL, tanggal_invoice_mdk = NULL, catatan_pum = NULL,
-         diproses_by = NULL, diproses_at = NULL, updated_by = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE pengajuan SET status = 'diajukan_mdk', diproses_by = NULL, diproses_at = NULL, updated_by = ?, updated_at = ?
+       WHERE id = ?`,
       user.id,
       waktu,
       id
     );
-    await catatRiwayat(txDb, row, user.id, "selesai_dibatalkan", `${alasan} (invoice sebelumnya: ${row.no_invoice_mdk ?? "-"})`, waktu);
+    await catatRiwayat(txDb, row, user.id, "selesai_dibatalkan", alasan, waktu);
     await kirimNotifikasi(
       txDb,
       await penerimaPengaju(txDb, row),
@@ -45446,7 +45489,7 @@ async function dashboard(db, user, tahunInput) {
   for (const r of statusRows) {
     perStatus[r.status] = { jumlah: r.jumlah, nilai: r.nilai };
   }
-  const tahapAktif = ["diajukan_pum", "dikembalikan", "diajukan_mdk", "selesai"];
+  const tahapAktif = ["diajukan_pum", "dikembalikan", "diverifikasi_pum", "diajukan_mdk", "selesai"];
   const total = {
     jumlah: tahapAktif.reduce((s, st) => s + perStatus[st].jumlah, 0),
     nilai: tahapAktif.reduce((s, st) => s + perStatus[st].nilai, 0)
@@ -45511,25 +45554,29 @@ async function dashboard(db, user, tahunInput) {
     ...params
   );
   const topPegawai = topPegawaiRows.map((r) => ({ ...r, pegawai_id: Number(r.pegawai_id) }));
+  const acuanTunggu = `COALESCE(CASE p.status WHEN 'diverifikasi_pum' THEN p.diverifikasi_at
+                                              WHEN 'diajukan_mdk' THEN p.diajukan_mdk_at
+                                              ELSE p.diajukan_at END, p.updated_at)`;
   let tindakan;
   switch (user.role) {
     case "pum":
-      tindakan = `WHERE p.status IN ('diajukan_pum','diajukan_mdk')
-                  ORDER BY CASE p.status WHEN 'diajukan_pum' THEN 0 ELSE 1 END,
-                           COALESCE(p.diajukan_at, p.updated_at) ASC`;
+      tindakan = `WHERE p.status IN ('diajukan_pum','diverifikasi_pum','diajukan_mdk')
+                  ORDER BY CASE p.status WHEN 'diajukan_pum' THEN 0 WHEN 'diverifikasi_pum' THEN 1 ELSE 2 END,
+                           ${acuanTunggu} ASC`;
       break;
     case "operator":
       tindakan = `WHERE p.status IN ('dikembalikan','draft')
                   ORDER BY CASE p.status WHEN 'dikembalikan' THEN 0 ELSE 1 END, p.updated_at DESC`;
       break;
     case "pimpinan":
-      tindakan = `WHERE p.status IN ('diajukan_pum','diajukan_mdk','dikembalikan')
+      tindakan = `WHERE p.status IN ('diajukan_pum','diverifikasi_pum','diajukan_mdk','dikembalikan')
                   ORDER BY COALESCE(p.diajukan_at, p.updated_at) ASC`;
       break;
     default:
-      tindakan = `WHERE p.status IN ('dikembalikan','diajukan_pum','diajukan_mdk')
-                  ORDER BY CASE p.status WHEN 'dikembalikan' THEN 0 WHEN 'diajukan_pum' THEN 1 ELSE 2 END,
-                           COALESCE(p.diajukan_at, p.updated_at) ASC`;
+      tindakan = `WHERE p.status IN ('dikembalikan','diajukan_pum','diverifikasi_pum','diajukan_mdk')
+                  ORDER BY CASE p.status WHEN 'dikembalikan' THEN 0 WHEN 'diajukan_pum' THEN 1
+                                         WHEN 'diverifikasi_pum' THEN 2 ELSE 3 END,
+                           ${acuanTunggu} ASC`;
   }
   const tindakanRows = await db.all(`${SELECT_PENGAJUAN} ${tindakan} LIMIT 6`);
   return {
@@ -45539,6 +45586,7 @@ async function dashboard(db, user, tahunInput) {
       total,
       diajukan_pum: perStatus.diajukan_pum,
       dikembalikan: perStatus.dikembalikan,
+      diverifikasi_pum: perStatus.diverifikasi_pum,
       diajukan_mdk: perStatus.diajukan_mdk,
       selesai: perStatus.selesai,
       draft: draftTerlihat ? perStatus.draft : null,
@@ -45560,6 +45608,7 @@ async function antrian(db, user) {
   const pendaftar = user.role === "admin" ? (await db.get("SELECT COUNT(*)::int AS c FROM users WHERE menunggu_persetujuan = true"))?.c ?? 0 : 0;
   return {
     diajukan_pum: pum ? await hitung("diajukan_pum") : 0,
+    diverifikasi_pum: pum ? await hitung("diverifikasi_pum") : 0,
     diajukan_mdk: pum ? await hitung("diajukan_mdk") : 0,
     dikembalikan: pengaju ? await hitung("dikembalikan") : 0,
     pendaftar
@@ -45850,10 +45899,10 @@ function pengajuanRoutes(db, storage) {
     await cekBerkas(db, user, id, assertValid(validateCekBerkas(req.body)));
     res.json(await getDetail(db, user, id));
   });
-  r.post("/:id/teruskan", async (req, res) => {
+  r.post("/:id/verifikasi", async (req, res) => {
     const user = userOf(req);
     const id = parseId(req.params.id, "Pengajuan");
-    await teruskanMdk(db, user, id, assertValid(validateTeruskan(req.body)));
+    await verifikasi(db, user, id, assertValid(validateVerifikasi(req.body)));
     res.json(await getDetail(db, user, id));
   });
   r.put("/:id/data-pum", async (req, res) => {
@@ -45876,10 +45925,16 @@ function pengajuanRoutes(db, storage) {
     await kembalikan(db, user, id, catatan);
     res.json(await getDetail(db, user, id));
   });
+  r.post("/:id/ajukan-mdk", async (req, res) => {
+    const user = userOf(req);
+    const id = parseId(req.params.id, "Pengajuan");
+    await ajukanMdk(db, user, id, assertValid(validateInvoice(req.body)));
+    res.json(await getDetail(db, user, id));
+  });
   r.post("/:id/selesai", async (req, res) => {
     const user = userOf(req);
     const id = parseId(req.params.id, "Pengajuan");
-    await selesaikan(db, user, id, assertValid(validateInvoice(req.body)));
+    await selesaikan(db, user, id);
     res.json(await getDetail(db, user, id));
   });
   r.put("/:id/invoice", async (req, res) => {

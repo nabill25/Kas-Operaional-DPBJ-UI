@@ -39,7 +39,7 @@ drop type if exists aksi_riwayat_enum, jenis_notifikasi_enum, status_cek_enum,
 create type role_enum as enum ('operator', 'pum', 'pimpinan', 'admin');
 create type kategori_enum as enum ('konsumsi', 'rumah_tangga', 'perjadin');
 create type mekanisme_enum as enum ('KO', 'LS');
-create type status_enum as enum ('draft', 'diajukan_pum', 'dikembalikan', 'diajukan_mdk', 'selesai');
+create type status_enum as enum ('draft', 'diajukan_pum', 'dikembalikan', 'diverifikasi_pum', 'diajukan_mdk', 'selesai');
 create type jenis_uang_enum as enum ('uang_harian', 'uang_transport');
 create type jenis_transport_enum as enum ('dalam_kota', 'luar_kota');
 create type jenis_konsumsi_enum as enum ('kudapan', 'makan_siang', 'kudapan_makan_siang');
@@ -49,10 +49,11 @@ create type aksi_riwayat_enum as enum (
   'berkas_diunggah', 'berkas_dihapus', 'berkas_na', 'berkas_na_batal',
   'diajukan', 'ditarik', 'berkas_dicek', 'berkas_revisi', 'berkas_cek_batal',
   'dikembalikan', 'diteruskan_mdk', 'data_pum_diubah', 'selesai', 'invoice_diubah', 'selesai_dibatalkan',
-  'dibayarkan', 'dibayarkan_batal'
+  'dibayarkan', 'dibayarkan_batal', 'diverifikasi', 'diajukan_mdk'
 );
 create type jenis_notifikasi_enum as enum (
-  'diajukan', 'dikembalikan', 'diteruskan_mdk', 'selesai', 'selesai_dibatalkan', 'registrasi', 'dibayarkan'
+  'diajukan', 'dikembalikan', 'diteruskan_mdk', 'selesai', 'selesai_dibatalkan', 'registrasi', 'dibayarkan',
+  'diverifikasi', 'diajukan_mdk'
 );
 
 -- ─── 3. Tabel ─────────────────────────────────────────────────
@@ -130,9 +131,13 @@ create table pengajuan (
   created_by          bigint not null references users (id),
   updated_by          bigint references users (id),
   diajukan_at         timestamptz,
-  diteruskan_by       bigint references users (id),
+  diteruskan_by       bigint references users (id),   -- data lama (alur sebelum Okt 2026)
   diteruskan_at       timestamptz,
-  diproses_by         bigint references users (id),
+  diverifikasi_by     bigint references users (id),   -- PUM memverifikasi (semua berkas sesuai)
+  diverifikasi_at     timestamptz,
+  diajukan_mdk_by     bigint references users (id),   -- PUM menginput No. Invoice = diajukan ke MDK
+  diajukan_mdk_at     timestamptz,
+  diproses_by         bigint references users (id),   -- dikembalikan PUM / ditandai selesai (paid)
   diproses_at         timestamptz,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()

@@ -102,7 +102,7 @@ export interface Kelengkapan {
   sesuai: number;
   /** Jumlah berkas wajib yang ditandai "perlu revisi" oleh PUM. */
   revisi: number;
-  /** Semua berkas wajib sudah dicentang sesuai → boleh diteruskan ke MDK. */
+  /** Semua berkas wajib sudah dicentang sesuai → boleh diverifikasi PUM. */
   semuaSesuai: boolean;
 }
 
@@ -157,7 +157,11 @@ export interface PengajuanRingkas {
   created_at: string;
   updated_at: string;
   diajukan_at: string | null;
-  diteruskan_at: string | null;
+  /** Waktu PUM memverifikasi (semua berkas sesuai). */
+  diverifikasi_at: string | null;
+  /** Waktu PUM menginput No. Invoice MDK = diajukan ke MDK. */
+  diajukan_mdk_at: string | null;
+  /** Waktu dikembalikan PUM (status dikembalikan) atau ditandai selesai/paid (status selesai). */
   diproses_at: string | null;
 }
 
@@ -170,8 +174,10 @@ export interface PengajuanDetail extends PengajuanRingkas {
   riwayat: Riwayat[];
   kelengkapan: Kelengkapan;
   updated_by_nama: string | null;
-  diteruskan_by: number | null;
-  diteruskan_by_nama: string | null;
+  diverifikasi_by: number | null;
+  diverifikasi_by_nama: string | null;
+  diajukan_mdk_by: number | null;
+  diajukan_mdk_by_nama: string | null;
   diproses_by: number | null;
   diproses_by_nama: string | null;
 }
@@ -217,6 +223,7 @@ export interface DashboardData {
     total: JumlahNilai;
     diajukan_pum: JumlahNilai;
     dikembalikan: JumlahNilai;
+    diverifikasi_pum: JumlahNilai;
     diajukan_mdk: JumlahNilai;
     selesai: JumlahNilai;
     /** null untuk peran yang tidak melihat draft (PUM, pimpinan). */
@@ -315,6 +322,7 @@ export interface NotifikasiData {
   /** Jumlah pengajuan per tahap yang relevan untuk peran (badge menu). */
   antrian: {
     diajukan_pum: number;
+    diverifikasi_pum: number;
     diajukan_mdk: number;
     dikembalikan: number;
     /** Pendaftaran akun yang menunggu persetujuan (hanya untuk admin). */

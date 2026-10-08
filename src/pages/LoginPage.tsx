@@ -1,4 +1,4 @@
-import { ArrowRight, BadgeCheck, Car, Coffee, Eye, EyeOff, FilePlus, Hourglass, LockKeyhole, Plane, Send, User } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Car, ClipboardCheck, Coffee, Eye, EyeOff, FilePlus, Hourglass, LockKeyhole, Plane, Send, User } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
@@ -14,8 +14,9 @@ import { ApiError } from '../lib/api';
 const LANGKAH = [
   { ikon: FilePlus, judul: 'Input pengajuan', teks: 'Operator membuat draft konsumsi/transport & mengunggah berkas' },
   { ikon: Send, judul: 'Diajukan ke PUM', teks: 'PUM mencentang berkas, mengembalikan bila perlu revisi' },
-  { ikon: Hourglass, judul: 'Diajukan ke MDK', teks: 'Diteruskan PUM ke MDK (di luar sistem) untuk invoice' },
-  { ikon: BadgeCheck, judul: 'Selesai (Paid)', teks: 'PUM menginput No. Invoice MDK — tercatat & terekap' },
+  { ikon: ClipboardCheck, judul: 'Verifikasi PUM', teks: 'Semua berkas sesuai, diverifikasi PUM' },
+  { ikon: Hourglass, judul: 'Diajukan ke MDK', teks: 'PUM menginput No. Invoice, menunggu verifikasi MDK (di luar sistem)' },
+  { ikon: BadgeCheck, judul: 'Paid', teks: 'PUM menekan Selesai setelah proses MDK selesai — tercatat & terekap' },
 ];
 
 export function LoginPage() {
@@ -94,8 +95,8 @@ export function LoginPage() {
             </span>
           </h1>
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-fg-muted">
-            Catat, ajukan, dan pantau biaya konsumsi rapat serta transport — dari pengajuan, verifikasi PUM, hingga
-            invoice MDK (paid), lengkap dengan rekap dan laporan PDF.
+            Catat, ajukan, dan pantau biaya konsumsi rapat serta transport — dari pengajuan, verifikasi PUM, pengajuan ke
+            MDK, hingga paid, lengkap dengan rekap dan laporan PDF.
           </p>
 
           <ol className="relative mt-10 space-y-4">

@@ -10,7 +10,14 @@ import {
   tanggalLokalIso,
   waktuRelatif,
 } from '../../shared/format';
-import { isBankMandiri } from '../../shared/constants';
+import {
+  AKSI_RIWAYAT_LABEL,
+  STATUS_BISA_DIBAYARKAN,
+  STATUS_INFO,
+  STATUS_LEWAT_VERIFIKASI,
+  STATUS_LIST,
+  isBankMandiri,
+} from '../../shared/constants';
 import { hitungKelengkapan, parseBerkasNa } from '../../shared/kelengkapan';
 import { DAFTAR_PROJECT, DAFTAR_PROJECT_TASK, DAFTAR_TASK, cariProject, taskOtomatis, taskSesuaiKategori } from '../../shared/project-task';
 import {
@@ -20,8 +27,8 @@ import {
   validateInvoice,
   validatePegawai,
   validatePengajuan,
-  validateTeruskan,
   validateUser,
+  validateVerifikasi,
 } from '../../shared/validation';
 
 describe('format', () => {
@@ -322,14 +329,31 @@ describe('validasi PUM', () => {
     });
   });
 
-  it('project costing, task name, teruskan', () => {
+  it('project costing, task name, verifikasi', () => {
     expect(validateDataPum({ project_hosting: '  DPBJ   OPS ', task_name: '' })).toEqual({
       ok: true,
       data: { project_hosting: 'DPBJ OPS', task_name: null },
     });
     expect(validateDataPum({ project_hosting: 'x'.repeat(151) })).toMatchObject({ ok: false });
-    expect(validateTeruskan({})).toEqual({ ok: true, data: { project_hosting: null, task_name: null, catatan: null } });
-    expect(validateTeruskan({ catatan: 'y'.repeat(1001) })).toMatchObject({ ok: false, errors: { catatan: expect.any(String) } });
+    expect(validateVerifikasi({})).toEqual({ ok: true, data: { project_hosting: null, task_name: null, catatan: null } });
+    expect(validateVerifikasi({ catatan: 'y'.repeat(1001) })).toMatchObject({ ok: false, errors: { catatan: expect.any(String) } });
+  });
+
+  it('alur 5 tahap: Diajukan ke PUM → Diverifikasi PUM → Diajukan ke MDK → Selesai (Paid)', () => {
+    expect(STATUS_LIST).toEqual(['draft', 'diajukan_pum', 'dikembalikan', 'diverifikasi_pum', 'diajukan_mdk', 'selesai']);
+    expect(STATUS_LIST.map((s) => STATUS_INFO[s].label)).toEqual([
+      'Draft',
+      'Diajukan ke PUM',
+      'Dikembalikan',
+      'Diverifikasi PUM',
+      'Diajukan ke MDK',
+      'Selesai (Paid)',
+    ]);
+    expect(STATUS_LEWAT_VERIFIKASI).toEqual(['diverifikasi_pum', 'diajukan_mdk', 'selesai']);
+    expect(STATUS_BISA_DIBAYARKAN).toEqual(['diajukan_pum', 'diverifikasi_pum', 'diajukan_mdk', 'selesai']);
+    expect(AKSI_RIWAYAT_LABEL.diverifikasi).toBe('Diverifikasi PUM');
+    expect(AKSI_RIWAYAT_LABEL.diajukan_mdk).toBe('Diajukan ke MDK (invoice diinput)');
+    expect(AKSI_RIWAYAT_LABEL.selesai).toBe('Selesai (paid)');
   });
 });
 

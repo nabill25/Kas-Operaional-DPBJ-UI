@@ -3,10 +3,10 @@
 Centang ☐ → ☑ setiap langkah yang sudah dicoba. Bila hasil berbeda dari **Hasil yang diharapkan**,
 catat nomor langkah + tangkapan layar agar mudah ditelusuri.
 
-Alur yang diuji: **Operator/Pengaju** membuat & mengajukan → **PUM** memeriksa dan mencentang berkas
-(atau mengembalikan dengan catatan) → PUM meneruskan ke **MDK** (di luar sistem, tanpa tampilan input) →
-setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status **Selesai (Paid)**.
-**Pimpinan** hanya memantau.
+Alur yang diuji (stepper 5 tahap): **Draft dibuat** → **Diajukan ke PUM** (operator/pengaju mengajukan; PUM memeriksa
+dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM** (semua berkas sesuai, PUM menekan
+**Verifikasi**) → **Diajukan ke MDK** (PUM menginput **No. Invoice MDK**; menunggu verifikasi MDK di luar sistem) →
+**Paid** (setelah proses di MDK selesai, PUM menekan **Selesai**). **Pimpinan** hanya memantau.
 
 ## 0. Persiapan
 
@@ -55,7 +55,7 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | B15 | ☐ **Tarik kembali** → konfirmasi | Status kembali **Draft**; bisa diedit lagi |
 | B16 | ☐ **Ubah** → ganti jumlah uang → **Simpan perubahan** | Total baru tampil; riwayat mencatat "Nilai Rp … → Rp …" |
 | B17 | ☐ Buat draft lain lalu **Hapus** | Terhapus; kembali ke daftar; riwayat penghapusan tetap tercatat di Aktivitas terbaru |
-| B18 | ☐ Lengkapi 4 berkas pengajuan B7 → **Ajukan ke PUM** | Status **Diajukan ke PUM**; stepper: Draft ✓ → *Diajukan ke PUM* (aktif) |
+| B18 | ☐ Lengkapi 4 berkas pengajuan B7 → **Ajukan ke PUM** | Status **Diajukan ke PUM**; stepper 5 tahap: Draft dibuat ✓ → *Diajukan ke PUM* (aktif) → Verifikasi PUM → Diajukan ke MDK → Paid |
 
 ## C. Operator — Transport Rumah Tangga
 
@@ -87,31 +87,33 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | E2 | ☐ Klik lonceng | Daftar notifikasi ("Pengajuan baru menunggu pemeriksaan …"), yang belum dibaca bertitik merah; **Tandai semua dibaca** |
 | E3 | ☐ Menu **Verifikasi PUM** → tab **Perlu diperiksa** | Pengajuan *Diajukan ke PUM*, terlama di atas; lencana lama menunggu (≥ 7 hari kuning), "Dicek x/y sesuai" |
 | E4 | ☐ Klik **Periksa berkas** pada pengajuan dari B18 | Detail dengan panel **Periksa kelengkapan berkas** (bingkai kuning) + petunjuk |
-| E5 | ☐ Perhatikan tombol **Teruskan ke MDK** (atas) & **Setujui & teruskan ke MDK** (bawah panel) | Nonaktif; tertulis "Centang n berkas lagi sebagai Sesuai…" |
+| E5 | ☐ Perhatikan tombol **Verifikasi** (atas) & **Verifikasi pengajuan** (bawah panel) | Nonaktif; tertulis "Centang n berkas lagi sebagai Sesuai…" |
 | E6 | ☐ Buka berkas *Notula*, lalu klik tombol centang **Sesuai** (kolom Aksi) | Tombol menjadi hijau; kolom *Pemeriksaan PUM*: "Sesuai · <nama PUM>, baru saja"; cincin "Dicentang sesuai" naik |
 | E7 | ☐ Klik **Sesuai** sekali lagi (hapus centang) | Centang batal; riwayat mencatat "Centang berkas dibatalkan" |
 | E8 | ☐ Pada *Undangan* klik **Revisi** (retur) → kosongkan catatan → **Simpan catatan revisi** | Pesan "Tuliskan apa yang perlu direvisi" |
 | E9 | ☐ Isi catatan (mis. "Tanda tangan ketua belum ada") → simpan | Baris berbingkai kuning; kolom *Pemeriksaan PUM*: "Perlu revisi" + catatan + **Batalkan tanda**; kartu **Verifikasi PUM**: "1 berkas ditandai perlu revisi" |
 | E10 | ☐ Klik **Kembalikan** → kosongkan alasan → kirim | "Alasan pengembalian wajib diisi" |
 | E11 | ☐ Pilih alasan cepat / tulis alasan → **Kembalikan ke pengaju** | Dialog menampilkan daftar berkas revisi; status **Dikembalikan**; toast "Notifikasi otomatis terkirim ke pengaju" |
-| E12 | ☐ Buka pengajuan *Diajukan ke PUM* lain → centang **Sesuai** semua berkas wajib | Muncul "Semua berkas wajib sesuai"; tombol teruskan aktif |
-| E13 | ☐ **Teruskan ke MDK** → **Project Costing**: klik, ketik "tata kelola", pilih *D0030.09.01.6.002 Koordinasi Tata Kelola Pengadaan* | **Task Name** terisi otomatis *723207 Beban Konsumsi* ("Terisi otomatis: task Konsumsi untuk project ini"); daftar task hanya berisi task project itu |
-| E13a | ☐ Kirim | Status **Diajukan ke MDK**; kotak ungu "Disetujui PUM & diteruskan ke MDK — menunggu invoice"; project/task tampil di kartu Verifikasi PUM |
-| E14 | ☐ Berkas setelah diteruskan | Terkunci; centang tidak bisa diubah lagi |
+| E12 | ☐ Buka pengajuan *Diajukan ke PUM* lain → centang **Sesuai** semua berkas wajib | Muncul "Semua berkas wajib sesuai"; tombol **Verifikasi** aktif |
+| E13 | ☐ **Verifikasi** → **Project Costing**: klik, ketik "tata kelola", pilih *D0030.09.01.6.002 Koordinasi Tata Kelola Pengadaan* | **Task Name** terisi otomatis *723207 Beban Konsumsi* ("Terisi otomatis: task Konsumsi untuk project ini"); daftar task hanya berisi task project itu |
+| E13a | ☐ Klik **Verifikasi** pada dialog | Status **Diverifikasi PUM**; stepper aktif di *Verifikasi PUM*; kotak biru kehijauan "Diverifikasi PUM — menunggu input invoice MDK"; project/task tampil di kartu Verifikasi PUM; belum ada tombol **Selesai** |
+| E14 | ☐ Berkas setelah diverifikasi | Terkunci; centang tidak bisa diubah lagi |
 | E15 | ☐ Kartu **Verifikasi PUM** → **Ubah project costing / task name** | Bisa diubah; riwayat mencatat perubahan |
 | E16 | ☐ Cari draft operator (mis. lewat URL detail) | PUM tidak dapat melihat draft ("tidak ditemukan") |
 
-## F. PUM — invoice dari MDK (paid)
+## F. PUM — invoice, diajukan ke MDK, selesai (paid)
 
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
-| F1 | ☐ **Verifikasi PUM** → tab **Menunggu invoice** | Pengajuan *Diajukan ke MDK* (terlama di atas), lama menunggu invoice & project/task |
+| F1 | ☐ **Verifikasi PUM** → tab **Input invoice** | Pengajuan *Diverifikasi PUM* (terlama di atas), lama menunggu invoice & project/task |
 | F2 | ☐ **Input invoice** → kosongkan No. Invoice → simpan | Pesan wajib diisi |
-| F3 | ☐ Isi No. Invoice (mis. `MDK/INV/2026/0999`) + tanggal → **Simpan invoice — selesai (paid)** | Status **Selesai (Paid)**; No. Invoice tampil di detail, daftar, rekap |
-| F4 | ☐ Detail pengajuan selesai → **Aksi PUM** → **Ubah data invoice** | Nomor/tanggal bisa dikoreksi; riwayat mencatat lama → baru |
-| F5 | ☐ **Aksi PUM** → **Batalkan status selesai** (alasan wajib) | Status kembali **Diajukan ke MDK**; invoice dihapus; pengaju menerima notifikasi |
-| F6 | ☐ Pengajuan *Diajukan ke MDK* → **Aksi PUM** → **Kembalikan ke pengaju** | Bisa dikembalikan (mis. ditolak MDK) dengan alasan |
-| F7 | ☐ Konsumsi (Diajukan ke PUM / ke MDK / Selesai) → tombol **Sudah dibayarkan** di samping nama *Uang siapa* → **Ya, sudah dibayarkan** | Lencana hijau "Sudah dibayarkan" + "Dibayarkan … oleh <PUM>"; riwayat "Uang ditandai sudah dibayarkan"; pengaju menerima notifikasi |
+| F3 | ☐ Isi No. Invoice (mis. `MDK/INV/2026/0999`) + tanggal → **Simpan invoice & ajukan ke MDK** | Status **Diajukan ke MDK** (BELUM selesai); stepper aktif di *Diajukan ke MDK*, tahap *Paid* "Menunggu verifikasi MDK"; kotak ungu berisi No. Invoice; pengaju menerima notifikasi "Diajukan ke MDK, menunggu verifikasi MDK" |
+| F3a | ☐ Tab **Di MDK** (atau detail pengajuan) | Pengajuan *Diajukan ke MDK* + No. Invoice, lama menunggu MDK; tombol **Selesai** |
+| F3b | ☐ Setelah proses di MDK selesai: **Selesai** → **Ya, selesai (paid)** | Status **Selesai (Paid)**; stepper *Paid* ✓; kotak hijau "Selesai (paid) · No. Invoice MDK … ditandai selesai oleh <PUM>"; pengaju menerima notifikasi "Pengajuan selesai (paid)" |
+| F4 | ☐ Pengajuan *Diajukan ke MDK* atau *Selesai* → **Aksi PUM** → **Ubah data invoice** | Nomor/tanggal bisa dikoreksi; riwayat mencatat lama → baru |
+| F5 | ☐ Pengajuan *Selesai* → **Aksi PUM** → **Batalkan status selesai** (alasan wajib) | Status kembali **Diajukan ke MDK** (menunggu verifikasi MDK); No. Invoice tetap; pengaju menerima notifikasi |
+| F6 | ☐ Pengajuan *Diverifikasi PUM* / *Diajukan ke MDK* → **Aksi PUM** → **Kembalikan ke pengaju** | Bisa dikembalikan (mis. ditolak MDK) dengan alasan; No. Invoice lama dihapus & tercatat di riwayat |
+| F7 | ☐ Konsumsi (Diajukan ke PUM / Diverifikasi PUM / Diajukan ke MDK / Selesai) → tombol **Sudah dibayarkan** di samping nama *Uang siapa* → **Ya, sudah dibayarkan** | Lencana hijau "Sudah dibayarkan" + "Dibayarkan … oleh <PUM>"; riwayat "Uang ditandai sudah dibayarkan"; pengaju menerima notifikasi |
 | F8 | ☐ **Batalkan tanda** (di bawah lencana) | Kembali belum dibayarkan; riwayat mencatat pembatalan. Operator/pimpinan tidak melihat tombol ini |
 
 ## G. Operator — notifikasi & revisi setelah dikembalikan
@@ -123,7 +125,7 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | G3 | ☐ Perhatikan detail | Kotak kuning: alasan + daftar berkas revisi; baris berkas menunjukkan "Perlu revisi" & catatannya; berkas lain tetap "Sesuai" |
 | G4 | ☐ Unggah ulang berkas yang direvisi | Tanda revisi berkas tsb. hilang (akan diperiksa ulang PUM) |
 | G5 | ☐ **Ajukan ulang ke PUM** | Status **Diajukan ke PUM**; tampil "Diajukan ulang. Catatan pengembalian sebelumnya: …" |
-| G6 | ☐ Setelah PUM meneruskan (E13) & menginput invoice (F3) | Operator menerima notifikasi "Berkas disetujui PUM & diteruskan ke MDK" lalu "Pengajuan selesai (paid)" |
+| G6 | ☐ Setelah PUM memverifikasi (E13a), menginput invoice (F3), lalu menekan Selesai (F3b) | Operator menerima notifikasi "Berkas diverifikasi PUM", "Diajukan ke MDK, menunggu verifikasi MDK", lalu "Pengajuan selesai (paid)" |
 
 ## H. Pimpinan — pemantauan
 
@@ -139,16 +141,16 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
-| I1 | ☐ **Dashboard**: KPI *Diajukan ke PUM*, *Diajukan ke MDK*, *Selesai (Paid)*, *Dikembalikan*, *Berkas belum lengkap* | Angka menghitung naik (animasi); grafik batang bertumpuk + tooltip |
+| I1 | ☐ **Dashboard**: baris KPI *Diajukan ke PUM* → *Diverifikasi PUM* → *Diajukan ke MDK* → *Selesai (Paid)*, lalu *Dikembalikan*, *Berkas belum lengkap* | Angka menghitung naik (animasi); grafik batang bertumpuk + tooltip |
 | I2 | ☐ Klik **Tabel** pada grafik tren | Grafik berganti tabel 12 bulan (angka identik) |
 | I3 | ☐ Ganti **Tahun** | Semua kartu & grafik mengikuti tahun terpilih |
-| I4 | ☐ Klik kartu KPI (mis. *Diajukan ke MDK* sebagai PUM) | Membuka tab *Menunggu invoice* di Verifikasi PUM (operator: daftar terfilter) |
+| I4 | ☐ Klik kartu KPI sebagai PUM (*Diverifikasi PUM* / *Diajukan ke MDK*) | Membuka tab *Input invoice* / *Di MDK* di Verifikasi PUM (operator: daftar terfilter) |
 | I5 | ☐ **Rekap & Laporan** → periode *Tahun ini* | Total nilai sama dengan "Total nilai pengajuan" di dashboard (tahun sama) |
 | I6 | ☐ Ubah filter Kategori/Mekanisme/Status | Ringkasan & tabel berubah; URL ikut berubah (bisa di-bookmark) |
-| I7 | ☐ **Unduh PDF** (per pengajuan) | `Rekap_Pengajuan_….pdf`: kop DPBJ, ringkasan, tabel 5 status, rincian, total, nomor halaman |
+| I7 | ☐ **Unduh PDF** (per pengajuan) | `Rekap_Pengajuan_….pdf`: kop DPBJ, ringkasan, tabel 6 status, rincian, total, nomor halaman |
 | I8 | ☐ **Excel** | `.xlsx` terbuka di Excel; ada kolom *Project Costing*, *Task Name*, *Dicek PUM*; kolom Nilai berupa angka |
 | I9 | ☐ Tab **Per pegawai** → klik satu pegawai → **Unduh PDF pegawai** | Rincian per orang (peran "uang siapa"/"peserta"), total sama dengan baris tabel |
-| I10 | ☐ Detail pengajuan → tombol **PDF** | Bukti: info, peserta, berkas + kolom **Cek PUM**, bagian **Proses PUM & MDK** (project/task, invoice), riwayat, tanda tangan Pengaju & PUM |
+| I10 | ☐ Detail pengajuan → tombol **PDF** | Bukti: info, peserta, berkas + kolom **Cek PUM**, bagian **Proses PUM & MDK** (diverifikasi PUM, project/task, invoice & diajukan ke MDK, selesai), riwayat, tanda tangan Pengaju & PUM ("Diverifikasi PUM") |
 
 ## J. Admin — master data & pengguna
 
@@ -171,7 +173,7 @@ setelah invoice dari MDK diterima, **PUM menginput No. Invoice MDK** → status 
 | K1a | ☐ Menu **Pengaturan** → tema warna **Kuning UI** / **Biru Dongker DPBJ** | Warna aksen berganti seketika & diingat di perangkat ini |
 | K2 | ☐ Perkecil jendela / buka di ponsel (`npm run dev:lan`) | Menu menjadi tombol ☰ (drawer), tabel menjadi kartu, tidak ada geser horizontal |
 | K3 | ☐ Pencarian di topbar (mis. "Rapat", atau nama project) + Enter | Daftar pengajuan terfilter kata kunci |
-| K4 | ☐ Daftar pengajuan: filter status (5 status), urutan, paginasi | Hasil & jumlah total menyesuaikan; tombol **Reset** mengosongkan filter |
+| K4 | ☐ Daftar pengajuan: filter status (6 status), urutan, paginasi | Hasil & jumlah total menyesuaikan; tombol **Reset** mengosongkan filter |
 | K5 | ☐ Toast muncul di tengah atas (di bawah topbar) | Tidak menutupi lonceng, menu akun, maupun tombol aksi halaman |
 | K6 | ☐ (Windows) Pengaturan → Aksesibilitas → Efek visual → matikan **Efek animasi** | Animasi diminimalkan (menghormati preferensi kurangi gerak) |
 
