@@ -33,7 +33,7 @@ end $$;
 drop table if exists notifikasi, cek_berkas, riwayat, berkas, pengajuan_peserta,
   pengajuan, kode_counter, pegawai, sessions, users,
   jenis_pengajuan_berkas, jenis_pengajuan, jenis_berkas, bank,
-  master_project_task, master_project, master_task cascade;
+  master_project_task, master_project, master_task, master_dana cascade;
 drop type if exists aksi_riwayat_enum, jenis_notifikasi_enum, status_cek_enum,
   jenis_konsumsi_enum, jenis_transport_enum, jenis_uang_enum, status_enum, mekanisme_enum, kategori_enum, role_enum cascade;
 
@@ -122,6 +122,7 @@ create table jenis_pengajuan (
   model            text not null check (model in ('konsumsi', 'rumah_tangga', 'perjadin', 'umum')),
   maks_peserta     integer check (maks_peserta is null or maks_peserta between 1 and 50),
   kata_kunci_task  text,                         -- saran Task Name otomatis (cocok sebagian nama task)
+  mekanisme_tetap  mekanisme_enum,               -- null = pengaju memilih KO/LS; diisi = selalu itu (Transport: LS)
   warna            text not null,
   ikon             text not null,
   aktif            boolean not null default true,
@@ -132,11 +133,12 @@ create table jenis_pengajuan (
 );
 create unique index ux_jenis_pengajuan_label on jenis_pengajuan (lower(label));
 
--- Berkas wajib per jenis pengajuan.
+-- Daftar berkas per jenis pengajuan: wajib (dihitung kelengkapan) atau opsional.
 create table jenis_pengajuan_berkas (
   jenis_pengajuan  text not null references jenis_pengajuan (kode) on delete cascade,
   jenis_berkas     text not null references jenis_berkas (kode),
   urutan           integer not null,
+  wajib            boolean not null default true,
   primary key (jenis_pengajuan, jenis_berkas)
 );
 
@@ -149,28 +151,44 @@ create table bank (
 );
 create unique index ux_bank_nama on bank (lower(nama));
 
--- Project Costing & Task Name (Kasubdit). Disimpan di pengajuan sebagai teks "<kode>:<nama>" / "<kode>_<nama>".
-create table master_project (
-  id          bigserial primary key,
-  kode        text not null unique,
+-- Kode dana (sumber dana anggaran, kolom DANA laporan sisa anggaran), mis. 51 = Dana Masyarakat (BP) - Tidak Terikat.
+create table master_dana (
+  kode        text primary key check (kode ~ '^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$'),
   nama        text not null,
   aktif       boolean not null default true,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- Project Costing & Task Name (Kasubdit), dikelompokkan per tahun anggaran. Disimpan di pengajuan sebagai teks
+-- "<kode>:<nama>" / "<kode>_<nama>"; kode unik per tahun.
+create table master_project (
+  id          bigserial primary key,
+  tahun       integer not null check (tahun between 2000 and 2100),
+  kode        text not null,
+  nama        text not null,
+  aktif       boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create unique index ux_master_project_tahun_kode on master_project (tahun, lower(kode));
 
 create table master_task (
   id          bigserial primary key,
-  kode        text not null unique,
+  tahun       integer not null check (tahun between 2000 and 2100),
+  kode        text not null,
   nama        text not null,
   aktif       boolean not null default true,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+create unique index ux_master_task_tahun_kode on master_task (tahun, lower(kode));
 
+-- Pasangan project–task (satu baris anggaran) beserta kode dananya; project & task dari tahun yang sama.
 create table master_project_task (
   project_id  bigint not null references master_project (id) on delete cascade,
   task_id     bigint not null references master_task (id) on delete cascade,
+  kode_dana   text references master_dana (kode),
   primary key (project_id, task_id)
 );
 create index ix_master_project_task_task on master_project_task (task_id);
@@ -203,8 +221,8 @@ create table pengajuan (
   total               bigint not null default 0 check (total >= 0),
   catatan             text,
   berkas_na           jsonb not null default '[]'::jsonb,
-  -- Berkas wajib pengajuan ini (kode jenis berkas, urut). Mengikuti master selama draft/dikembalikan,
-  -- dibekukan saat diajukan ke PUM. null = belum dicatat → ikut master jenis pengajuannya.
+  -- Berkas pengajuan ini: [{"kode": "...", "wajib": true|false}] urut tampil (data lama: ["kode", …] = semua wajib).
+  -- Mengikuti master selama draft/dikembalikan, dibekukan saat diajukan ke PUM. null = ikut master jenisnya.
   berkas_daftar       jsonb,
   berkas_terpenuhi    integer not null default 0,
   berkas_wajib        integer not null default 0,
@@ -214,6 +232,7 @@ create table pengajuan (
   catatan_pum         text,
   project_hosting     text,
   task_name           text,
+  kode_dana           text,                     -- kode dana pasangan project–task (master), mis. 51
   created_by          bigint not null references users (id),
   updated_by          bigint references users (id),
   diajukan_at         timestamptz,
@@ -241,6 +260,8 @@ create table pengajuan_peserta (
   -- Perjadin: nilai = uang_harian + uang_transport (Rumah Tangga: keduanya null)
   uang_harian   bigint constraint pengajuan_peserta_uang_harian_check check (uang_harian is null or uang_harian >= 0),
   uang_transport bigint constraint pengajuan_peserta_uang_transport_check check (uang_transport is null or uang_transport >= 0),
+  rekening_bank  text,                          -- rekening tujuan pembayaran orang ini (opsional, berpasangan)
+  rekening_nomor text,
   urutan        integer not null,
   unique (pengajuan_id, pegawai_id)
 );
@@ -318,15 +339,15 @@ select v.* from (values
 where not exists (select 1 from jenis_berkas);
 
 -- Jenis pengajuan bawaan (model form tetap). Jenis baru ditambahkan admin lewat menu Master Data.
-insert into jenis_pengajuan (kode, label, label_pendek, prefix, deskripsi, model, maks_peserta, kata_kunci_task, warna, ikon, bawaan, urutan)
+insert into jenis_pengajuan (kode, label, label_pendek, prefix, deskripsi, model, maks_peserta, kata_kunci_task, mekanisme_tetap, warna, ikon, bawaan, urutan)
 select v.* from (values
-  ('konsumsi', 'Konsumsi', 'Konsumsi', 'KSM', 'Konsumsi rapat / kegiatan', 'konsumsi', null::integer, 'konsumsi', 'kuning', 'coffee', true, 1),
-  ('rumah_tangga', 'Transport Rumah Tangga', 'Rumah Tangga', 'TRT', 'Transport kegiatan rumah tangga', 'rumah_tangga', 2, 'transportasi rumah tangga', 'biru', 'car', true, 2),
-  ('perjadin', 'Transport Perjadin', 'Perjadin', 'TPD', 'Perjalanan dinas dalam / luar kota', 'perjadin', 2, 'perjadin', 'hijau', 'plane', true, 3)
-) as v (kode, label, label_pendek, prefix, deskripsi, model, maks_peserta, kata_kunci_task, warna, ikon, bawaan, urutan)
+  ('konsumsi', 'Konsumsi', 'Konsumsi', 'KSM', 'Konsumsi rapat / kegiatan', 'konsumsi', null::integer, 'konsumsi', null::mekanisme_enum, 'kuning', 'coffee', true, 1),
+  ('rumah_tangga', 'Transport Rumah Tangga', 'Rumah Tangga', 'TRT', 'Transport kegiatan rumah tangga', 'rumah_tangga', 2, 'transportasi rumah tangga', 'LS', 'biru', 'car', true, 2),
+  ('perjadin', 'Transport Perjadin', 'Perjadin', 'TPD', 'Perjalanan dinas dalam / luar kota', 'perjadin', 2, 'perjadin', 'LS', 'hijau', 'plane', true, 3)
+) as v (kode, label, label_pendek, prefix, deskripsi, model, maks_peserta, kata_kunci_task, mekanisme_tetap, warna, ikon, bawaan, urutan)
 where not exists (select 1 from jenis_pengajuan);
 
--- Berkas wajib per jenis pengajuan (urutan = urutan tampil).
+-- Berkas per jenis pengajuan (urutan = urutan tampil; semua bawaan wajib).
 insert into jenis_pengajuan_berkas (jenis_pengajuan, jenis_berkas, urutan)
 select v.* from (values
   ('konsumsi', 'notulen', 1),
@@ -365,9 +386,17 @@ select v.nama from (values
 ) as v (nama)
 where not exists (select 1 from bank);
 
--- Master Project Costing & Task Name dari Kasubdit (15 project, 18 task, 38 pasangan).
-insert into master_project (kode, nama)
+-- Kode dana (kolom DANA laporan sisa anggaran UI).
+insert into master_dana (kode, nama)
 select v.* from (values
+  ('51', 'Dana Masyarakat (BP) - Tidak Terikat'),
+  ('61', 'Dana Masyarakat (Non BP) - Tidak Terikat')
+) as v (kode, nama)
+where not exists (select 1 from master_dana);
+
+-- Master Project Costing & Task Name dari Kasubdit, tahun anggaran 2026 (15 project, 18 task, 38 pasangan + kode dana).
+insert into master_project (tahun, kode, nama)
+select 2026, v.* from (values
   ('D0030.06.01.6.001', 'Penguatan Manajemen Kontrak'),
   ('D0030.06.01.6.002', 'Penguatan Perencanaan, Pelaksanaan, dan Pengendalian'),
   ('D0030.06.01.6.003', 'Perancangan dan Persiapan SCM'),
@@ -386,8 +415,8 @@ select v.* from (values
 ) as v (kode, nama)
 where not exists (select 1 from master_project);
 
-insert into master_task (kode, nama)
-select v.* from (values
+insert into master_task (tahun, kode, nama)
+select 2026, v.* from (values
   ('721702', 'Honor Moderator/Pembicara/Fasilitator'),
   ('721707', 'Honor Tenaga Lepas'),
   ('722111', 'Beban Uang Harian - Perjadin Luar Kota'),
@@ -409,49 +438,49 @@ select v.* from (values
 ) as v (kode, nama)
 where not exists (select 1 from master_task);
 
-insert into master_project_task (project_id, task_id)
-select p.id, t.id from (values
-  ('D0030.07.01.6.001', '723207'),
-  ('D0030.09.01.6.002', '723216'),
-  ('D0072.11.01.6.001', '723216'),
-  ('D0030.06.01.6.001', '721707'),
-  ('D0030.10.01.6.002', '723207'),
-  ('D0030.10.01.6.003', '722111'),
-  ('D0030.09.01.6.002', '723207'),
-  ('D0030.10.01.6.003', '722114'),
-  ('D0030.12.01.6.001', '723216'),
-  ('D0030.10.01.6.001', '723216'),
-  ('D0030.09.01.6.003', '723705'),
-  ('D0030.10.01.6.003', '723216'),
-  ('D0072.11.01.6.001', '723202'),
-  ('D0030.09.01.6.004', '721707'),
-  ('D0030.09.01.6.001', '722123'),
-  ('D0030.09.01.6.002', '722113'),
-  ('D0030.09.01.6.001', '722121'),
-  ('D0030.12.01.6.001', '722112'),
-  ('D0030.10.01.6.001', '723207'),
-  ('D0030.07.01.6.001', '721702'),
-  ('D0030.09.01.6.002', '722114'),
-  ('D0030.09.01.6.002', '722111'),
-  ('D0030.06.01.6.002', '723207'),
-  ('D0030.10.01.6.003', '722113'),
-  ('D0030.09.01.6.002', '722112'),
-  ('D0030.09.01.6.002', '723601'),
-  ('D0030.12.01.6.001', '722114'),
-  ('D0030.12.01.6.001', '722113'),
-  ('D0030.10.01.6.003', '722112'),
-  ('D0030.12.01.6.001', '722111'),
-  ('D0030.09.01.6.001', '722124'),
-  ('D0030.09.01.6.003', '722209'),
-  ('D0030.06.01.6.002', '721707'),
-  ('D0030.10.01.6.005', '723216'),
-  ('D0030.09.01.6.001', '722122'),
-  ('D0030.10.01.6.004', '723207'),
-  ('D0030.06.01.6.003', '722214'),
-  ('D0030.06.01.6.003', '722201')
-) as v (project_kode, task_kode)
-join master_project p on p.kode = v.project_kode
-join master_task t on t.kode = v.task_kode
+insert into master_project_task (project_id, task_id, kode_dana)
+select p.id, t.id, v.kode_dana from (values
+  ('D0030.07.01.6.001', '723207', '51'),
+  ('D0030.09.01.6.002', '723216', '51'),
+  ('D0072.11.01.6.001', '723216', '51'),
+  ('D0030.06.01.6.001', '721707', '51'),
+  ('D0030.10.01.6.002', '723207', '51'),
+  ('D0030.10.01.6.003', '722111', '51'),
+  ('D0030.09.01.6.002', '723207', '51'),
+  ('D0030.10.01.6.003', '722114', '51'),
+  ('D0030.12.01.6.001', '723216', '51'),
+  ('D0030.10.01.6.001', '723216', '51'),
+  ('D0030.09.01.6.003', '723705', '51'),
+  ('D0030.10.01.6.003', '723216', '51'),
+  ('D0072.11.01.6.001', '723202', '51'),
+  ('D0030.09.01.6.004', '721707', '51'),
+  ('D0030.09.01.6.001', '722123', '61'),
+  ('D0030.09.01.6.002', '722113', '51'),
+  ('D0030.09.01.6.001', '722121', '61'),
+  ('D0030.12.01.6.001', '722112', '51'),
+  ('D0030.10.01.6.001', '723207', '51'),
+  ('D0030.07.01.6.001', '721702', '51'),
+  ('D0030.09.01.6.002', '722114', '51'),
+  ('D0030.09.01.6.002', '722111', '51'),
+  ('D0030.06.01.6.002', '723207', '61'),
+  ('D0030.10.01.6.003', '722113', '51'),
+  ('D0030.09.01.6.002', '722112', '51'),
+  ('D0030.09.01.6.002', '723601', '51'),
+  ('D0030.12.01.6.001', '722114', '51'),
+  ('D0030.12.01.6.001', '722113', '51'),
+  ('D0030.10.01.6.003', '722112', '51'),
+  ('D0030.12.01.6.001', '722111', '51'),
+  ('D0030.09.01.6.001', '722124', '61'),
+  ('D0030.09.01.6.003', '722209', '51'),
+  ('D0030.06.01.6.002', '721707', '61'),
+  ('D0030.10.01.6.005', '723216', '51'),
+  ('D0030.09.01.6.001', '722122', '61'),
+  ('D0030.10.01.6.004', '723207', '51'),
+  ('D0030.06.01.6.003', '722214', '51'),
+  ('D0030.06.01.6.003', '722201', '51')
+) as v (project_kode, task_kode, kode_dana)
+join master_project p on p.tahun = 2026 and p.kode = v.project_kode
+join master_task t on t.tahun = 2026 and t.kode = v.task_kode
 where not exists (select 1 from master_project_task);
 -- [SEED-MASTER:SELESAI]
 
@@ -476,6 +505,7 @@ alter table bank enable row level security;
 alter table master_project enable row level security;
 alter table master_task enable row level security;
 alter table master_project_task enable row level security;
+alter table master_dana enable row level security;
 
 revoke all on all tables in schema public from anon, authenticated;
 revoke all on all sequences in schema public from anon, authenticated;

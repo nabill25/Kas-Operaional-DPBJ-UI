@@ -57,11 +57,26 @@ test('PDF bukti pengajuan dari halaman detail & pratinjau berkas', async ({ page
   expect((await bacaUnduhan(pdf)).subarray(0, 5).toString('latin1')).toBe('%PDF-');
 
   // Pratinjau berkas (PDF) dalam modal
-  await page.getByRole('button', { name: /^Lihat / }).first().click();
+  await page.getByRole('button', { name: /^Preview / }).first().click();
   const modal = page.getByRole('dialog');
   await expect(modal.locator('iframe')).toBeVisible();
   const src = await modal.locator('iframe').getAttribute('src');
   const berkas = await page.request.get(src!);
   expect(berkas.status()).toBe(200);
   expect(berkas.headers()['content-type']).toContain('application/pdf');
+  await page.keyboard.press('Escape');
+  await expect(modal).toBeHidden();
+
+  // Download satu file (nama asli) & beberapa dokumen sekaligus (ZIP)
+  const tautan = page.getByRole('link', { name: /^Download / }).first();
+  const namaFile = ((await tautan.getAttribute('aria-label')) ?? '').replace(/^Download /, '');
+  const [satu] = await Promise.all([page.waitForEvent('download'), tautan.click()]);
+  expect(satu.suggestedFilename()).toBe(namaFile);
+  await page.getByRole('checkbox', { name: 'Pilih semua dokumen' }).check();
+  const aksi = page.getByTestId('aksi-terpilih');
+  await expect(aksi).toContainText('dokumen dipilih');
+  const [zip] = await Promise.all([page.waitForEvent('download'), aksi.getByRole('button', { name: 'Download (ZIP)' }).click()]);
+  expect(zip.suggestedFilename()).toMatch(/^[A-Z]{3}-\d{4}-\d{4}_dokumen\.zip$/);
+  expect((await bacaUnduhan(zip)).subarray(0, 2).toString('latin1')).toBe('PK');
+  await expect(page.getByRole('checkbox', { name: / sesuai$/ })).toHaveCount(0); // selesai: tidak ada centang PUM lagi
 });

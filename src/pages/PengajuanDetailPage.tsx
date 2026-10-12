@@ -60,7 +60,7 @@ import { useKamus } from '../context/KonfigContext';
 import { useKonfirmasi } from '../context/KonfirmasiContext';
 import { ApiError } from '../lib/api';
 import { cn } from '../lib/cn';
-import { useAksiPengajuan, useBacaNotifikasi, useHapusPengajuan, useNotifikasi, usePengajuan } from '../lib/queries';
+import { useAksiPengajuan, useBacaNotifikasi, useHapusPengajuan, useNotifikasi, usePengajuan, useProjectTask } from '../lib/queries';
 
 type ModalAksi = 'verifikasi' | 'data-pum' | 'ajukan-mdk' | 'selesai' | 'ubah' | 'kembalikan' | 'batal-selesai';
 
@@ -185,7 +185,7 @@ function UangSiapa({
   );
 }
 
-/** Rekening pegawai saat ini (master Pegawai) pada daftar penerima — tujuan pembayaran per orang. */
+/** Rekening tujuan pembayaran per orang yang tercatat di pengajuan (diisi pengaju, awalnya dari master Pegawai). */
 function RekeningPeserta({ ps }: { ps: Peserta }) {
   if (!ps.rekening_bank || !ps.rekening_nomor) return null;
   const salin = async () => {
@@ -433,7 +433,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                 <Button varian="kedua" ikon={<Undo2 className="size-4" />} onClick={() => setModal('kembalikan')}>
                   Kembalikan
                 </Button>
-                <Button ikon={<ClipboardCheck className="size-4" />} onClick={() => setModal('verifikasi')} disabled={!k.semuaSesuai}>
+                <Button ikon={<ClipboardCheck className="size-4" />} onClick={() => setModal('verifikasi')} disabled={!k.bisaVerifikasi}>
                   Verifikasi
                 </Button>
               </>
@@ -448,7 +448,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                   }
                 >
                   <MenuItem ikon={<FolderKanban />} onSelect={() => setModal('data-pum')}>
-                    Ubah project costing / task name
+                    Ubah task name / project / kode dana
                   </MenuItem>
                   <MenuItem ikon={<Undo2 />} onSelect={() => setModal('kembalikan')}>
                     Kembalikan ke pengaju
@@ -472,7 +472,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                     Ubah data invoice
                   </MenuItem>
                   <MenuItem ikon={<FolderKanban />} onSelect={() => setModal('data-pum')}>
-                    Ubah project costing / task name
+                    Ubah task name / project / kode dana
                   </MenuItem>
                   <MenuItem ikon={<Undo2 />} onSelect={() => setModal('kembalikan')}>
                     Kembalikan ke pengaju
@@ -495,7 +495,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                   Ubah data invoice
                 </MenuItem>
                 <MenuItem ikon={<FolderKanban />} onSelect={() => setModal('data-pum')}>
-                  Ubah project costing / task name
+                  Ubah task name / project / kode dana
                 </MenuItem>
                 <MenuItem ikon={<Ban />} bahaya onSelect={() => setModal('batal-selesai')}>
                   Batalkan status selesai
@@ -799,12 +799,12 @@ function Detail({ p }: { p: PengajuanDetail }) {
                 <div
                   className={cn(
                     'mt-5 flex flex-col gap-3 rounded-2xl p-4 ring-1',
-                    k.semuaSesuai ? 'bg-emerald-500/10 ring-emerald-500/25' : 'bg-fg/[0.03] ring-fg/[0.08]',
+                    k.bisaVerifikasi ? 'bg-emerald-500/10 ring-emerald-500/25' : 'bg-fg/[0.03] ring-fg/[0.08]',
                   )}
                   data-testid="aksi-pum"
                 >
                   <p className="flex flex-1 items-start gap-2 text-sm text-fg">
-                    {k.semuaSesuai ? (
+                    {k.bisaVerifikasi ? (
                       <>
                         <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
                         <span>
@@ -816,8 +816,17 @@ function Detail({ p }: { p: PengajuanDetail }) {
                       <>
                         <Info className="mt-0.5 size-4 shrink-0 text-fg-muted" />
                         <span className="text-fg-muted">
-                          Centang <b className="text-fg">{k.total - k.sesuai} berkas lagi</b> sebagai “Sesuai” untuk dapat
-                          memverifikasi{k.revisi > 0 ? ', atau kembalikan ke pengaju karena ada berkas yang perlu direvisi' : ''}.
+                          {k.semuaSesuai ? (
+                            <>
+                              Ada <b className="text-fg">{k.revisi} dokumen</b> yang ditandai perlu revisi — kembalikan ke pengaju atau
+                              batalkan tanda revisinya untuk dapat memverifikasi.
+                            </>
+                          ) : (
+                            <>
+                              Centang <b className="text-fg">{k.total - k.sesuai} berkas wajib lagi</b> sebagai “Sesuai” untuk dapat
+                              memverifikasi{k.revisi > 0 ? ', atau kembalikan ke pengaju karena ada berkas yang perlu direvisi' : ''}.
+                            </>
+                          )}
                         </span>
                       </>
                     )}
@@ -826,7 +835,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                     <Button varian="kedua" ikon={<Undo2 className="size-4" />} onClick={() => setModal('kembalikan')}>
                       Kembalikan ke pengaju
                     </Button>
-                    <Button ikon={<ClipboardCheck className="size-4" />} disabled={!k.semuaSesuai} onClick={() => setModal('verifikasi')}>
+                    <Button ikon={<ClipboardCheck className="size-4" />} disabled={!k.bisaVerifikasi} onClick={() => setModal('verifikasi')}>
                       Verifikasi pengajuan
                     </Button>
                   </div>
@@ -913,6 +922,8 @@ function Detail({ p }: { p: PengajuanDetail }) {
 /** Ringkasan verifikasi PUM: progres centang berkas, project costing & task name (aksi utama ada di header/panel berkas). */
 function KartuPum({ p, bisaDataPum, onUbahData }: { p: PengajuanDetail; bisaDataPum: boolean; onUbahData: () => void }) {
   const k = p.kelengkapan;
+  const { data: masterPt } = useProjectTask(!!p.kode_dana);
+  const namaDana = masterPt?.dana.find((d) => d.kode === p.kode_dana)?.nama ?? null;
   return (
     <GlassCard
       className="p-5 sm:p-6"
@@ -946,15 +957,28 @@ function KartuPum({ p, bisaDataPum, onUbahData }: { p: PengajuanDetail; bisaData
 
       <dl className="mt-4 space-y-3 border-t border-line pt-4">
         <div className="flex items-start justify-between gap-3">
+          <dt className="text-xs text-fg-muted">Task name</dt>
+          <dd className="min-w-0 text-right text-sm font-semibold break-words text-fg">
+            {p.task_name ?? <span className="font-normal text-fg-subtle">Belum diisi</span>}
+          </dd>
+        </div>
+        <div className="flex items-start justify-between gap-3">
           <dt className="text-xs text-fg-muted">Project costing</dt>
           <dd className="min-w-0 text-right text-sm font-semibold break-words text-fg">
             {p.project_hosting ?? <span className="font-normal text-fg-subtle">Belum diisi</span>}
           </dd>
         </div>
-        <div className="flex items-start justify-between gap-3">
-          <dt className="text-xs text-fg-muted">Task name</dt>
+        <div className="flex items-start justify-between gap-3" data-testid="kode-dana">
+          <dt className="text-xs text-fg-muted">Kode dana</dt>
           <dd className="min-w-0 text-right text-sm font-semibold break-words text-fg">
-            {p.task_name ?? <span className="font-normal text-fg-subtle">Belum diisi</span>}
+            {p.kode_dana ? (
+              <>
+                {p.kode_dana}
+                {namaDana && <span className="block text-xs font-normal text-fg-muted">{namaDana}</span>}
+              </>
+            ) : (
+              <span className="font-normal text-fg-subtle">Belum diisi</span>
+            )}
           </dd>
         </div>
         {STATUS_LEWAT_VERIFIKASI.includes(p.status) && (
@@ -979,7 +1003,7 @@ function KartuPum({ p, bisaDataPum, onUbahData }: { p: PengajuanDetail; bisaData
 
       {bisaDataPum && (
         <Button varian="kedua" ukuran="sm" className="mt-4 w-full" ikon={<FolderKanban className="size-4" />} onClick={onUbahData}>
-          {p.project_hosting || p.task_name ? 'Ubah project costing / task name' : 'Isi project costing / task name'}
+          {p.project_hosting || p.task_name || p.kode_dana ? 'Ubah task name, project & kode dana' : 'Isi task name, project & kode dana'}
         </Button>
       )}
     </GlassCard>

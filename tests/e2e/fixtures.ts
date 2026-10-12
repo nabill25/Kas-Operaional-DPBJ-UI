@@ -59,7 +59,9 @@ export async function centangSesuai(page: Page, jenis: string): Promise<void> {
   const baris = page.locator(`[data-berkas="${jenis}"]`);
   await baris.locator('label', { hasText: 'Sesuai' }).click();
   await expect(baris).toHaveAttribute('data-cek', 'sesuai');
-  await expect(baris.getByRole('checkbox')).toBeChecked();
+  // Tiap baris juga punya kotak "Pilih <berkas>" (download/tandai sekaligus) — yang dicek kotak "<berkas> sesuai".
+  await expect(baris.getByRole('checkbox', { name: / sesuai$/ })).toBeChecked();
+  await expect(baris).toContainText('Sudah Verifikasi');
 }
 
 /** Pilih pegawai pada combobox PegawaiPicker berdasarkan id pemicu. */

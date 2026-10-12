@@ -42,9 +42,26 @@ test('alur lengkap Konsumsi: rekening → ajukan ke PUM → centang berkas → v
   const kode = (await page.getByText(/^KSM-\d{4}-\d{4}$/).first().textContent())!.trim();
 
   // 2. Unggah 4 berkas wajib (label tampil "Notula", kunci internal tetap `notulen`)
-  await expect(page.locator('[data-berkas="notulen"]')).toContainText('Notula');
+  const notula = page.locator('[data-berkas="notulen"]');
+  await expect(notula).toContainText('Notula');
+  await expect(notula).toContainText('Belum Diunggah');
   for (const jenis of BERKAS_KONSUMSI) await unggahBerkas(page, jenis);
   await expect(page.getByText('Semua berkas wajib sudah terpenuhi')).toBeVisible();
+  // Tabel "List Dokumen Pendukung": tanda Wajib, nama file, status, Download & Preview; kotak cari menyaring baris
+  await expect(page.getByRole('heading', { name: 'List Dokumen Pendukung' })).toBeVisible();
+  await expect(notula).toHaveAttribute('data-sifat', 'wajib');
+  await expect(notula).toContainText('Wajib');
+  await expect(notula).toContainText('notulen.pdf');
+  await expect(notula).toContainText('Belum Verifikasi');
+  await expect(notula.getByRole('link', { name: 'Download notulen.pdf' })).toBeVisible();
+  await expect(notula.getByRole('button', { name: 'Preview notulen.pdf' })).toBeVisible();
+  const barisDokumen = page.getByRole('list', { name: 'Kelengkapan berkas' }).locator('[data-berkas]');
+  await expect(barisDokumen).toHaveCount(5); // 4 berkas wajib + Dokumen Lainnya
+  await page.getByPlaceholder('Cari dokumen').fill('undangan');
+  await expect(barisDokumen).toHaveCount(1);
+  await expect(barisDokumen.first()).toHaveAttribute('data-berkas', 'undangan');
+  await page.getByPlaceholder('Cari dokumen').fill('');
+  await expect(barisDokumen).toHaveCount(5);
 
   // 3. Ajukan ke PUM → terkunci untuk pengaju
   await page.getByRole('button', { name: 'Ajukan ke PUM' }).click();
@@ -72,33 +89,60 @@ test('alur lengkap Konsumsi: rekening → ajukan ke PUM → centang berkas → v
   const verifikasiHeader = page.getByRole('button', { name: 'Verifikasi', exact: true });
   await expect(verifikasiHeader).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Verifikasi pengajuan' })).toBeDisabled();
-  for (const jenis of BERKAS_KONSUMSI) await centangSesuai(page, jenis);
+  for (const jenis of BERKAS_KONSUMSI.slice(0, 2)) await centangSesuai(page, jenis);
+  // Sisanya ditandai sesuai sekaligus lewat kotak pilih di awal baris
+  await page.getByRole('checkbox', { name: 'Pilih Invoice', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Pilih Daftar Hadir', exact: true }).check();
+  const aksiTerpilih = page.getByTestId('aksi-terpilih');
+  await expect(aksiTerpilih).toContainText('2 dokumen dipilih');
+  await aksiTerpilih.getByRole('button', { name: 'Tandai Sesuai (2)' }).click();
+  for (const jenis of BERKAS_KONSUMSI.slice(2)) {
+    await expect(page.locator(`[data-berkas="${jenis}"]`)).toHaveAttribute('data-cek', 'sesuai');
+    await expect(page.locator(`[data-berkas="${jenis}"]`)).toContainText('Sudah Verifikasi');
+  }
+  await expect(aksiTerpilih).toHaveCount(0);
   await expect(page.getByTestId('kartu-pum')).toContainText('Semua berkas sesuai');
   await expect(page.getByTestId('aksi-pum')).toContainText('Semua berkas wajib sesuai.');
 
-  // 6. Verifikasi PUM dengan project costing & task name
+  // 6. Verifikasi PUM: Task Name lebih dulu, lalu Project Costing; kode dana terisi otomatis dari pasangannya
   await verifikasiHeader.click();
   const dialog = page.getByRole('dialog', { name: 'Verifikasi pengajuan' });
   await expect(dialog).toContainText('Semua berkas wajib sudah dicentang sesuai (4/4)');
-  // Project dipilih lewat kotak cari (master Kasubdit); task Konsumsi project itu terisi otomatis
-  await dialog.getByRole('combobox', { name: 'Project Costing' }).click();
+  const kotakTask = dialog.getByRole('combobox', { name: 'Task Name' });
+  const kotakProject = dialog.getByRole('combobox', { name: 'Project Costing' });
+  const kodeDana = dialog.getByRole('combobox', { name: 'Kode dana' });
+  expect((await kotakTask.boundingBox())!.y).toBeLessThan((await kotakProject.boundingBox())!.y);
+  expect((await kotakProject.boundingBox())!.y).toBeLessThan((await kodeDana.boundingBox())!.y);
+  // Task Konsumsi terisi otomatis (master Kasubdit); project belum (task ini dimiliki beberapa project)
+  await expect(kotakTask).toContainText('Beban Konsumsi');
+  await expect(dialog.getByText('Terisi otomatis: task Konsumsi')).toBeVisible();
+  await expect(kodeDana).toHaveValue('');
+  await expect(dialog.getByText('Terisi otomatis setelah task & project dipilih')).toBeVisible();
+  // Daftar project dibatasi pada project yang memiliki task terpilih
+  await kotakProject.click();
+  await page.getByLabel('Cari project').fill('operasional');
+  await expect(page.getByText('Tidak ada yang cocok di daftar.')).toBeVisible();
   await page.getByLabel('Cari project').fill('tata kelola');
   await page.getByRole('option', { name: /D0030\.09\.01\.6\.002/ }).click();
-  await expect(dialog.getByRole('combobox', { name: 'Project Costing' })).toContainText('Koordinasi Tata Kelola Pengadaan');
-  await expect(dialog.getByRole('combobox', { name: 'Task Name' })).toContainText('Beban Konsumsi');
-  await expect(dialog.getByText('Terisi otomatis: task Konsumsi untuk project ini')).toBeVisible();
-  // Daftar task dibatasi pada task project terpilih
-  await dialog.getByRole('combobox', { name: 'Task Name' }).click();
-  await page.getByLabel('Cari task').fill('honor');
-  await expect(page.getByText('Tidak ada yang cocok di daftar.')).toBeVisible();
-  await page.keyboard.press('Escape');
+  await expect(kotakProject).toContainText('Koordinasi Tata Kelola Pengadaan');
+  await expect(kodeDana).toHaveValue('51');
+  await expect(dialog.getByText('Otomatis dari master Project & Task 2026')).toBeVisible();
+  // Ganti project → kode dana mengikuti pasangan barunya (61 = Dana Masyarakat Non BP)
+  await kotakProject.click();
+  await page.getByLabel('Cari project').fill('penguatan perencanaan');
+  await page.getByRole('option', { name: /D0030\.06\.01\.6\.002/ }).click();
+  await expect(kodeDana).toHaveValue('61');
+  await expect(kotakTask).toContainText('Beban Konsumsi');
   await dialog.getByRole('button', { name: 'Verifikasi', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByText('Diverifikasi PUM — menunggu input invoice MDK')).toBeVisible();
   await expect(tahapAktif).toContainText('Verifikasi PUM');
   await expect(page.getByRole('button', { name: 'Selesai', exact: true })).toHaveCount(0); // invoice belum diinput
-  await expect(page.getByTestId('kartu-pum')).toContainText('D0030.09.01.6.002:Koordinasi Tata Kelola Pengadaan');
+  await expect(page.getByTestId('kartu-pum')).toContainText('D0030.06.01.6.002:Penguatan Perencanaan, Pelaksanaan, dan Pengendalian');
   await expect(page.getByTestId('kartu-pum')).toContainText('723207_Beban Konsumsi');
+  await expect(page.getByTestId('kode-dana')).toContainText('61');
+  await expect(page.getByTestId('kode-dana')).toContainText('Dana Masyarakat (Non BP) - Tidak Terikat');
+  await expect(page.locator('[data-berkas="notulen"]')).toContainText('Sudah Verifikasi');
 
   // 7. PUM menginput No. Invoice → Diajukan ke MDK, menunggu verifikasi MDK (BELUM selesai)
   await page.getByRole('button', { name: 'Input No. Invoice MDK' }).click();
@@ -223,7 +267,10 @@ test('Pimpinan hanya memantau: tanpa menu & tombol aksi', async ({ page }) => {
     await expect(page.getByRole('button', { name: tombol, exact: true })).toHaveCount(0);
   }
   await expect(page.getByRole('link', { name: 'Ubah', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('checkbox')).toHaveCount(0);
+  // Tidak bisa mencentang/meretur berkas (hanya PUM); kotak "Pilih" untuk download sekaligus tetap tersedia.
+  await expect(page.getByRole('checkbox', { name: / sesuai$/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: / perlu revisi$/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Unggah/ })).toHaveCount(0);
   await expect(page.getByTestId('kartu-pum')).toBeVisible();
 
   await page.goto('/verifikasi');

@@ -138,15 +138,22 @@ export default function PengajuanBaruPage() {
                   )}
                   <div className="mt-5 border-t border-line pt-4">
                     <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-fg-subtle uppercase">
-                      <FileCheck className="size-3.5" /> Berkas wajib
+                      <FileCheck className="size-3.5" /> Berkas
                     </p>
                     {info.berkas.length === 0 ? (
                       <p className="mt-2 text-xs text-fg-muted">Tidak ada berkas wajib (dokumen lainnya tetap bisa diunggah)</p>
                     ) : (
                       <ul className="mt-2 flex flex-wrap gap-1.5">
-                        {info.berkas.map((j) => (
-                          <li key={j} className="rounded-lg bg-fg/[0.05] px-2 py-1 text-xs font-medium text-fg">
-                            {kamus.labelBerkas(j)}
+                        {info.berkas.map((b) => (
+                          <li
+                            key={b.kode}
+                            className={cn(
+                              'rounded-lg px-2 py-1 text-xs font-medium text-fg',
+                              b.wajib ? 'bg-fg/[0.05]' : 'ring-1 ring-fg/15 ring-inset',
+                            )}
+                          >
+                            {kamus.labelBerkas(b.kode)}
+                            {!b.wajib && <span className="text-fg-subtle"> · opsional</span>}
                           </li>
                         ))}
                       </ul>

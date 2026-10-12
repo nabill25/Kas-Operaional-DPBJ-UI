@@ -1,26 +1,33 @@
 import { Ban, BadgeCheck, CircleAlert, CircleCheck, CircleX, ClipboardCheck, FolderKanban, Hourglass, Info, ReceiptText, Undo2 } from 'lucide-react';
-import { useId, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import type { Kategori } from '../../../shared/constants';
 import { formatRupiah, formatTanggal, formatWaktu, tanggalLokalIso } from '../../../shared/format';
 import {
   cariProject,
   cocokKataKunci,
+  kodeDanaPasangan,
+  nilaiProject,
+  projectDenganTask,
+  projectOtomatis,
   susunProjectTask,
+  tahunMaster,
+  tahunUntuk,
   taskOtomatis,
   type OpsiProject,
   type OpsiTask,
 } from '../../../shared/project-task';
-import type { PengajuanDetail, PengajuanRingkas } from '../../../shared/types';
+import type { MasterDana, MasterProjectTask, PengajuanDetail, PengajuanRingkas } from '../../../shared/types';
 import { validateCatatanWajib, validateDataPum, validateInvoice, validateVerifikasi } from '../../../shared/validation';
 import { ApiError } from '../../lib/api';
 import { useKamus } from '../../context/KonfigContext';
 import { useAksiPengajuan, useProjectTask, useSaranPum } from '../../lib/queries';
 import { Chip } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Field, Input, Textarea } from '../ui/Field';
+import { Field, Input, Select, Textarea } from '../ui/Field';
 import { Modal } from '../ui/Modal';
 import { PilihCari, type OpsiCari } from '../ui/PilihCari';
+import { Segmented } from '../ui/Segmented';
 
 type DataPengajuan = PengajuanDetail | PengajuanRingkas;
 
@@ -45,79 +52,170 @@ interface PropsModal {
 
 type MutasiAksi = ReturnType<typeof useAksiPengajuan>;
 
+const MASTER_KOSONG: MasterProjectTask = { project: [], task: [], dana: [] };
+
 /**
- * Project costing & task name: kotak cari dari master Project & Task (Master Data) + nilai yang pernah dipakai.
- * Memilih project otomatis mengisi task bila project itu hanya punya satu task yang cocok dengan kata kunci
- * jenis pengajuannya (master Jenis Pengajuan).
+ * Tahun master awal: tahun tempat project yang sudah tersimpan berada (bila ada di beberapa tahun, mis. hasil salin, pilih
+ * tahun kegiatan atau tahun terdekat sebelumnya); bila project belum ada di master, tahun yang cocok dengan tanggal kegiatan.
+ */
+function tahunAwal(m: MasterProjectTask, project: string, tanggal: string): number {
+  const tahunKegiatan = Number(tanggal.slice(0, 4)) || new Date().getFullYear();
+  const tahunProject = [...new Set(m.project.filter((p) => nilaiProject(p.kode, p.nama) === project).map((p) => p.tahun))].sort((a, b) => a - b);
+  if (tahunProject.length === 0) return tahunUntuk(m, tahunKegiatan);
+  if (tahunProject.includes(tahunKegiatan)) return tahunKegiatan;
+  const sebelum = tahunProject.filter((t) => t < tahunKegiatan);
+  return sebelum.length > 0 ? sebelum[sebelum.length - 1] : tahunProject[0];
+}
+
+const labelDana = (d: Pick<MasterDana, 'kode' | 'nama'>) => `${d.kode} · ${d.nama}`;
+
+/** Isian PUM: task, project, & kode dana (nilai dikelola pemanggil). */
+export interface NilaiPum {
+  project: string;
+  task: string;
+  kodeDana: string;
+}
+
+/**
+ * Task Name, Project Costing, & kode dana: kotak cari dari master Project & Task (Master Data, per tahun anggaran) + nilai
+ * yang pernah dipakai. Task diisi lebih dulu (otomatis bila hanya satu task yang cocok dengan kata kunci jenis pengajuan),
+ * lalu project yang memiliki task itu (otomatis bila hanya satu); kode dana terisi otomatis dari pasangan project–task.
  */
 function IsianPum({
   kategori,
-  project,
-  task,
-  setProject,
-  setTask,
+  tanggal,
+  nilai,
+  onUbah,
   errors,
 }: {
   kategori: Kategori;
-  project: string;
-  task: string;
-  setProject: (v: string) => void;
-  setTask: (v: string) => void;
+  /** Tanggal kegiatan (YYYY-MM-DD) — menentukan tahun anggaran awal. */
+  tanggal: string;
+  nilai: NilaiPum;
+  onUbah: (v: NilaiPum) => void;
   errors: Record<string, string>;
 }) {
   const id = useId().replace(/:/g, '');
   const { data: saran } = useSaranPum(true);
   const { data: masterPt } = useProjectTask();
   const kamus = useKamus();
-  const [otomatis, setOtomatis] = useState(false);
+  const m = masterPt ?? MASTER_KOSONG;
+  const [tahunDipilih, setTahunDipilih] = useState<number | null>(null);
+  const [otomatis, setOtomatis] = useState<{ task: boolean; project: boolean }>({ task: false, project: false });
   const jenis = kamus.jenis(kategori);
   const label = jenis.label_pendek;
   const kataKunci = jenis.kata_kunci_task;
-  const daftar = useMemo(() => susunProjectTask(masterPt ?? { project: [], task: [] }), [masterPt]);
-  const master = cariProject(daftar, project);
+  const { project, task, kodeDana } = nilai;
+  const daftarTahun = tahunMaster(m);
+  const tahun = tahunDipilih ?? tahunAwal(m, project, tanggal);
+  const daftar = useMemo(() => susunProjectTask(m, tahun), [m, tahun]);
+  const danaOtomatis = project && task ? kodeDanaPasangan(daftar, project, task) : null;
+  const pasanganDikenal = !!cariProject(daftar, project)?.tasks.some((t) => t.task === task);
 
-  const opsiProject = useMemo<OpsiCari[]>(() => {
-    const relevan = (pr: OpsiProject) => pr.tasks.some((t) => cocokKataKunci(kataKunci, t.nama));
-    const keOpsi = (pr: OpsiProject, grup: string): OpsiCari => ({ value: pr.project, kode: pr.kode, label: pr.nama, grup });
-    const lama = (saran?.project_hosting ?? []).filter((v) => !cariProject(daftar, v));
+  // Isian kosong: task otomatis dari kata kunci jenis (mis. Konsumsi → Beban Konsumsi) begitu master termuat.
+  const sudahOtomatis = useRef(false);
+  useEffect(() => {
+    if (sudahOtomatis.current || !masterPt) return;
+    sudahOtomatis.current = true;
+    if (project || task) return;
+    const t = taskOtomatis(daftar, kataKunci);
+    if (!t) return;
+    const pr = projectOtomatis(daftar, t) ?? '';
+    onUbah({ task: t, project: pr, kodeDana: (pr && kodeDanaPasangan(daftar, pr, t)) || '' });
+    setOtomatis({ task: true, project: !!pr });
+  }, [masterPt, daftar, kataKunci, project, task, onUbah]);
+
+  const opsiTask = useMemo<OpsiCari[]>(() => {
+    const keOpsi = (t: OpsiTask, grup: string): OpsiCari => ({ value: t.task, kode: t.kode, label: t.nama, grup });
+    const dikenal = new Set(daftar.task.map((t) => t.task));
+    const lama = (saran?.task_name ?? []).filter((v) => !dikenal.has(v));
+    const cocok = (t: OpsiTask) => cocokKataKunci(kataKunci, t.nama);
     return [
-      ...daftar.project.filter(relevan).map((pr) => keOpsi(pr, `Punya task ${label}`)),
-      ...daftar.project.filter((pr) => !relevan(pr)).map((pr) => keOpsi(pr, kataKunci ? 'Project lainnya' : 'Project')),
+      ...daftar.task.filter(cocok).map((t) => keOpsi(t, `Sesuai kategori ${label}`)),
+      ...daftar.task.filter((t) => !cocok(t)).map((t) => keOpsi(t, kataKunci ? 'Task lainnya' : 'Task')),
       ...lama.map((v): OpsiCari => ({ value: v, label: v, grup: 'Pernah dipakai' })),
     ];
   }, [daftar, kataKunci, label, saran]);
 
-  const opsiTask = useMemo<OpsiCari[]>(() => {
-    const sumber = master ? master.tasks : daftar.task;
-    const keOpsi = (t: OpsiTask, grup: string): OpsiCari => ({ value: t.task, kode: t.kode, label: t.nama, grup });
-    const dikenal = new Set(daftar.task.map((t) => t.task));
-    const lama = master ? [] : (saran?.task_name ?? []).filter((v) => !dikenal.has(v));
-    const cocok = (t: OpsiTask) => cocokKataKunci(kataKunci, t.nama);
+  // Task dari master → hanya project yang memiliki task itu; task lain/teks bebas → semua project.
+  const projectTask = useMemo(() => (task ? projectDenganTask(daftar, task) : []), [daftar, task]);
+  const opsiProject = useMemo<OpsiCari[]>(() => {
+    const keOpsi = (pr: OpsiProject, grup: string): OpsiCari => ({ value: pr.project, kode: pr.kode, label: pr.nama, grup });
+    if (projectTask.length > 0) return projectTask.map((pr) => keOpsi(pr, 'Memiliki task terpilih'));
+    const lama = (saran?.project_hosting ?? []).filter((v) => !cariProject(daftar, v));
     return [
-      ...sumber.filter(cocok).map((t) => keOpsi(t, `Sesuai kategori ${label}`)),
-      ...sumber
-        .filter((t) => !cocok(t))
-        .map((t) => keOpsi(t, master ? 'Task lain project ini' : kataKunci ? 'Task lainnya' : 'Task')),
+      ...daftar.project.map((pr) => keOpsi(pr, 'Project')),
       ...lama.map((v): OpsiCari => ({ value: v, label: v, grup: 'Pernah dipakai' })),
     ];
-  }, [daftar, kataKunci, label, master, saran]);
+  }, [daftar, projectTask, saran]);
 
-  const pilihProject = (v: string) => {
-    setProject(v);
-    const pr = cariProject(daftar, v);
-    // Task lama tetap dipakai bila masih sah untuk project baru; selain itu isi otomatis (atau kosongkan).
-    if (!pr || pr.tasks.some((t) => t.task === task)) {
-      setOtomatis(false);
-      return;
-    }
-    const t = taskOtomatis(daftar, kataKunci, v);
-    setTask(t ?? '');
-    setOtomatis(t !== null);
+  const opsiDana = m.dana.filter((d) => d.aktif || d.kode === kodeDana);
+
+  const pilihTask = (t: string) => {
+    // Project tetap bila masih memiliki task baru; selain itu isi otomatis (satu-satunya project) atau kosongkan.
+    const tetap = !!project && projectDenganTask(daftar, t).some((p) => p.project === project);
+    const pr = tetap ? project : (projectOtomatis(daftar, t) ?? (cariProject(daftar, project) ? '' : project));
+    onUbah({ task: t, project: pr, kodeDana: (pr && t && kodeDanaPasangan(daftar, pr, t)) || '' });
+    setOtomatis({ task: false, project: !tetap && !!pr && pr !== project });
+  };
+
+  const pilihProject = (pr: string) => {
+    onUbah({ task, project: pr, kodeDana: (pr && task && kodeDanaPasangan(daftar, pr, task)) || '' });
+    setOtomatis((o) => ({ ...o, project: false }));
+  };
+
+  const gantiTahun = (t: number) => {
+    setTahunDipilih(t);
+    const d = susunProjectTask(m, t);
+    const tk = taskOtomatis(d, kataKunci) ?? '';
+    const pr = tk ? (projectOtomatis(d, tk) ?? '') : '';
+    onUbah({ task: tk, project: pr, kodeDana: (pr && tk && kodeDanaPasangan(d, pr, tk)) || '' });
+    setOtomatis({ task: !!tk, project: !!pr });
   };
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <Field label="Project Costing" htmlFor={`${id}-project`} error={errors.project_hosting} hint="Cari kode atau nama project">
+      {daftarTahun.length > 1 && (
+        <Field label="Tahun anggaran" htmlFor={`${id}-tahun`} hint="Master Project & Task yang dipakai">
+          <Segmented
+            id={`${id}-tahun`}
+            label="Tahun anggaran"
+            layoutId={`${id}-seg-tahun`}
+            value={String(tahun)}
+            onChange={(v) => gantiTahun(Number(v))}
+            opsi={daftarTahun.map((t) => ({ value: String(t), label: String(t) }))}
+          />
+        </Field>
+      )}
+      <Field
+        label="Task Name"
+        htmlFor={`${id}-task`}
+        error={errors.task_name}
+        hint={otomatis.task ? `Terisi otomatis: task ${label}` : 'Cari kode atau nama task'}
+      >
+        <PilihCari
+          id={`${id}-task`}
+          value={task}
+          onChange={pilihTask}
+          opsi={opsiTask}
+          invalid={!!errors.task_name}
+          labelCari="Cari task"
+          placeholder="Pilih task…"
+          placeholderCari="mis. 723207 atau konsumsi"
+        />
+      </Field>
+      <Field
+        label="Project Costing"
+        htmlFor={`${id}-project`}
+        error={errors.project_hosting}
+        hint={
+          otomatis.project
+            ? 'Terisi otomatis: satu-satunya project yang memiliki task ini'
+            : projectTask.length > 0
+              ? 'Hanya project yang memiliki task terpilih'
+              : 'Cari kode atau nama project'
+        }
+      >
         <PilihCari
           id={`${id}-project`}
           value={project}
@@ -130,30 +228,35 @@ function IsianPum({
         />
       </Field>
       <Field
-        label="Task Name"
-        htmlFor={`${id}-task`}
-        error={errors.task_name}
+        label="Kode dana"
+        htmlFor={`${id}-dana`}
+        error={errors.kode_dana}
         hint={
-          otomatis
-            ? `Terisi otomatis: task ${label} untuk project ini`
-            : master
-              ? 'Hanya task yang tersedia untuk project terpilih'
-              : 'Cari kode atau nama task'
+          !project || !task
+            ? 'Terisi otomatis setelah task & project dipilih'
+            : danaOtomatis
+              ? kodeDana === danaOtomatis
+                ? `Otomatis dari master Project & Task ${tahun}`
+                : `Master: ${danaOtomatis} — diubah manual`
+              : pasanganDikenal
+                ? 'Pasangan ini belum diberi kode dana di master — pilih manual bila perlu'
+                : 'Project/task di luar master — pilih kode dana manual bila perlu'
         }
       >
-        <PilihCari
-          id={`${id}-task`}
-          value={task}
-          onChange={(v) => {
-            setTask(v);
-            setOtomatis(false);
-          }}
-          opsi={opsiTask}
-          invalid={!!errors.task_name}
-          labelCari="Cari task"
-          placeholder="Pilih task…"
-          placeholderCari="mis. 723207 atau konsumsi"
-        />
+        <Select
+          id={`${id}-dana`}
+          aria-label="Kode dana"
+          value={kodeDana}
+          invalid={!!errors.kode_dana}
+          onChange={(e) => onUbah({ ...nilai, kodeDana: e.target.value })}
+        >
+          <option value="">— Belum ada kode dana —</option>
+          {opsiDana.map((d) => (
+            <option key={d.kode} value={d.kode}>
+              {labelDana(d)}
+            </option>
+          ))}
+        </Select>
       </Field>
     </div>
   );
@@ -178,14 +281,14 @@ export function VerifikasiModal(props: PropsModal) {
 }
 
 function IsiVerifikasi({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'open'> & { aksi: MutasiAksi }) {
-  const [project, setProject] = useState(p.project_hosting ?? '');
-  const [task, setTask] = useState(p.task_name ?? '');
+  const [nilai, setNilai] = useState<NilaiPum>({ project: p.project_hosting ?? '', task: p.task_name ?? '', kodeDana: p.kode_dana ?? '' });
   const [catatan, setCatatan] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const { project, task, kodeDana } = nilai;
 
   const kirim = async (e: FormEvent) => {
     e.preventDefault();
-    const h = validateVerifikasi({ project_hosting: project, task_name: task, catatan });
+    const h = validateVerifikasi({ project_hosting: project, task_name: task, kode_dana: kodeDana, catatan });
     if (!h.ok) {
       setErrors(h.errors);
       return;
@@ -195,6 +298,7 @@ function IsiVerifikasi({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, '
         aksi: 'verifikasi',
         project_hosting: project,
         task_name: task,
+        kode_dana: kodeDana,
         catatan,
       });
       toast.success(`${p.kode} diverifikasi PUM`, { description: 'Pengaju menerima notifikasi otomatis.' });
@@ -216,10 +320,10 @@ function IsiVerifikasi({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, '
         Semua berkas wajib sudah dicentang sesuai ({p.berkas_sesuai}/{p.berkas_wajib}).
       </p>
       <form onSubmit={kirim} className="space-y-4" noValidate>
-        <IsianPum kategori={p.kategori} project={project} task={task} setProject={setProject} setTask={setTask} errors={errors} />
+        <IsianPum kategori={p.kategori} tanggal={p.tanggal_kegiatan} nilai={nilai} onUbah={setNilai} errors={errors} />
         {!project.trim() && !task.trim() && (
           <p className="flex items-start gap-2 text-xs text-fg-muted">
-            <Info className="mt-px size-3.5 shrink-0" /> Project costing & task name boleh dilengkapi nanti dari halaman detail.
+            <Info className="mt-px size-3.5 shrink-0" /> Task name, project costing, & kode dana boleh dilengkapi nanti dari halaman detail.
           </p>
         )}
         <Field label="Catatan untuk pengaju (opsional)" htmlFor="catatan_verifikasi" error={errors.catatan}>
@@ -254,7 +358,7 @@ export function DataPumModal(props: PropsModal) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       terkunci={aksi.isPending}
-      judul="Project costing & task name"
+      judul="Task name, project costing & kode dana"
       deskripsi="Data pencatatan PUM untuk proses di MDK."
       ikon={<FolderKanban className="size-5" />}
       lebar="sm"
@@ -265,19 +369,19 @@ export function DataPumModal(props: PropsModal) {
 }
 
 function IsiDataPum({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'open'> & { aksi: MutasiAksi }) {
-  const [project, setProject] = useState(p.project_hosting ?? '');
-  const [task, setTask] = useState(p.task_name ?? '');
+  const [nilai, setNilai] = useState<NilaiPum>({ project: p.project_hosting ?? '', task: p.task_name ?? '', kodeDana: p.kode_dana ?? '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const { project, task, kodeDana } = nilai;
 
   const kirim = async (e: FormEvent) => {
     e.preventDefault();
-    const h = validateDataPum({ project_hosting: project, task_name: task });
+    const h = validateDataPum({ project_hosting: project, task_name: task, kode_dana: kodeDana });
     if (!h.ok) {
       setErrors(h.errors);
       return;
     }
     try {
-      const d = await aksi.mutateAsync({ aksi: 'data-pum', project_hosting: project, task_name: task });
+      const d = await aksi.mutateAsync({ aksi: 'data-pum', project_hosting: project, task_name: task, kode_dana: kodeDana });
       toast.success('Data PUM diperbarui');
       onOpenChange(false);
       onBerhasil?.(d);
@@ -291,7 +395,7 @@ function IsiDataPum({ p, onOpenChange, onBerhasil, aksi }: Omit<PropsModal, 'ope
 
   return (
     <form onSubmit={kirim} className="space-y-4" noValidate>
-      <IsianPum kategori={p.kategori} project={project} task={task} setProject={setProject} setTask={setTask} errors={errors} />
+      <IsianPum kategori={p.kategori} tanggal={p.tanggal_kegiatan} nilai={nilai} onUbah={setNilai} errors={errors} />
       <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
         <Button varian="kedua" onClick={() => onOpenChange(false)} disabled={aksi.isPending}>
           Batal
@@ -373,14 +477,17 @@ function IsiInvoice({
   return (
     <>
       <Ringkasan p={p} />
-      {(p.project_hosting || p.task_name) && (
+      {(p.project_hosting || p.task_name || p.kode_dana) && (
         <p className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-fg/[0.04] px-3 py-2 text-xs text-fg-muted ring-1 ring-fg/[0.06]">
           <FolderKanban className="size-3.5" />
+          <span>
+            Task: <b className="text-fg">{p.task_name ?? '-'}</b>
+          </span>
           <span>
             Project: <b className="text-fg">{p.project_hosting ?? '-'}</b>
           </span>
           <span>
-            Task: <b className="text-fg">{p.task_name ?? '-'}</b>
+            Kode dana: <b className="text-fg">{p.kode_dana ?? '-'}</b>
           </span>
         </p>
       )}

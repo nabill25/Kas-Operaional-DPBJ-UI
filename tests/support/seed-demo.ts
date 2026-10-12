@@ -326,7 +326,9 @@ export async function seedDemo(
     let indeksPum = 0;
     for (const x of rencana) {
       const kode = await kodeBerikutnya(txDb, x.kategori, new Date(x.waktu.dibuat).getFullYear());
-      const mekanisme: Mekanisme = rnd() < 0.65 ? 'KO' : 'LS';
+      // Transport (Rumah Tangga & Perjadin) selalu LS (master mekanisme_tetap); rnd() tetap dipanggil agar data lain tidak bergeser.
+      const acakMekanisme = rnd();
+      const mekanisme: Mekanisme = kamus.jenis(x.kategori).mekanisme_tetap ?? (acakMekanisme < 0.65 ? 'KO' : 'LS');
 
       let nama: string;
       let lokasi: string | null = null;
@@ -385,7 +387,9 @@ export async function seedDemo(
         total = peserta.reduce((s, p) => s + p.nilai, 0);
       }
 
-      const wajib = kamus.jenis(x.kategori).berkas;
+      // Data awal master: semua berkas bawaan wajib.
+      const daftarBerkas = kamus.jenis(x.kategori).berkas;
+      const wajib = daftarBerkas.filter((b) => b.wajib).map((b) => b.kode);
       const na: string[] = x.kategori === 'perjadin' && jenisTransport === 'dalam_kota' ? ['invoice_hotel', 'invoice_tiket'] : [];
       let diunggah: RencanaBerkas[] = wajib.filter((j) => !na.includes(j)).map((j) => ({ jenis: j, nama_berkas: null }));
       let menyusul: RencanaBerkas | null = null;
@@ -416,9 +420,9 @@ export async function seedDemo(
         `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang, lokasi_tujuan,
            mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, rekening_bank, rekening_nomor, dibayar_at,
            dibayar_by, total, catatan, berkas_na, status, no_invoice_mdk, tanggal_invoice_mdk, catatan_pum, project_hosting,
-           task_name, created_by, updated_by, diajukan_at, diverifikasi_by, diverifikasi_at, diajukan_mdk_by, diajukan_mdk_at,
+           task_name, kode_dana, created_by, updated_by, diajukan_at, diverifikasi_by, diverifikasi_at, diajukan_mdk_by, diajukan_mdk_at,
            diproses_by, diproses_at, created_at, updated_at, berkas_daftar, berkas_terpenuhi, berkas_wajib)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
         kode,
         x.kategori,
         nama,
@@ -446,6 +450,7 @@ export async function seedDemo(
         x.status === 'dikembalikan' ? alasanKembali(kurang) : null,
         proyek ? pt.project : null,
         proyek ? pt.task : null,
+        proyek ? pt.kodeDana : null,
         userId.operator,
         x.status === 'draft' || x.status === 'diajukan_pum' ? userId.operator : userId.pum,
         x.status === 'draft' ? null : iso(x.waktu.diajukanUlang ?? x.waktu.diajukan!),
@@ -457,19 +462,24 @@ export async function seedDemo(
         x.waktu.diproses ? iso(x.waktu.diproses) : x.status === 'dikembalikan' ? iso(x.waktu.kembali!) : null,
         iso(x.waktu.dibuat),
         iso(Math.min(Math.max(terakhir, dibayar ?? 0), now)),
-        JSON.stringify(wajib),
+        JSON.stringify(daftarBerkas),
         wajib.length,
       );
       
       for (let i = 0; i < peserta.length; i++) {
         const p = peserta[i];
+        // Rekening penerima = rekening pegawai di master (bila ada), seperti terisi otomatis di form.
+        const rek = REKENING_PEGAWAI_DEMO[namaPegawai.get(p.pegawai_id) ?? ''];
         await txDb.run(
-          'INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, uang_harian, uang_transport, urutan) VALUES (?, ?, ?, ?, ?, ?)',
+          `INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, uang_harian, uang_transport, rekening_bank, rekening_nomor, urutan)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           id,
           p.pegawai_id,
           p.nilai,
           p.uang_harian,
           p.uang_transport,
+          rek?.[0] ?? null,
+          rek?.[1] ?? null,
           i + 1,
         );
       }
@@ -610,7 +620,7 @@ export async function seedDemo(
           ref,
           userId.pum,
           'diverifikasi',
-          `Berkas ${totalWajib}/${totalWajib} sesuai · Project: ${pt.project} · Task: ${pt.task}`,
+          `Berkas ${totalWajib}/${totalWajib} sesuai · Project: ${pt.project} · Task: ${pt.task} · Kode dana: ${pt.kodeDana}`,
           iso(tVerifikasi),
         );
         await notif(userId.operator, tVerifikasi, {

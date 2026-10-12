@@ -43884,7 +43884,10 @@ function validatePengajuan(raw, jenis) {
   } else if (!isTanggalValid(tanggal_kegiatan)) {
     e.tanggal_kegiatan = "Tanggal tidak valid";
   }
-  if (!termasuk(MEKANISME_LIST, r.mekanisme)) e.mekanisme = "Pilih mekanisme KO atau LS";
+  let mekanisme = "LS";
+  if (jenis.mekanisme_tetap) mekanisme = jenis.mekanisme_tetap;
+  else if (termasuk(MEKANISME_LIST, r.mekanisme)) mekanisme = r.mekanisme;
+  else e.mekanisme = "Pilih mekanisme KO atau LS";
   const catatan = teksPanjang(r.catatan);
   if (catatan.length > 1e3) e.catatan = "Catatan maksimal 1000 karakter";
   let total = 0;
@@ -43947,6 +43950,13 @@ function validatePengajuan(raw, jenis) {
         } else {
           sudah.add(pid);
         }
+        const jumlahError = Object.keys(e).length;
+        const rek = validasiRekening(o.rekening_bank, o.rekening_nomor, e, {
+          bank: `peserta.${i}.rekening_bank`,
+          nomor: `peserta.${i}.rekening_nomor`
+        });
+        if (Object.keys(e).length > jumlahError) valid = false;
+        const rekening = { rekening_bank: rek.bank, rekening_nomor: rek.nomor };
         if (perjadin) {
           let uangValid = true;
           const uang = (field, label) => {
@@ -43971,7 +43981,7 @@ function validatePengajuan(raw, jenis) {
             e[`peserta.${i}.uang_harian`] = "Jumlah uang melebihi batas maksimal";
             uangValid = false;
           }
-          if (valid && uangValid && pid !== null) peserta.push({ pegawai_id: pid, nilai: nilai2, uang_harian, uang_transport });
+          if (valid && uangValid && pid !== null) peserta.push({ pegawai_id: pid, nilai: nilai2, uang_harian, uang_transport, ...rekening });
           return;
         }
         const nilai = keInteger(o.nilai);
@@ -43986,7 +43996,7 @@ function validatePengajuan(raw, jenis) {
           valid = false;
         }
         if (valid && pid !== null && nilai !== null) {
-          peserta.push({ pegawai_id: pid, nilai, uang_harian: null, uang_transport: null });
+          peserta.push({ pegawai_id: pid, nilai, uang_harian: null, uang_transport: null, ...rekening });
         }
       });
       jumlah_orang = daftar.length;
@@ -44023,7 +44033,7 @@ function validatePengajuan(raw, jenis) {
       tanggal_selesai,
       jumlah_orang,
       lokasi_tujuan,
-      mekanisme: r.mekanisme,
+      mekanisme,
       jenis_uang,
       jenis_transport,
       jenis_konsumsi,
@@ -44136,15 +44146,18 @@ function validateGantiPassword(raw) {
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return { ok: true, data: { password_lama: lama, password_baru: baru } };
 }
+var RE_KODE_DANA = /^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$/;
 function validateDataPum(raw) {
   const r = objek(raw);
   const e = {};
   const project = teks(r.project_hosting);
   const task = teks(r.task_name);
+  const dana = teks(r.kode_dana);
   if (project.length > 150) e.project_hosting = "Project costing maksimal 150 karakter";
   if (task.length > 150) e.task_name = "Task name maksimal 150 karakter";
+  if (dana && !RE_KODE_DANA.test(dana)) e.kode_dana = "Kode dana tidak valid";
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
-  return { ok: true, data: { project_hosting: project || null, task_name: task || null } };
+  return { ok: true, data: { project_hosting: project || null, task_name: task || null, kode_dana: dana || null } };
 }
 function validateVerifikasi(raw) {
   const r = objek(raw);
@@ -44216,6 +44229,10 @@ function validateJenisPengajuan(raw, modelTetap) {
   }
   const kata_kunci_task = teks(r.kata_kunci_task);
   if (kata_kunci_task.length > 100) e.kata_kunci_task = "Kata kunci maksimal 100 karakter";
+  let mekanisme_tetap = null;
+  if (r.mekanisme_tetap === void 0 || r.mekanisme_tetap === null || r.mekanisme_tetap === "") mekanisme_tetap = null;
+  else if (termasuk(MEKANISME_LIST, r.mekanisme_tetap)) mekanisme_tetap = r.mekanisme_tetap;
+  else e.mekanisme_tetap = "Pilih mekanisme: KO & LS, hanya KO, atau hanya LS";
   let warna = "abu";
   if (termasuk(WARNA_JENIS_PILIHAN, r.warna)) warna = r.warna;
   else e.warna = "Pilih warna";
@@ -44226,24 +44243,26 @@ function validateJenisPengajuan(raw, modelTetap) {
   const berkas = [];
   const daftar = r.berkas === void 0 ? [] : r.berkas;
   if (!Array.isArray(daftar)) {
-    e.berkas = "Daftar berkas wajib tidak valid";
+    e.berkas = "Daftar berkas tidak valid";
   } else {
-    for (const b of daftar) {
-      if (typeof b !== "string" || !b.trim()) {
-        e.berkas = "Daftar berkas wajib tidak valid";
+    for (const item of daftar) {
+      const o = typeof item === "string" ? { kode: item, wajib: true } : objek(item);
+      const kode = typeof o.kode === "string" ? o.kode.trim() : "";
+      if (!kode || o.wajib !== void 0 && typeof o.wajib !== "boolean") {
+        e.berkas = "Daftar berkas tidak valid";
         break;
       }
-      if (b === JENIS_BERKAS_LAINNYA) {
+      if (kode === JENIS_BERKAS_LAINNYA) {
         e.berkas = "Dokumen Lainnya selalu tersedia sebagai berkas opsional, tidak perlu dipilih";
         break;
       }
-      if (berkas.includes(b)) {
+      if (berkas.some((b) => b.kode === kode)) {
         e.berkas = "Ada jenis berkas yang dipilih dua kali";
         break;
       }
-      berkas.push(b);
+      berkas.push({ kode, wajib: o.wajib !== false });
     }
-    if (!e.berkas && berkas.length > 20) e.berkas = "Maksimal 20 berkas wajib";
+    if (!e.berkas && berkas.length > 20) e.berkas = "Maksimal 20 berkas per jenis pengajuan";
   }
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return {
@@ -44256,6 +44275,7 @@ function validateJenisPengajuan(raw, modelTetap) {
       model,
       maks_peserta,
       kata_kunci_task: kata_kunci_task || null,
+      mekanisme_tetap,
       warna,
       ikon,
       aktif,
@@ -44288,9 +44308,17 @@ function validateBank(raw) {
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return { ok: true, data: { nama, aktif } };
 }
+function bacaTahun(v, e, kunci = "tahun") {
+  const t = keInteger(v);
+  if (t === null) e[kunci] = "Tahun anggaran wajib diisi";
+  else if (Number.isNaN(t) || t < 2e3 || t > 2100) e[kunci] = "Tahun anggaran tidak valid";
+  else return t;
+  return 0;
+}
 function validateProject(raw) {
   const r = objek(raw);
   const e = {};
+  const tahun = bacaTahun(r.tahun, e);
   const kode = teks(r.kode).replace(/\s+/g, "");
   if (!kode) e.kode = "Kode project wajib diisi";
   else if (!/^[A-Za-z0-9][A-Za-z0-9./-]{0,39}$/.test(kode)) e.kode = "Kode project hanya huruf, angka, titik, strip, atau garis miring (maks. 40)";
@@ -44300,26 +44328,33 @@ function validateProject(raw) {
   else if (nama.length > 120) e.nama = "Nama project maksimal 120 karakter";
   else if (!e.kode && kode.length + 1 + nama.length > 150) e.nama = "Kode + nama project maksimal 150 karakter";
   const aktif = bacaAktif(r.aktif, e);
-  const task_ids = [];
-  const daftar = r.task_ids === void 0 ? [] : r.task_ids;
-  if (!Array.isArray(daftar)) e.task_ids = "Daftar task tidak valid";
+  const tasks = [];
+  const daftar = r.tasks !== void 0 ? r.tasks : r.task_ids === void 0 ? [] : r.task_ids;
+  if (!Array.isArray(daftar)) e.tasks = "Daftar task tidak valid";
   else {
     for (const v of daftar) {
-      const id = keInteger(v);
+      const o = typeof v === "object" && v !== null ? objek(v) : { id: v, kode_dana: null };
+      const id = keInteger(o.id);
+      const dana = teks(o.kode_dana);
       if (id === null || Number.isNaN(id) || id <= 0) {
-        e.task_ids = "Daftar task tidak valid";
+        e.tasks = "Daftar task tidak valid";
         break;
       }
-      if (!task_ids.includes(id)) task_ids.push(id);
+      if (dana && !RE_KODE_DANA.test(dana)) {
+        e.tasks = "Kode dana tidak valid";
+        break;
+      }
+      if (!tasks.some((t) => t.id === id)) tasks.push({ id, kode_dana: dana || null });
     }
-    if (!e.task_ids && task_ids.length > 200) e.task_ids = "Terlalu banyak task";
+    if (!e.tasks && tasks.length > 200) e.tasks = "Terlalu banyak task";
   }
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
-  return { ok: true, data: { kode, nama, aktif, task_ids } };
+  return { ok: true, data: { tahun, kode, nama, aktif, tasks } };
 }
 function validateTask(raw) {
   const r = objek(raw);
   const e = {};
+  const tahun = bacaTahun(r.tahun, e);
   const kode = teks(r.kode).replace(/\s+/g, "");
   if (!kode) e.kode = "Kode task wajib diisi";
   else if (!/^[A-Za-z0-9][A-Za-z0-9./-]{0,29}$/.test(kode)) e.kode = "Kode task hanya huruf, angka, titik, strip, atau garis miring (maks. 30)";
@@ -44330,7 +44365,30 @@ function validateTask(raw) {
   else if (!e.kode && kode.length + 1 + nama.length > 150) e.nama = "Kode + nama task maksimal 150 karakter";
   const aktif = bacaAktif(r.aktif, e);
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { tahun, kode, nama, aktif } };
+}
+function validateDana(raw) {
+  const r = objek(raw);
+  const e = {};
+  const kode = teks(r.kode).replace(/\s+/g, "");
+  if (!kode) e.kode = "Kode dana wajib diisi";
+  else if (!RE_KODE_DANA.test(kode)) e.kode = "Kode dana hanya huruf, angka, titik, atau strip (maks. 20)";
+  const nama = teks(r.nama);
+  if (!nama) e.nama = "Nama sumber dana wajib diisi";
+  else if (nama.length < 2) e.nama = "Nama minimal 2 karakter";
+  else if (nama.length > 100) e.nama = "Nama maksimal 100 karakter";
+  const aktif = bacaAktif(r.aktif, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return { ok: true, data: { kode, nama, aktif } };
+}
+function validateSalinTahun(raw) {
+  const r = objek(raw);
+  const e = {};
+  const dari = bacaTahun(r.dari, e, "dari");
+  const ke = bacaTahun(r.ke, e, "ke");
+  if (!e.dari && !e.ke && dari === ke) e.ke = "Tahun tujuan harus berbeda dari tahun asal";
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { dari, ke } };
 }
 
 // server/providers.ts
@@ -44344,23 +44402,26 @@ var AuthGagal = class extends Error {
 };
 
 // shared/kelengkapan.ts
-function hitungKelengkapan(daftarWajib2, label, berkas, berkasNa, cek = []) {
-  const items = daftarWajib2.map((jenis) => {
+function hitungKelengkapan(daftar, label, berkas, berkasNa, cek = []) {
+  const items = daftar.map(({ kode: jenis, wajib: wajib2 }) => {
     const jumlah = berkas.filter((b) => b.jenis === jenis).length;
-    const na = jumlah === 0 && berkasNa.includes(jenis);
+    const na = wajib2 && jumlah === 0 && berkasNa.includes(jenis);
     return {
       jenis,
       label: label(jenis),
+      wajib: wajib2,
       jumlah,
       na,
       terpenuhi: jumlah > 0 || na,
       cek: cek.find((c) => c.jenis === jenis) ?? null
     };
   });
-  const terpenuhi = items.filter((i) => i.terpenuhi).length;
-  const total = items.length;
-  const sesuai = items.filter((i) => i.cek?.status === "sesuai").length;
+  const wajib = items.filter((i) => i.wajib);
+  const terpenuhi = wajib.filter((i) => i.terpenuhi).length;
+  const total = wajib.length;
+  const sesuai = wajib.filter((i) => i.cek?.status === "sesuai").length;
   const revisi = items.filter((i) => i.cek?.status === "revisi").length;
+  const semuaSesuai = sesuai === total;
   return {
     items,
     terpenuhi,
@@ -44369,7 +44430,8 @@ function hitungKelengkapan(daftarWajib2, label, berkas, berkasNa, cek = []) {
     persen: total === 0 ? 100 : Math.round(terpenuhi / total * 100),
     sesuai,
     revisi,
-    semuaSesuai: sesuai === total
+    semuaSesuai,
+    bisaVerifikasi: semuaSesuai && revisi === 0
   };
 }
 function parseBerkasNa(json) {
@@ -44384,10 +44446,24 @@ function parseBerkasDaftar(json) {
   if (json === null || json === void 0) return null;
   try {
     const v = JSON.parse(json);
-    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : null;
+    if (!Array.isArray(v)) return null;
+    const hasil = [];
+    for (const x of v) {
+      if (typeof x === "string") hasil.push({ kode: x, wajib: true });
+      else if (x && typeof x === "object" && typeof x.kode === "string") {
+        hasil.push({ kode: x.kode, wajib: x.wajib !== false });
+      }
+    }
+    return hasil;
   } catch {
     return null;
   }
+}
+function samaDaftarBerkas(a, b) {
+  return a.length === b.length && a.every((x, i) => x.kode === b[i].kode && x.wajib === b[i].wajib);
+}
+function kodeWajib(daftar) {
+  return daftar.filter((b) => b.wajib).map((b) => b.kode);
 }
 
 // server/services/master.ts
@@ -44400,6 +44476,7 @@ var keJenis = (r, berkas) => ({
   model: r.model,
   maks_peserta: r.maks_peserta === null ? null : Number(r.maks_peserta),
   kata_kunci_task: r.kata_kunci_task,
+  mekanisme_tetap: r.mekanisme_tetap ?? null,
   warna: r.warna,
   ikon: r.ikon,
   aktif: r.aktif,
@@ -44408,23 +44485,25 @@ var keJenis = (r, berkas) => ({
   berkas,
   ...r.dipakai === void 0 ? {} : { dipakai: Number(r.dipakai) }
 });
-async function petaBerkasWajib(db) {
+async function petaBerkas(db) {
   const rows = await db.all(
-    "SELECT jenis_pengajuan, jenis_berkas FROM jenis_pengajuan_berkas ORDER BY jenis_pengajuan, urutan, jenis_berkas"
+    "SELECT jenis_pengajuan, jenis_berkas, wajib FROM jenis_pengajuan_berkas ORDER BY jenis_pengajuan, urutan, jenis_berkas"
   );
   const peta = /* @__PURE__ */ new Map();
-  for (const r of rows) peta.set(r.jenis_pengajuan, [...peta.get(r.jenis_pengajuan) ?? [], r.jenis_berkas]);
+  for (const r of rows) {
+    peta.set(r.jenis_pengajuan, [...peta.get(r.jenis_pengajuan) ?? [], { kode: r.jenis_berkas, wajib: r.wajib }]);
+  }
   return peta;
 }
 var KOLOM_JENIS = `jp.kode, jp.label, jp.label_pendek, jp.prefix, jp.deskripsi, jp.model, jp.maks_peserta, jp.kata_kunci_task,
-       jp.warna, jp.ikon, jp.aktif, jp.bawaan, jp.urutan`;
+       jp.mekanisme_tetap::text AS mekanisme_tetap, jp.warna, jp.ikon, jp.aktif, jp.bawaan, jp.urutan`;
 async function daftarJenisPengajuan(db, denganPemakaian = false) {
   const rows = await db.all(
     `SELECT ${KOLOM_JENIS}
             ${denganPemakaian ? ", (SELECT COUNT(*) FROM pengajuan p WHERE p.kategori = jp.kode)::int AS dipakai" : ""}
        FROM jenis_pengajuan jp ORDER BY jp.urutan, jp.kode`
   );
-  const peta = await petaBerkasWajib(db);
+  const peta = await petaBerkas(db);
   return rows.map((r) => keJenis(r, peta.get(r.kode) ?? []));
 }
 async function daftarJenisBerkas(db, denganPemakaian = false) {
@@ -44449,10 +44528,10 @@ async function ambilJenisPengajuan(db, kode) {
   const row = await db.get(`SELECT ${KOLOM_JENIS} FROM jenis_pengajuan jp WHERE jp.kode = ?`, kode);
   if (!row) return void 0;
   const berkas = await db.all(
-    "SELECT jenis_berkas FROM jenis_pengajuan_berkas WHERE jenis_pengajuan = ? ORDER BY urutan, jenis_berkas",
+    "SELECT jenis_berkas, wajib FROM jenis_pengajuan_berkas WHERE jenis_pengajuan = ? ORDER BY urutan, jenis_berkas",
     kode
   );
-  return keJenis(row, berkas.map((b) => b.jenis_berkas));
+  return keJenis(row, berkas.map((b) => ({ kode: b.jenis_berkas, wajib: b.wajib })));
 }
 async function labelJenisBerkas(db, kode) {
   const unik = [...new Set(kode.filter((k) => k !== JENIS_BERKAS_LAINNYA))];
@@ -44492,29 +44571,30 @@ async function pastikanUnikJenis(db, data, kecuali) {
   if (prefix) errors.prefix = `Awalan kode sudah dipakai oleh ${prefix.label}`;
   if (Object.keys(errors).length) throw badRequest("Data jenis pengajuan sudah ada", errors);
 }
-async function simpanBerkasWajib(db, kode, berkas) {
+async function simpanDaftarBerkas(db, kode, berkas) {
   await db.run("DELETE FROM jenis_pengajuan_berkas WHERE jenis_pengajuan = ?", kode);
   for (let i = 0; i < berkas.length; i++) {
     await db.run(
-      "INSERT INTO jenis_pengajuan_berkas (jenis_pengajuan, jenis_berkas, urutan) VALUES (?, ?, ?)",
+      "INSERT INTO jenis_pengajuan_berkas (jenis_pengajuan, jenis_berkas, urutan, wajib) VALUES (?, ?, ?, ?)",
       kode,
-      berkas[i],
-      i + 1
+      berkas[i].kode,
+      i + 1,
+      berkas[i].wajib
     );
   }
 }
 async function buatJenisPengajuan(db, data) {
   return db.tx(async (tx) => {
     await pastikanUnikJenis(tx, data);
-    await pastikanBerkasSah(tx, data.berkas);
+    await pastikanBerkasSah(tx, data.berkas.map((b) => b.kode));
     const kodeAda = (await tx.all("SELECT kode FROM jenis_pengajuan")).map((r) => r.kode);
     const kode = kodeDariLabel(data.label, kodeAda);
     const urutan = (await tx.get("SELECT MAX(urutan) AS m FROM jenis_pengajuan"))?.m ?? 0;
     const waktu = nowIso();
     await tx.run(
       `INSERT INTO jenis_pengajuan (kode, label, label_pendek, prefix, deskripsi, model, maks_peserta, kata_kunci_task,
-         warna, ikon, aktif, bawaan, urutan, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false, ?, ?, ?)`,
+         mekanisme_tetap, warna, ikon, aktif, bawaan, urutan, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false, ?, ?, ?)`,
       kode,
       data.label,
       data.label_pendek,
@@ -44523,6 +44603,7 @@ async function buatJenisPengajuan(db, data) {
       data.model,
       data.maks_peserta,
       data.kata_kunci_task,
+      data.mekanisme_tetap,
       data.warna,
       data.ikon,
       data.aktif,
@@ -44530,7 +44611,7 @@ async function buatJenisPengajuan(db, data) {
       waktu,
       waktu
     );
-    await simpanBerkasWajib(tx, kode, data.berkas);
+    await simpanDaftarBerkas(tx, kode, data.berkas);
     return kode;
   });
 }
@@ -44538,7 +44619,11 @@ async function ubahJenisPengajuan(db, kode, data) {
   const lama = await ambilJenisPengajuan(db, kode);
   if (!lama) throw notFound("Jenis pengajuan tidak ditemukan");
   await pastikanUnikJenis(db, data, kode);
-  await pastikanBerkasSah(db, data.berkas, lama.berkas);
+  await pastikanBerkasSah(
+    db,
+    data.berkas.map((b) => b.kode),
+    lama.berkas.map((b) => b.kode)
+  );
   if (data.prefix !== lama.prefix) {
     const n = (await db.get("SELECT COUNT(*)::int AS c FROM pengajuan WHERE kategori = ?", kode))?.c ?? 0;
     if (n > 0) {
@@ -44553,21 +44638,22 @@ async function ubahJenisPengajuan(db, kode, data) {
   }
   await db.run(
     `UPDATE jenis_pengajuan SET label = ?, label_pendek = ?, prefix = ?, deskripsi = ?, maks_peserta = ?, kata_kunci_task = ?,
-       warna = ?, ikon = ?, aktif = ?, updated_at = ? WHERE kode = ?`,
+       mekanisme_tetap = ?, warna = ?, ikon = ?, aktif = ?, updated_at = ? WHERE kode = ?`,
     data.label,
     data.label_pendek,
     data.prefix,
     data.deskripsi,
     data.maks_peserta,
     data.kata_kunci_task,
+    data.mekanisme_tetap,
     data.warna,
     data.ikon,
     data.aktif,
     nowIso(),
     kode
   );
-  const berubah = data.berkas.join("|") !== lama.berkas.join("|");
-  if (berubah) await simpanBerkasWajib(db, kode, data.berkas);
+  const berubah = !samaDaftarBerkas(data.berkas, lama.berkas);
+  if (berubah) await simpanDaftarBerkas(db, kode, data.berkas);
   return berubah;
 }
 async function hapusJenisPengajuan(db, kode) {
@@ -44623,7 +44709,7 @@ async function ubahJenisBerkas(db, kode, data) {
   if (lama.aktif && !data.aktif) {
     const pemakai = await jenisPengajuanPemakai(db, kode);
     if (pemakai.length) {
-      throw conflict(`Jenis berkas ini masih wajib pada: ${pemakai.join(", ")}. Hapus dari jenis pengajuan tersebut terlebih dahulu.`);
+      throw conflict(`Jenis berkas ini masih tercantum pada: ${pemakai.join(", ")}. Keluarkan dari jenis pengajuan tersebut terlebih dahulu.`);
     }
   }
   await db.run(
@@ -44640,11 +44726,14 @@ async function hapusJenisBerkas(db, kode) {
   if (!jb) throw notFound("Jenis berkas tidak ditemukan");
   if (jb.bawaan) throw conflict(`${jb.label} adalah jenis berkas bawaan sistem sehingga tidak dapat dihapus. Nonaktifkan saja bila tidak dipakai.`);
   const pemakai = await jenisPengajuanPemakai(db, kode);
-  if (pemakai.length) throw conflict(`${jb.label} masih wajib pada: ${pemakai.join(", ")}. Hapus dari jenis pengajuan tersebut terlebih dahulu.`);
+  if (pemakai.length) throw conflict(`${jb.label} masih tercantum pada: ${pemakai.join(", ")}. Keluarkan dari jenis pengajuan tersebut terlebih dahulu.`);
   const dipakai = await db.get(
     `SELECT ((SELECT COUNT(*) FROM berkas WHERE jenis = ?)
            + (SELECT COUNT(*) FROM cek_berkas WHERE jenis = ?)
-           + (SELECT COUNT(*) FROM pengajuan WHERE berkas_daftar @> jsonb_build_array(?::text)))::int AS c`,
+           + (SELECT COUNT(*) FROM pengajuan
+               WHERE berkas_daftar @> jsonb_build_array(?::text)
+                  OR berkas_daftar @> jsonb_build_array(jsonb_build_object('kode', ?::text))))::int AS c`,
+    kode,
     kode,
     kode,
     kode
@@ -44658,6 +44747,7 @@ async function daftarBank(db) {
   const rows = await db.all(
     `SELECT b.id, b.nama, b.aktif,
             ((SELECT COUNT(*) FROM pengajuan p WHERE lower(p.rekening_bank) = lower(b.nama))
+           + (SELECT COUNT(*) FROM pengajuan_peserta s WHERE lower(s.rekening_bank) = lower(b.nama))
            + (SELECT COUNT(*) FROM pegawai g WHERE lower(g.rekening_bank) = lower(b.nama)))::int AS dipakai
        FROM bank b ORDER BY b.id`
   );
@@ -44688,55 +44778,89 @@ async function hapusBank(db, id) {
   const { changes } = await db.run("DELETE FROM bank WHERE id = ?", id);
   if (changes === 0) throw notFound("Bank tidak ditemukan");
 }
+async function daftarDana(db) {
+  const rows = await db.all(
+    `SELECT d.kode, d.nama, d.aktif, (SELECT COUNT(*) FROM master_project_task m WHERE m.kode_dana = d.kode)::int AS dipakai
+       FROM master_dana d ORDER BY d.kode`
+  );
+  return rows.map((r) => ({ ...r, dipakai: Number(r.dipakai) }));
+}
 async function daftarProjectTask(db) {
   const project = await db.all(
-    `SELECT p.id, p.kode, p.nama, p.aktif,
-            (SELECT array_agg(pt.task_id ORDER BY pt.task_id) FROM master_project_task pt WHERE pt.project_id = p.id) AS task_ids
-       FROM master_project p ORDER BY p.kode`
+    "SELECT id, tahun, kode, nama, aktif FROM master_project ORDER BY tahun, kode"
+  );
+  const pasangan = await db.all(
+    "SELECT project_id, task_id, kode_dana FROM master_project_task ORDER BY project_id, task_id"
   );
   const task = await db.all(
-    "SELECT id, kode, nama, aktif FROM master_task ORDER BY kode"
+    "SELECT id, tahun, kode, nama, aktif FROM master_task ORDER BY tahun, kode"
   );
+  const perProject = /* @__PURE__ */ new Map();
+  for (const m of pasangan) {
+    const id = Number(m.project_id);
+    perProject.set(id, [...perProject.get(id) ?? [], { id: Number(m.task_id), kode_dana: m.kode_dana }]);
+  }
   return {
-    project: project.map((p) => ({ ...p, id: Number(p.id), task_ids: (p.task_ids ?? []).map(Number) })),
-    task: task.map((t) => ({ ...t, id: Number(t.id) }))
+    project: project.map((p) => ({ ...p, id: Number(p.id), tahun: Number(p.tahun), tasks: perProject.get(Number(p.id)) ?? [] })),
+    task: task.map((t) => ({ ...t, id: Number(t.id), tahun: Number(t.tahun) })),
+    dana: await daftarDana(db)
   };
 }
-async function pastikanTaskAda(db, ids) {
-  if (ids.length === 0) return;
-  const ada = await db.all("SELECT id FROM master_task WHERE id = ANY(?)", ids);
-  if (ada.length !== ids.length) throw badRequest("Task tidak ditemukan", { task_ids: "Ada task yang tidak ditemukan" });
+async function pastikanPasanganSah(db, tahun, tasks) {
+  if (tasks.length === 0) return;
+  const ada = await db.all("SELECT id, tahun FROM master_task WHERE id = ANY(?)", tasks.map((t) => t.id));
+  if (ada.length !== tasks.length) throw badRequest("Task tidak ditemukan", { tasks: "Ada task yang tidak ditemukan" });
+  if (ada.some((t) => Number(t.tahun) !== tahun)) {
+    throw badRequest("Task berbeda tahun anggaran", { tasks: `Pilih task dari tahun anggaran ${tahun}` });
+  }
+  const dana = [...new Set(tasks.map((t) => t.kode_dana).filter((d) => !!d))];
+  if (dana.length) {
+    const terdaftar = new Set((await db.all("SELECT kode FROM master_dana WHERE kode = ANY(?)", dana)).map((d) => d.kode));
+    const asing = dana.filter((d) => !terdaftar.has(d));
+    if (asing.length) throw badRequest("Kode dana tidak dikenal", { tasks: `Kode dana belum terdaftar: ${asing.join(", ")}` });
+  }
 }
-async function simpanTaskProject(db, projectId, ids) {
+async function simpanTaskProject(db, projectId, tasks) {
   await db.run("DELETE FROM master_project_task WHERE project_id = ?", projectId);
-  for (const id of ids) await db.run("INSERT INTO master_project_task (project_id, task_id) VALUES (?, ?)", projectId, id);
+  for (const t of tasks) {
+    await db.run("INSERT INTO master_project_task (project_id, task_id, kode_dana) VALUES (?, ?, ?)", projectId, t.id, t.kode_dana);
+  }
 }
-async function pastikanKodeUnik(db, tabel, kode, kecuali = 0) {
-  const ada = await db.get(`SELECT id FROM ${tabel} WHERE lower(kode) = lower(?) AND id <> ?`, kode, kecuali);
-  if (ada) throw badRequest("Kode sudah terdaftar", { kode: `Kode ${tabel === "master_project" ? "project" : "task"} sudah terdaftar` });
+async function pastikanKodeUnik(db, tabel, tahun, kode, kecuali = 0) {
+  const ada = await db.get(`SELECT id FROM ${tabel} WHERE tahun = ? AND lower(kode) = lower(?) AND id <> ?`, tahun, kode, kecuali);
+  if (ada) {
+    throw badRequest("Kode sudah terdaftar", {
+      kode: `Kode ${tabel === "master_project" ? "project" : "task"} sudah terdaftar di tahun ${tahun}`
+    });
+  }
 }
 async function buatProject(db, data) {
   return db.tx(async (tx) => {
-    await pastikanKodeUnik(tx, "master_project", data.kode);
-    await pastikanTaskAda(tx, data.task_ids);
+    await pastikanKodeUnik(tx, "master_project", data.tahun, data.kode);
+    await pastikanPasanganSah(tx, data.tahun, data.tasks);
     const waktu = nowIso();
     const { lastInsertRowid: id } = await tx.run(
-      "INSERT INTO master_project (kode, nama, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?) RETURNING id",
+      "INSERT INTO master_project (tahun, kode, nama, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+      data.tahun,
       data.kode,
       data.nama,
       data.aktif,
       waktu,
       waktu
     );
-    await simpanTaskProject(tx, id, data.task_ids);
+    await simpanTaskProject(tx, id, data.tasks);
     return id;
   });
 }
 async function ubahProject(db, id, data) {
   await db.tx(async (tx) => {
-    if (!await tx.get("SELECT id FROM master_project WHERE id = ?", id)) throw notFound("Project tidak ditemukan");
-    await pastikanKodeUnik(tx, "master_project", data.kode, id);
-    await pastikanTaskAda(tx, data.task_ids);
+    const lama = await tx.get("SELECT tahun FROM master_project WHERE id = ?", id);
+    if (!lama) throw notFound("Project tidak ditemukan");
+    if (Number(lama.tahun) !== data.tahun) {
+      throw badRequest("Tahun anggaran project tidak dapat diubah", { tahun: "Tahun anggaran tidak dapat diubah. Salin ke tahun lain bila perlu." });
+    }
+    await pastikanKodeUnik(tx, "master_project", data.tahun, data.kode, id);
+    await pastikanPasanganSah(tx, data.tahun, data.tasks);
     await tx.run(
       "UPDATE master_project SET kode = ?, nama = ?, aktif = ?, updated_at = ? WHERE id = ?",
       data.kode,
@@ -44745,7 +44869,7 @@ async function ubahProject(db, id, data) {
       nowIso(),
       id
     );
-    await simpanTaskProject(tx, id, data.task_ids);
+    await simpanTaskProject(tx, id, data.tasks);
   });
 }
 async function hapusProject(db, id) {
@@ -44753,10 +44877,11 @@ async function hapusProject(db, id) {
   if (changes === 0) throw notFound("Project tidak ditemukan");
 }
 async function buatTask(db, data) {
-  await pastikanKodeUnik(db, "master_task", data.kode);
+  await pastikanKodeUnik(db, "master_task", data.tahun, data.kode);
   const waktu = nowIso();
   const { lastInsertRowid } = await db.run(
-    "INSERT INTO master_task (kode, nama, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?) RETURNING id",
+    "INSERT INTO master_task (tahun, kode, nama, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+    data.tahun,
     data.kode,
     data.nama,
     data.aktif,
@@ -44766,8 +44891,12 @@ async function buatTask(db, data) {
   return lastInsertRowid;
 }
 async function ubahTask(db, id, data) {
-  if (!await db.get("SELECT id FROM master_task WHERE id = ?", id)) throw notFound("Task tidak ditemukan");
-  await pastikanKodeUnik(db, "master_task", data.kode, id);
+  const lama = await db.get("SELECT tahun FROM master_task WHERE id = ?", id);
+  if (!lama) throw notFound("Task tidak ditemukan");
+  if (Number(lama.tahun) !== data.tahun) {
+    throw badRequest("Tahun anggaran task tidak dapat diubah", { tahun: "Tahun anggaran tidak dapat diubah. Salin ke tahun lain bila perlu." });
+  }
+  await pastikanKodeUnik(db, "master_task", data.tahun, data.kode, id);
   await db.run(
     "UPDATE master_task SET kode = ?, nama = ?, aktif = ?, updated_at = ? WHERE id = ?",
     data.kode,
@@ -44780,6 +44909,86 @@ async function ubahTask(db, id, data) {
 async function hapusTask(db, id) {
   const { changes } = await db.run("DELETE FROM master_task WHERE id = ?", id);
   if (changes === 0) throw notFound("Task tidak ditemukan");
+}
+async function salinTahun(db, dari, ke) {
+  return db.tx(async (tx) => {
+    const isi = await tx.get(
+      "SELECT ((SELECT COUNT(*) FROM master_project WHERE tahun = ?) + (SELECT COUNT(*) FROM master_task WHERE tahun = ?))::int AS c",
+      ke,
+      ke
+    );
+    if ((isi?.c ?? 0) > 0) throw conflict(`Master tahun ${ke} sudah berisi data. Salin hanya ke tahun yang masih kosong.`);
+    const waktu = nowIso();
+    const task = await tx.run(
+      `INSERT INTO master_task (tahun, kode, nama, aktif, created_at, updated_at)
+       SELECT ?, kode, nama, aktif, ?, ? FROM master_task WHERE tahun = ? ORDER BY kode`,
+      ke,
+      waktu,
+      waktu,
+      dari
+    );
+    const project = await tx.run(
+      `INSERT INTO master_project (tahun, kode, nama, aktif, created_at, updated_at)
+       SELECT ?, kode, nama, aktif, ?, ? FROM master_project WHERE tahun = ? ORDER BY kode`,
+      ke,
+      waktu,
+      waktu,
+      dari
+    );
+    if (task.changes + project.changes === 0) throw notFound(`Master tahun ${dari} kosong, tidak ada yang disalin`);
+    const pasangan = await tx.run(
+      `INSERT INTO master_project_task (project_id, task_id, kode_dana)
+       SELECT pb.id, tb.id, m.kode_dana
+         FROM master_project_task m
+         JOIN master_project pl ON pl.id = m.project_id AND pl.tahun = ?
+         JOIN master_task tl ON tl.id = m.task_id
+         JOIN master_project pb ON pb.tahun = ? AND pb.kode = pl.kode
+         JOIN master_task tb ON tb.tahun = ? AND tb.kode = tl.kode`,
+      dari,
+      ke,
+      ke
+    );
+    return { project: project.changes, task: task.changes, pasangan: pasangan.changes };
+  });
+}
+async function pastikanDanaUnik(db, kode, kecuali = "") {
+  const ada = await db.get("SELECT kode FROM master_dana WHERE lower(kode) = lower(?) AND kode <> ?", kode, kecuali);
+  if (ada) throw badRequest("Kode dana sudah terdaftar", { kode: "Kode dana sudah terdaftar" });
+}
+async function buatDana(db, data) {
+  await pastikanDanaUnik(db, data.kode);
+  const waktu = nowIso();
+  await db.run(
+    "INSERT INTO master_dana (kode, nama, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+    data.kode,
+    data.nama,
+    data.aktif,
+    waktu,
+    waktu
+  );
+  return data.kode;
+}
+async function ubahDana(db, kode, data) {
+  if (!await db.get("SELECT kode FROM master_dana WHERE kode = ?", kode)) throw notFound("Kode dana tidak ditemukan");
+  if (data.kode !== kode) throw badRequest("Kode dana tidak dapat diubah", { kode: "Kode dana tidak dapat diubah; tambahkan kode baru bila perlu" });
+  await db.run("UPDATE master_dana SET nama = ?, aktif = ?, updated_at = ? WHERE kode = ?", data.nama, data.aktif, nowIso(), kode);
+}
+async function hapusDana(db, kode) {
+  const d = await db.get("SELECT kode FROM master_dana WHERE kode = ?", kode);
+  if (!d) throw notFound("Kode dana tidak ditemukan");
+  const n = (await db.get(
+    `SELECT ((SELECT COUNT(*) FROM master_project_task WHERE kode_dana = ?) + (SELECT COUNT(*) FROM pengajuan WHERE kode_dana = ?))::int AS c`,
+    kode,
+    kode
+  ))?.c ?? 0;
+  if (n > 0) throw conflict(`Kode dana ${kode} masih dipakai pasangan project\u2013task atau pengajuan. Nonaktifkan saja.`);
+  await db.run("DELETE FROM master_dana WHERE kode = ?", kode);
+}
+async function pastikanDanaTerdaftar(db, kode, lama = null) {
+  if (!kode || kode === lama) return;
+  const d = await db.get("SELECT aktif FROM master_dana WHERE kode = ?", kode);
+  if (!d) throw badRequest("Kode dana tidak dikenal", { kode_dana: `Kode dana ${kode} belum terdaftar di master` });
+  if (!d.aktif) throw badRequest("Kode dana nonaktif", { kode_dana: `Kode dana ${kode} sudah nonaktif` });
 }
 async function modelJenis(db, kode) {
   return (await db.get("SELECT model FROM jenis_pengajuan WHERE kode = ?", kode))?.model;
@@ -44805,7 +45014,14 @@ var SELECT_PENGAJUAN = `
          dm.nama AS diajukan_mdk_by_nama,
          dp.nama AS diproses_by_nama,
          dbr.nama AS dibayar_by_nama,
-         (SELECT COUNT(*) FROM cek_berkas ck WHERE ck.pengajuan_id = p.id AND ck.status = 'sesuai')::int AS berkas_sesuai,
+         -- Centang "sesuai" hanya dihitung untuk berkas wajib (berkas_daftar: [{kode, wajib}] atau data lama ["kode"]).
+         (SELECT COUNT(*) FROM cek_berkas ck
+           WHERE ck.pengajuan_id = p.id AND ck.status = 'sesuai'
+             AND (p.berkas_daftar IS NULL OR EXISTS (
+               SELECT 1 FROM jsonb_array_elements(p.berkas_daftar) e
+                WHERE CASE WHEN jsonb_typeof(e) = 'string' THEN e #>> '{}' = ck.jenis
+                           ELSE e ->> 'kode' = ck.jenis AND COALESCE((e ->> 'wajib')::boolean, true) END)))::int AS berkas_sesuai,
+         (SELECT COUNT(*) FROM cek_berkas ck WHERE ck.pengajuan_id = p.id AND ck.status = 'revisi')::int AS berkas_revisi,
          CAST(p.berkas_na AS TEXT) AS berkas_na,
          CAST(p.berkas_daftar AS TEXT) AS berkas_daftar,
          COALESCE(jp.model, 'umum') AS model
@@ -44857,9 +45073,11 @@ function keRingkas(row, pesertaNama) {
     tanggal_invoice_mdk: normTgl(row.tanggal_invoice_mdk),
     project_hosting: row.project_hosting,
     task_name: row.task_name,
+    kode_dana: row.kode_dana ?? null,
     berkas_terpenuhi: Number(row.berkas_terpenuhi),
     berkas_wajib: Number(row.berkas_wajib),
     berkas_sesuai: Number(row.berkas_sesuai ?? 0),
+    berkas_revisi: Number(row.berkas_revisi ?? 0),
     created_by: Number(row.created_by),
     created_by_nama: row.created_by_nama ?? "-",
     created_at: normTs(row.created_at),
@@ -45001,21 +45219,21 @@ async function ambilPengajuan(db, user, id) {
 async function getPeserta(db, pengajuanId) {
   return db.all(
     `SELECT ps.id, ps.pegawai_id, pg.nama, pg.nip, pg.jabatan, ps.nilai::bigint AS nilai,
-            ps.uang_harian, ps.uang_transport, ps.urutan, pg.rekening_bank, pg.rekening_nomor
+            ps.uang_harian, ps.uang_transport, ps.urutan, ps.rekening_bank, ps.rekening_nomor
        FROM pengajuan_peserta ps JOIN pegawai pg ON pg.id = ps.pegawai_id
       WHERE ps.pengajuan_id = ? ORDER BY ps.urutan`,
     pengajuanId
   );
 }
 var teksJson = (v) => v === null || v === void 0 ? null : typeof v === "string" ? v : JSON.stringify(v);
-async function daftarWajib(db, row) {
+async function daftarBerkas(db, row) {
   const tercatat = parseBerkasDaftar(teksJson(row.berkas_daftar));
   if (tercatat) return tercatat;
   return (await ambilJenisPengajuan(db, row.kategori))?.berkas ?? [];
 }
 async function kelengkapanRow(db, row, berkas, cek = []) {
-  const daftar = await daftarWajib(db, row);
-  const label = await labelJenisBerkas(db, daftar);
+  const daftar = await daftarBerkas(db, row);
+  const label = await labelJenisBerkas(db, daftar.map((b) => b.kode));
   return hitungKelengkapan(daftar, label, berkas, parseBerkasNa(teksJson(row.berkas_na)), cek);
 }
 async function getBerkasList(db, pengajuanId) {
@@ -45123,7 +45341,7 @@ async function segarkanKelengkapan(db, pengajuanId) {
   );
   if (!row) return;
   const berkas = await db.all("SELECT jenis FROM berkas WHERE pengajuan_id = ?", pengajuanId);
-  const daftar = await daftarWajib(db, row);
+  const daftar = await daftarBerkas(db, row);
   const k = hitungKelengkapan(daftar, (j) => j, berkas, parseBerkasNa(row.berkas_na));
   await db.run(
     "UPDATE pengajuan SET berkas_terpenuhi = ?, berkas_wajib = ? WHERE id = ?",
@@ -45144,20 +45362,26 @@ async function sinkronDaftarBerkas(db, sasaran, userId) {
     if (!master.has(r.kategori)) master.set(r.kategori, (await ambilJenisPengajuan(db, r.kategori))?.berkas ?? []);
     const baru = master.get(r.kategori);
     const lama = parseBerkasDaftar(r.berkas_daftar);
-    if (lama && lama.join("|") === baru.join("|")) continue;
-    const na = parseBerkasNa(r.berkas_na).filter((j) => baru.includes(j));
+    if (lama && samaDaftarBerkas(lama, baru)) continue;
+    const wajibBaru = kodeWajib(baru);
+    const semuaBaru = baru.map((b) => b.kode);
+    const na = parseBerkasNa(r.berkas_na).filter((j) => wajibBaru.includes(j));
     await db.run("UPDATE pengajuan SET berkas_daftar = ?, berkas_na = ? WHERE id = ?", JSON.stringify(baru), JSON.stringify(na), r.id);
-    await db.run("DELETE FROM cek_berkas WHERE pengajuan_id = ? AND NOT (jenis = ANY(?))", r.id, baru);
+    await db.run("DELETE FROM cek_berkas WHERE pengajuan_id = ? AND NOT (jenis = ANY(?))", r.id, semuaBaru);
     await segarkanKelengkapan(db, Number(r.id));
     if (lama) {
-      const label = await labelJenisBerkas(db, [...lama, ...baru]);
-      const tambah = baru.filter((j) => !lama.includes(j)).map(label);
-      const kurang = lama.filter((j) => !baru.includes(j)).map(label);
+      const wajibLama = kodeWajib(lama);
+      const semuaLama = lama.map((b) => b.kode);
+      const label = await labelJenisBerkas(db, [...semuaLama, ...semuaBaru]);
+      const tambah = wajibBaru.filter((j) => !wajibLama.includes(j)).map(label);
+      const kurang = wajibLama.filter((j) => !wajibBaru.includes(j)).map(label);
+      const opsionalBaru = baru.filter((b) => !b.wajib && !semuaLama.includes(b.kode)).map((b) => label(b.kode));
       const ket = [
         tambah.length ? `wajib baru: ${tambah.join(", ")}` : null,
-        kurang.length ? `tidak wajib lagi: ${kurang.join(", ")}` : null
+        kurang.length ? `tidak wajib lagi: ${kurang.join(", ")}` : null,
+        opsionalBaru.length ? `opsional baru: ${opsionalBaru.join(", ")}` : null
       ].filter(Boolean);
-      await catatRiwayat(db, { id: Number(r.id), kode: r.kode }, userId, "diubah", `Berkas wajib mengikuti master \u2014 ${ket.join(" \xB7 ") || "urutan diperbarui"}`);
+      await catatRiwayat(db, { id: Number(r.id), kode: r.kode }, userId, "diubah", `Berkas mengikuti master \u2014 ${ket.join(" \xB7 ") || "urutan diperbarui"}`);
     }
     berubah++;
   }
@@ -45198,13 +45422,15 @@ async function simpanPeserta(db, pengajuanId, data) {
   for (let i = 0; i < data.peserta.length; i++) {
     const p = data.peserta[i];
     await db.run(
-      `INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, uang_harian, uang_transport, urutan)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, uang_harian, uang_transport, rekening_bank, rekening_nomor, urutan)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       pengajuanId,
       p.pegawai_id,
       p.nilai,
-      p.uang_harian ?? null,
-      p.uang_transport ?? null,
+      p.uang_harian,
+      p.uang_transport,
+      p.rekening_bank,
+      p.rekening_nomor,
       i + 1
     );
   }
@@ -45243,7 +45469,7 @@ async function buatPengajuan(db, user, data, jenis) {
       data.total,
       data.catatan,
       JSON.stringify(jenis.berkas),
-      jenis.berkas.length,
+      kodeWajib(jenis.berkas).length,
       user.id,
       user.id,
       waktu,
@@ -45281,6 +45507,7 @@ async function ubahPengajuan(db, user, id, data) {
     );
     if (row.uang_siapa_id !== null) sebelumnya.add(Number(row.uang_siapa_id));
     await cekPegawai(txDb, data, sebelumnya);
+    const pesertaLama = await getPeserta(txDb, id);
     const waktu = nowIso();
     await txDb.run(
       `UPDATE pengajuan SET nama_kegiatan = ?, tanggal_kegiatan = ?, tanggal_selesai = ?, jumlah_orang = ?,
@@ -45315,6 +45542,13 @@ async function ubahPengajuan(db, user, id, data) {
     const rekLama = teksRekening(row.rekening_bank ?? null, row.rekening_nomor ?? null);
     const rekBaru = teksRekening(data.rekening_bank, data.rekening_nomor);
     if (row.model === "konsumsi" && rekLama !== rekBaru) perubahan.push(`Rekening ${rekLama} \u2192 ${rekBaru}`);
+    for (const p of data.peserta) {
+      const lama = pesertaLama.find((x) => Number(x.pegawai_id) === p.pegawai_id);
+      if (!lama) continue;
+      const a = teksRekening(lama.rekening_bank, lama.rekening_nomor);
+      const b = teksRekening(p.rekening_bank, p.rekening_nomor);
+      if (a !== b) perubahan.push(`Rekening ${lama.nama} ${a} \u2192 ${b}`);
+    }
     await catatRiwayat(txDb, row, user.id, "diubah", perubahan.join(" \xB7 ") || null, waktu);
   });
 }
@@ -45389,8 +45623,8 @@ async function cekBerkas(db, user, id, data) {
     if (row.status !== "diajukan_pum") {
       throw conflict("Berkas hanya dapat dicentang saat pengajuan berstatus Diajukan ke PUM");
     }
-    if (!(await daftarWajib(txDb, row)).includes(data.jenis)) {
-      throw badRequest("Jenis berkas tidak termasuk berkas wajib pengajuan ini", { jenis: "Jenis berkas tidak valid" });
+    if (!(await daftarBerkas(txDb, row)).some((b) => b.kode === data.jenis)) {
+      throw badRequest("Jenis berkas tidak termasuk berkas pengajuan ini", { jenis: "Jenis berkas tidak valid" });
     }
     const label = (await labelJenisBerkas(txDb, [data.jenis]))(data.jenis);
     const lama = await txDb.get(
@@ -45481,12 +45715,17 @@ async function verifikasi(db, user, id, data) {
     if (!k.semuaSesuai) {
       throw conflict(`Centang semua berkas wajib sebagai "sesuai" sebelum memverifikasi (baru ${k.sesuai}/${k.total}).`);
     }
+    if (k.revisi > 0) {
+      throw conflict(`Masih ada ${k.revisi} berkas yang ditandai perlu revisi. Kembalikan ke pengaju atau batalkan tanda revisinya.`);
+    }
+    await pastikanDanaTerdaftar(txDb, data.kode_dana, row.kode_dana);
     const waktu = nowIso();
     await txDb.run(
-      `UPDATE pengajuan SET status = 'diverifikasi_pum', project_hosting = ?, task_name = ?, catatan_pum = ?,
+      `UPDATE pengajuan SET status = 'diverifikasi_pum', project_hosting = ?, task_name = ?, kode_dana = ?, catatan_pum = ?,
          diverifikasi_by = ?, diverifikasi_at = ?, updated_by = ?, updated_at = ? WHERE id = ?`,
       data.project_hosting,
       data.task_name,
+      data.kode_dana,
       data.catatan,
       user.id,
       waktu,
@@ -45497,7 +45736,8 @@ async function verifikasi(db, user, id, data) {
     const ket = [
       `Berkas ${k.sesuai}/${k.total} sesuai`,
       data.project_hosting ? `Project: ${data.project_hosting}` : null,
-      data.task_name ? `Task: ${data.task_name}` : null
+      data.task_name ? `Task: ${data.task_name}` : null,
+      data.kode_dana ? `Kode dana: ${data.kode_dana}` : null
     ].filter(Boolean).join(" \xB7 ");
     await catatRiwayat(txDb, row, user.id, "diverifikasi", ket, waktu);
     await kirimNotifikasi(
@@ -45522,12 +45762,16 @@ async function ubahDataPum(db, user, id, data) {
     if (row.status !== "diajukan_pum" && !STATUS_LEWAT_VERIFIKASI.includes(row.status)) {
       throw conflict("Data PUM hanya dapat diubah setelah pengajuan diajukan ke PUM");
     }
-    if (row.project_hosting === data.project_hosting && row.task_name === data.task_name) return;
+    if (row.project_hosting === data.project_hosting && row.task_name === data.task_name && (row.kode_dana ?? null) === data.kode_dana) {
+      return;
+    }
+    await pastikanDanaTerdaftar(txDb, data.kode_dana, row.kode_dana);
     const waktu = nowIso();
     await txDb.run(
-      "UPDATE pengajuan SET project_hosting = ?, task_name = ?, updated_by = ?, updated_at = ? WHERE id = ?",
+      "UPDATE pengajuan SET project_hosting = ?, task_name = ?, kode_dana = ?, updated_by = ?, updated_at = ? WHERE id = ?",
       data.project_hosting,
       data.task_name,
+      data.kode_dana,
       user.id,
       waktu,
       id
@@ -45537,7 +45781,7 @@ async function ubahDataPum(db, user, id, data) {
       row,
       user.id,
       "data_pum_diubah",
-      `Project: ${data.project_hosting ?? "-"} \xB7 Task: ${data.task_name ?? "-"}`,
+      `Task: ${data.task_name ?? "-"} \xB7 Project: ${data.project_hosting ?? "-"} \xB7 Kode dana: ${data.kode_dana ?? "-"}`,
       waktu
     );
   });
@@ -45706,7 +45950,7 @@ async function pastikanBisaKelolaBerkas(db, user, pengajuanId) {
   return row;
 }
 async function jenisBerkasValid(db, row, jenis) {
-  return jenis === JENIS_BERKAS_LAINNYA || (await daftarWajib(db, row)).includes(jenis);
+  return jenis === JENIS_BERKAS_LAINNYA || (await daftarBerkas(db, row)).some((b) => b.kode === jenis);
 }
 async function resetCek(db, pengajuanId, jenis) {
   await db.run("DELETE FROM cek_berkas WHERE pengajuan_id = ? AND jenis = ?", pengajuanId, jenis);
@@ -45760,7 +46004,7 @@ async function hapusBerkas(db, user, berkasId) {
 async function setBerkasNa(db, user, pengajuanId, jenis, na) {
   await db.tx(async (txDb) => {
     const row = await pastikanBisaKelolaBerkas(txDb, user, pengajuanId);
-    if (!(await daftarWajib(txDb, row)).includes(jenis)) {
+    if (!kodeWajib(await daftarBerkas(txDb, row)).includes(jenis)) {
       throw badRequest("Jenis berkas tidak termasuk berkas wajib pengajuan ini", { jenis: "Jenis berkas tidak valid" });
     }
     const label = (await labelJenisBerkas(txDb, [jenis]))(jenis);
@@ -46343,6 +46587,10 @@ function kodeParam(v, label) {
   if (typeof v !== "string" || !/^[a-z][a-z0-9_]{1,39}$/.test(v)) throw notFound(`${label} tidak ditemukan`);
   return v;
 }
+function kodeDanaParam(v) {
+  if (typeof v !== "string" || !RE_KODE_DANA.test(v)) throw notFound("Kode dana tidak ditemukan");
+  return v;
+}
 function masterRoutes(db) {
   const r = (0, import_express3.Router)();
   const admin = requireRole("admin");
@@ -46431,6 +46679,26 @@ function masterRoutes(db) {
   });
   r.delete("/task/:id", admin, async (req, res) => {
     await hapusTask(db, parseId(req.params.id, "Task"));
+    res.json({ ok: true });
+  });
+  r.post("/project-task/salin", admin, async (req, res) => {
+    const { dari, ke } = assertValid(validateSalinTahun(req.body));
+    res.status(201).json({ ...await salinTahun(db, dari, ke), data: await daftarProjectTask(db) });
+  });
+  r.get("/dana", async (_req, res) => {
+    res.json(await daftarDana(db));
+  });
+  r.post("/dana", admin, async (req, res) => {
+    const kode = await buatDana(db, assertValid(validateDana(req.body)));
+    res.status(201).json((await daftarDana(db)).find((d) => d.kode === kode));
+  });
+  r.put("/dana/:kode", admin, async (req, res) => {
+    const kode = kodeDanaParam(req.params.kode);
+    await ubahDana(db, kode, assertValid(validateDana(req.body)));
+    res.json((await daftarDana(db)).find((d) => d.kode === kode));
+  });
+  r.delete("/dana/:kode", admin, async (req, res) => {
+    await hapusDana(db, kodeDanaParam(req.params.kode));
     res.json({ ok: true });
   });
   return r;

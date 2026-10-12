@@ -11,6 +11,7 @@ import type {
   JenisBerkasMaster,
   JenisPengajuan,
   Konfig,
+  MasterDana,
   MasterProject,
   MasterProjectTask,
   MasterTask,
@@ -109,8 +110,8 @@ export type AksiPengajuan =
   | { aksi: 'ajukan' }
   | { aksi: 'tarik' }
   | { aksi: 'kembalikan'; catatan: string }
-  | { aksi: 'verifikasi'; project_hosting: string; task_name: string; catatan?: string }
-  | { aksi: 'data-pum'; project_hosting: string; task_name: string }
+  | { aksi: 'verifikasi'; project_hosting: string; task_name: string; kode_dana: string; catatan?: string }
+  | { aksi: 'data-pum'; project_hosting: string; task_name: string; kode_dana: string }
   | { aksi: 'ajukan-mdk'; no_invoice_mdk: string; tanggal_invoice_mdk: string; catatan?: string }
   | { aksi: 'selesai' }
   | { aksi: 'invoice'; no_invoice_mdk: string; tanggal_invoice_mdk: string; catatan?: string }
@@ -433,13 +434,50 @@ export function useProjectTask(aktif = true) {
   });
 }
 
+export interface DataProject {
+  tahun: number;
+  kode: string;
+  nama: string;
+  aktif: boolean;
+  tasks: { id: number; kode_dana: string | null }[];
+}
+
 export function useSimpanProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id?: number; data: { kode: string; nama: string; aktif: boolean; task_ids: number[] } }) =>
+    mutationFn: ({ id, data }: { id?: number; data: DataProject }) =>
       id
         ? api<MasterProject>(`/master/project/${id}`, { method: 'PUT', body: data })
         : api<MasterProject>('/master/project', { method: 'POST', body: data }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.projectTask }),
+  });
+}
+
+/** Salin master Project & Task satu tahun anggaran ke tahun lain yang masih kosong. */
+export function useSalinTahun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { dari: number; ke: number }) =>
+      api<{ project: number; task: number; pasangan: number; data: MasterProjectTask }>('/master/project-task/salin', { body: v }),
+    onSuccess: (r) => qc.setQueryData(qk.projectTask, r.data),
+  });
+}
+
+export function useSimpanDana() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ kodeLama, data }: { kodeLama?: string; data: { kode: string; nama: string; aktif: boolean } }) =>
+      kodeLama
+        ? api<MasterDana>(`/master/dana/${encodeURIComponent(kodeLama)}`, { method: 'PUT', body: data })
+        : api<MasterDana>('/master/dana', { method: 'POST', body: data }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.projectTask }),
+  });
+}
+
+export function useHapusDana() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (kode: string) => api<{ ok: true }>(`/master/dana/${encodeURIComponent(kode)}`, { method: 'DELETE' }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.projectTask }),
   });
 }
@@ -455,7 +493,7 @@ export function useHapusProject() {
 export function useSimpanTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id?: number; data: { kode: string; nama: string; aktif: boolean } }) =>
+    mutationFn: ({ id, data }: { id?: number; data: { tahun: number; kode: string; nama: string; aktif: boolean } }) =>
       id ? api<MasterTask>(`/master/task/${id}`, { method: 'PUT', body: data }) : api<MasterTask>('/master/task', { method: 'POST', body: data }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.projectTask }),
   });

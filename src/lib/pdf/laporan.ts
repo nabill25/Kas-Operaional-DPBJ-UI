@@ -28,6 +28,7 @@ import {
 import type { Kamus } from '../../../shared/konfig';
 import type {
   PengajuanDetail,
+  Peserta,
   RekapPegawaiData,
   RekapPegawaiDetail,
   RekapPengajuanData,
@@ -57,6 +58,10 @@ export function bersihkan(teks: string): string {
 }
 
 const b = (v: string | number | null | undefined) => bersihkan(v === null || v === undefined || v === '' ? '-' : String(v));
+
+/** Nama penerima + rekening tujuan pembayarannya (baris kedua) untuk tabel penerima. */
+const namaRekening = (ps: Peserta) =>
+  bersihkan(ps.rekening_bank && ps.rekening_nomor ? `${ps.nama}\n${ps.rekening_bank} - ${ps.rekening_nomor}` : ps.nama);
 
 function akhirTabel(doc: jsPDF): number {
   return (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
@@ -505,10 +510,10 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string,
       );
       tabel(doc, {
         startY: y + 1,
-        head: [['No', 'Nama', 'NIP/NUP', 'Jabatan', 'Uang Harian (Rp)', 'Uang Transport (Rp)', 'Jumlah (Rp)']],
+        head: [['No', 'Nama & rekening', 'NIP/NUP', 'Jabatan', 'Uang Harian (Rp)', 'Uang Transport (Rp)', 'Jumlah (Rp)']],
         body: p.peserta.map((ps, i) => [
           i + 1,
-          bersihkan(ps.nama),
+          namaRekening(ps),
           b(ps.nip),
           b(ps.jabatan),
           formatAngka(rinci[i].harian),
@@ -535,8 +540,8 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string,
     } else {
       tabel(doc, {
         startY: y + 1,
-        head: [['No', 'Nama', 'NIP/NUP', 'Jabatan', 'Nilai (Rp)']],
-        body: p.peserta.map((ps, i) => [i + 1, bersihkan(ps.nama), b(ps.nip), b(ps.jabatan), formatAngka(ps.nilai)]),
+        head: [['No', 'Nama & rekening', 'NIP/NUP', 'Jabatan', 'Nilai (Rp)']],
+        body: p.peserta.map((ps, i) => [i + 1, namaRekening(ps), b(ps.nip), b(ps.jabatan), formatAngka(ps.nilai)]),
         foot: [[{ content: 'TOTAL', colSpan: 4 }, formatAngka(p.total)]],
         columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { fontStyle: 'bold' }, 4: { halign: 'right', cellWidth: 30, fontStyle: 'bold' } },
         footStyles: { halign: 'right' },
@@ -549,14 +554,14 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string,
   y = judulBagian(doc, 'Kelengkapan berkas', y);
   const barisBerkas: RowInput[] = p.kelengkapan.items.map((it) => [
     it.label,
-    'Wajib',
-    it.jumlah > 0 ? `Ada (${it.jumlah} file)` : it.na ? 'Tidak diperlukan' : 'BELUM ADA',
+    it.wajib ? 'Wajib' : 'Opsional',
+    it.jumlah > 0 ? `Ada (${it.jumlah} file)` : it.na ? 'Tidak diperlukan' : it.wajib ? 'BELUM ADA' : '-',
     !it.cek ? '-' : it.cek.status === 'sesuai' ? 'Sesuai' : bersihkan(`Perlu revisi: ${it.cek.catatan ?? ''}`),
     bersihkan(p.berkas.filter((x) => x.jenis === it.jenis).map((x) => x.nama_asli).join(', ') || '-'),
   ]);
   const wajib = new Set(p.kelengkapan.items.map((i) => i.jenis));
   for (const x of p.berkas.filter((x) => x.jenis !== JENIS_BERKAS_LAINNYA && !wajib.has(x.jenis))) {
-    barisBerkas.push([bersihkan(kamus.labelBerkas(x.jenis)), 'Tidak wajib lagi', 'Ada', '-', bersihkan(x.nama_asli)]);
+    barisBerkas.push([bersihkan(kamus.labelBerkas(x.jenis)), 'Di luar daftar', 'Ada', '-', bersihkan(x.nama_asli)]);
   }
   for (const x of p.berkas.filter((x) => x.jenis === JENIS_BERKAS_LAINNYA)) {
     barisBerkas.push([bersihkan(x.nama_berkas ?? LABEL_BERKAS_LAINNYA), 'Tambahan', 'Ada', '-', bersihkan(x.nama_asli)]);
@@ -601,9 +606,10 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string,
   if (lewatPum) {
     proses.push(['Diverifikasi PUM', `${b(p.diverifikasi_by_nama)} - ${formatWaktu(p.diverifikasi_at)}`]);
   }
-  if (lewatPum || p.project_hosting || p.task_name) {
-    proses.push(['Project costing', b(p.project_hosting)]);
+  if (lewatPum || p.project_hosting || p.task_name || p.kode_dana) {
     proses.push(['Task name', b(p.task_name)]);
+    proses.push(['Project costing', b(p.project_hosting)]);
+    proses.push(['Kode dana', b(p.kode_dana)]);
   }
   if (diMdk) {
     proses.push(['No. Invoice MDK', b(p.no_invoice_mdk)]);

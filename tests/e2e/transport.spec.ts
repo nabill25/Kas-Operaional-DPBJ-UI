@@ -1,6 +1,23 @@
+import type { Page } from '@playwright/test';
 import { expect, masukAPI, pilihPegawai, test } from './fixtures';
 
-test('Perjadin: uang harian & transport per orang, validasi, pegawai baru dari form, maks. 2 orang, berkas N/A', async ({ page }) => {
+/** Posisi kotak isian (data-field = id input). */
+async function kotak(page: Page, field: string) {
+  const k = await page.locator(`[data-field="${field}"]`).boundingBox();
+  expect(k, `kotak ${field}`).not.toBeNull();
+  return k!;
+}
+
+/** Isian penerima ke-i sebaris dari kiri ke kanan (layar lebar). */
+async function harusSebaris(page: Page, fields: string[]) {
+  const daftar = await Promise.all(fields.map((f) => kotak(page, f)));
+  for (let j = 1; j < daftar.length; j++) {
+    expect(Math.abs(daftar[j].y - daftar[0].y), `${fields[j]} sebaris dengan ${fields[0]}`).toBeLessThan(2);
+    expect(daftar[j].x, `${fields[j]} di kanan ${fields[j - 1]}`).toBeGreaterThan(daftar[j - 1].x + daftar[j - 1].width - 1);
+  }
+}
+
+test('Perjadin: selalu LS, uang harian & transport + bank & rekening per orang, validasi, pegawai baru dari form, maks. 2 orang, berkas N/A', async ({ page }) => {
   const nama = `Perjalanan Dinas Uji ${Date.now()}`;
   const pegawaiBaru = `Pegawai Uji ${Date.now() % 100000}`;
 
@@ -12,14 +29,13 @@ test('Perjadin: uang harian & transport per orang, validasi, pegawai baru dari f
   await page.getByLabel('Lama kegiatan — dari').fill('2026-10-10');
   await page.getByLabel('Sampai').fill('2026-10-08');
   await page.getByLabel('Lokasi tujuan').fill('Bandung');
-  await page.getByRole('radio', { name: 'LS' }).click();
+  // Mekanisme Perjadin selalu LS (master Jenis Pengajuan) → pilihan KO/LS tidak ditampilkan
+  await expect(page.locator('[data-field="mekanisme"]')).toHaveCount(0);
+  await expect(page.getByRole('radio', { name: 'KO', exact: true })).toHaveCount(0);
   await page.getByRole('radio', { name: 'Dalam Kota' }).click();
-  // "Jenis uang" sudah tidak ada; jenis transport berada di samping mekanisme
+  // "Jenis uang" sudah tidak ada; jenis transport berada di samping lokasi tujuan
   await expect(page.getByText('Jenis uang')).toHaveCount(0);
-  const kotakMekanisme = await page.locator('[data-field="mekanisme"]').boundingBox();
-  const kotakTransport = await page.locator('[data-field="jenis_transport"]').boundingBox();
-  expect(Math.abs(kotakMekanisme!.y - kotakTransport!.y)).toBeLessThan(2);
-  expect(kotakTransport!.x).toBeGreaterThan(kotakMekanisme!.x + kotakMekanisme!.width - 1);
+  await harusSebaris(page, ['lokasi_tujuan', 'jenis_transport']);
 
   // Peserta 1: tambah pegawai baru langsung dari combobox
   await page.locator('#peserta-0-pegawai_id').click();
@@ -29,11 +45,21 @@ test('Perjadin: uang harian & transport per orang, validasi, pegawai baru dari f
   await page.getByRole('button', { name: 'Simpan & pilih' }).click();
   await expect(page.locator('#peserta-0-pegawai_id')).toContainText(pegawaiBaru);
   await page.locator('#peserta-0-uang_harian').fill('450000');
+  // Pegawai baru belum punya rekening → bank & nomor kosong (opsional)
+  await expect(page.locator('#peserta-0-rekening_bank')).toHaveValue('');
+  await expect(page.locator('#peserta-0-rekening_nomor')).toHaveValue('');
 
-  // Peserta 2
+  // Peserta 2: rekening terisi otomatis dari master Pegawai
   await page.getByRole('button', { name: 'Tambah orang' }).click();
-  await pilihPegawai(page, 'peserta-1-pegawai_id', 'Rizky Pratama');
+  await pilihPegawai(page, 'peserta-1-pegawai_id', 'Siti Rahmawati');
   await expect(page.getByRole('button', { name: 'Maksimal 2 orang' })).toBeDisabled();
+  await expect(page.locator('#peserta-1-rekening_bank')).toHaveValue('BRI');
+  await expect(page.locator('#peserta-1-rekening_nomor')).toHaveValue('034101000123305');
+  await expect(page.locator('[data-baris-penerima="1"]')).toContainText('Dari data pegawai');
+  // Nama | uang harian | uang transport | bank | no. rekening dalam satu baris
+  await harusSebaris(page, ['peserta-1-pegawai_id', 'peserta-1-uang_harian', 'peserta-1-uang_transport', 'peserta-1-rekening_bank', 'peserta-1-rekening_nomor']);
+  // No. rekening 15 digit tampil utuh
+  expect(await page.locator('#peserta-1-rekening_nomor').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 
   // Tanggal sampai < dari dan uang orang 2 yang masih kosong ditolak
   await page.getByRole('button', { name: 'Simpan draft' }).click();
@@ -53,6 +79,11 @@ test('Perjadin: uang harian & transport per orang, validasi, pegawai baru dari f
   await expect(page.getByRole('heading', { name: nama })).toBeVisible();
   await expect(page.getByText(pegawaiBaru).first()).toBeVisible();
   await expect(page.getByText('Total (2 orang)')).toBeVisible();
+  // Rekening penerima tersimpan di pengajuan (orang 1 tanpa rekening)
+  await expect(page.getByTestId('rekening-peserta')).toHaveCount(1);
+  await expect(page.locator('[data-peserta="1"]')).toContainText('BRI');
+  await expect(page.locator('[data-peserta="1"]')).toContainText('034101000123305');
+  expect(((await (await page.request.get(`/api/pengajuan/${page.url().split('/').pop()}`)).json()) as { mekanisme: string }).mekanisme).toBe('LS');
   await expect(page.getByText('Rp 750.000').first()).toBeVisible();
   await expect(page.locator('[data-peserta="1"]')).toContainText('Uang harian');
   await expect(page.locator('[data-peserta="1"]')).toContainText('Rp 200.000');
@@ -83,17 +114,22 @@ test('Perjadin: uang harian & transport per orang, validasi, pegawai baru dari f
   await expect(page.getByText('Rp 800.000').first()).toBeVisible();
 });
 
-test('Rumah Tangga: minimal 1 orang & pegawai yang sama tidak bisa dipilih dua kali', async ({ page }) => {
+test('Rumah Tangga: selalu LS, minimal 1 orang, pegawai tidak dobel, nilai + bank & rekening per orang', async ({ page }) => {
+  const nama = `Antar Dokumen Uji ${Date.now()}`;
   await masukAPI(page, 'operator');
   await page.goto('/pengajuan/baru');
   await page.getByRole('button', { name: 'Pilih Transport Rumah Tangga' }).click();
+  // Mekanisme Rumah Tangga selalu LS → tanpa pilihan KO/LS & tanpa galat mekanisme
+  await expect(page.locator('[data-field="mekanisme"]')).toHaveCount(0);
+  await expect(page.getByRole('radio', { name: 'LS', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Simpan draft' }).click();
   await expect(page.getByText('Nama kegiatan wajib diisi')).toBeVisible();
   await expect(page.getByText('Pilih nama pegawai')).toBeVisible();
   await expect(page.getByText('Nilai uang wajib diisi')).toBeVisible();
-  await expect(page.getByText('Pilih mekanisme KO atau LS')).toBeVisible();
+  await expect(page.getByText('Pilih mekanisme KO atau LS')).toHaveCount(0);
 
   await pilihPegawai(page, 'peserta-0-pegawai_id', 'Bambang Sutrisno');
+  await expect(page.locator('#peserta-0-rekening_bank')).toHaveValue('');
   await page.getByRole('button', { name: 'Tambah orang' }).click();
   await page.locator('#peserta-1-pegawai_id').click();
   await page.getByLabel('Cari pegawai').fill('Bambang Sutrisno');
@@ -104,4 +140,32 @@ test('Rumah Tangga: minimal 1 orang & pegawai yang sama tidak bisa dipilih dua k
   await page.getByRole('button', { name: 'Hapus orang 2' }).click();
   await expect(page.locator('#peserta-1-pegawai_id')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Hapus orang 1' })).toBeDisabled();
+
+  // Orang 2 punya rekening di master Pegawai → terisi otomatis; nama | nilai | bank | no. rekening sebaris
+  await page.getByRole('button', { name: 'Tambah orang' }).click();
+  await pilihPegawai(page, 'peserta-1-pegawai_id', 'Fitri Handayani');
+  await expect(page.locator('#peserta-1-rekening_bank')).toHaveValue('BNI');
+  await expect(page.locator('#peserta-1-rekening_nomor')).toHaveValue('0123456789');
+  await harusSebaris(page, ['peserta-1-pegawai_id', 'peserta-1-nilai', 'peserta-1-rekening_bank', 'peserta-1-rekening_nomor']);
+  await page.getByLabel('Nama kegiatan').fill(nama);
+  await page.getByLabel('Tanggal kegiatan').fill('2026-10-05');
+  await page.getByLabel('Lokasi tujuan').fill('Rektorat UI');
+  await page.locator('#peserta-0-nilai').fill('100000');
+  await page.locator('#peserta-1-nilai').fill('75000');
+  // Bank tanpa nomor rekening ditolak; nomor dibersihkan dari spasi
+  await page.locator('#peserta-0-rekening_bank').fill('Bank Mandiri');
+  await page.getByRole('button', { name: 'Simpan draft' }).click();
+  await expect(page.getByText('Isi nomor rekening')).toBeVisible();
+  await page.locator('#peserta-0-rekening_nomor').fill('157 0001 234 567');
+  await page.getByRole('button', { name: 'Simpan draft' }).click();
+
+  await expect(page).toHaveURL(/\/pengajuan\/\d+$/);
+  await expect(page.getByRole('heading', { name: nama })).toBeVisible();
+  const rekening = page.getByTestId('rekening-peserta');
+  await expect(rekening).toHaveCount(2);
+  await expect(rekening.nth(0)).toContainText('Bank Mandiri');
+  await expect(rekening.nth(0)).toContainText('1570001234567');
+  await expect(rekening.nth(1)).toContainText('BNI');
+  await expect(rekening.nth(1)).toContainText('0123456789');
+  expect(((await (await page.request.get(`/api/pengajuan/${page.url().split('/').pop()}`)).json()) as { mekanisme: string }).mekanisme).toBe('LS');
 });

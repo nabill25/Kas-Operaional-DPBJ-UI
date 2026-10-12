@@ -23,9 +23,10 @@ import {
   type Status,
 } from '../../shared/constants';
 import { formatRupiah } from '../../shared/format';
-import { hitungKelengkapan, parseBerkasDaftar, parseBerkasNa } from '../../shared/kelengkapan';
+import { hitungKelengkapan, kodeWajib, parseBerkasDaftar, parseBerkasNa, samaDaftarBerkas } from '../../shared/kelengkapan';
 import type {
   Berkas,
+  BerkasDaftar,
   CekBerkas,
   Paged,
   PengajuanDetail,
@@ -47,7 +48,7 @@ import { nowIso, type Db, type SqlParam } from '../db-pg';
 import { badRequest, conflict, forbidden, notFound } from '../http';
 import type { StorageProvider } from '../providers';
 import type { SessionUser } from '../types';
-import { ambilJenisPengajuan, labelJenisBerkas } from './master';
+import { ambilJenisPengajuan, labelJenisBerkas, pastikanDanaTerdaftar } from './master';
 
 // ───────────────────────────── Hak akses ─────────────────────────────
 
@@ -92,17 +93,19 @@ export interface PengajuanRow {
   total: number;
   catatan: string | null;
   berkas_na: string;
-  /** JSON daftar berkas wajib pengajuan ini; null = ikut master jenisnya. */
+  /** JSON daftar berkas (wajib/opsional) pengajuan ini; null = ikut master jenisnya. */
   berkas_daftar: string | null;
   berkas_terpenuhi: number;
   berkas_wajib: number;
   berkas_sesuai: number;
+  berkas_revisi: number;
   status: Status;
   no_invoice_mdk: string | null;
   tanggal_invoice_mdk: string | null;
   catatan_pum: string | null;
   project_hosting: string | null;
   task_name: string | null;
+  kode_dana: string | null;
   created_by: number;
   created_by_nama: string;
   updated_by_nama: string | null;
@@ -129,7 +132,14 @@ export const SELECT_PENGAJUAN = `
          dm.nama AS diajukan_mdk_by_nama,
          dp.nama AS diproses_by_nama,
          dbr.nama AS dibayar_by_nama,
-         (SELECT COUNT(*) FROM cek_berkas ck WHERE ck.pengajuan_id = p.id AND ck.status = 'sesuai')::int AS berkas_sesuai,
+         -- Centang "sesuai" hanya dihitung untuk berkas wajib (berkas_daftar: [{kode, wajib}] atau data lama ["kode"]).
+         (SELECT COUNT(*) FROM cek_berkas ck
+           WHERE ck.pengajuan_id = p.id AND ck.status = 'sesuai'
+             AND (p.berkas_daftar IS NULL OR EXISTS (
+               SELECT 1 FROM jsonb_array_elements(p.berkas_daftar) e
+                WHERE CASE WHEN jsonb_typeof(e) = 'string' THEN e #>> '{}' = ck.jenis
+                           ELSE e ->> 'kode' = ck.jenis AND COALESCE((e ->> 'wajib')::boolean, true) END)))::int AS berkas_sesuai,
+         (SELECT COUNT(*) FROM cek_berkas ck WHERE ck.pengajuan_id = p.id AND ck.status = 'revisi')::int AS berkas_revisi,
          CAST(p.berkas_na AS TEXT) AS berkas_na,
          CAST(p.berkas_daftar AS TEXT) AS berkas_daftar,
          COALESCE(jp.model, 'umum') AS model
@@ -183,9 +193,11 @@ function keRingkas(row: PengajuanRow, pesertaNama: string[]): PengajuanRingkas {
     tanggal_invoice_mdk: normTgl(row.tanggal_invoice_mdk),
     project_hosting: row.project_hosting,
     task_name: row.task_name,
+    kode_dana: row.kode_dana ?? null,
     berkas_terpenuhi: Number(row.berkas_terpenuhi),
     berkas_wajib: Number(row.berkas_wajib),
     berkas_sesuai: Number(row.berkas_sesuai ?? 0),
+    berkas_revisi: Number(row.berkas_revisi ?? 0),
     created_by: Number(row.created_by),
     created_by_nama: row.created_by_nama ?? '-',
     created_at: normTs(row.created_at)!,
@@ -367,7 +379,7 @@ export async function ambilPengajuan(db: Db, user: SessionUser, id: number): Pro
 export async function getPeserta(db: Db, pengajuanId: number): Promise<Peserta[]> {
   return db.all<Peserta>(
     `SELECT ps.id, ps.pegawai_id, pg.nama, pg.nip, pg.jabatan, ps.nilai::bigint AS nilai,
-            ps.uang_harian, ps.uang_transport, ps.urutan, pg.rekening_bank, pg.rekening_nomor
+            ps.uang_harian, ps.uang_transport, ps.urutan, ps.rekening_bank, ps.rekening_nomor
        FROM pengajuan_peserta ps JOIN pegawai pg ON pg.id = ps.pegawai_id
       WHERE ps.pengajuan_id = ? ORDER BY ps.urutan`,
     pengajuanId,
@@ -376,16 +388,16 @@ export async function getPeserta(db: Db, pengajuanId: number): Promise<Peserta[]
 
 const teksJson = (v: unknown): string | null => (v === null || v === undefined ? null : typeof v === 'string' ? v : JSON.stringify(v));
 
-/** Berkas wajib sebuah pengajuan: daftar yang tercatat (`berkas_daftar`), atau master jenisnya bila belum tercatat. */
-export async function daftarWajib(db: Db, row: { kategori: Kategori; berkas_daftar: unknown }): Promise<JenisBerkas[]> {
+/** Berkas (wajib/opsional) sebuah pengajuan: daftar yang tercatat (`berkas_daftar`), atau master jenisnya bila belum tercatat. */
+export async function daftarBerkas(db: Db, row: { kategori: Kategori; berkas_daftar: unknown }): Promise<BerkasDaftar[]> {
   const tercatat = parseBerkasDaftar(teksJson(row.berkas_daftar));
   if (tercatat) return tercatat;
   return (await ambilJenisPengajuan(db, row.kategori))?.berkas ?? [];
 }
 
 async function kelengkapanRow(db: Db, row: PengajuanRow, berkas: readonly { jenis: string }[], cek: CekBerkas[] = []) {
-  const daftar = await daftarWajib(db, row);
-  const label = await labelJenisBerkas(db, daftar);
+  const daftar = await daftarBerkas(db, row);
+  const label = await labelJenisBerkas(db, daftar.map((b) => b.kode));
   return hitungKelengkapan(daftar, label, berkas, parseBerkasNa(teksJson(row.berkas_na)), cek);
 }
 
@@ -520,7 +532,7 @@ export async function segarkanKelengkapan(db: Db, pengajuanId: number): Promise<
   );
   if (!row) return;
   const berkas = await db.all<{ jenis: string }>('SELECT jenis FROM berkas WHERE pengajuan_id = ?', pengajuanId);
-  const daftar = await daftarWajib(db, row);
+  const daftar = await daftarBerkas(db, row);
   const k = hitungKelengkapan(daftar, (j) => j, berkas, parseBerkasNa(row.berkas_na));
   await db.run(
     'UPDATE pengajuan SET berkas_terpenuhi = ?, berkas_wajib = ? WHERE id = ?',
@@ -531,10 +543,10 @@ export async function segarkanKelengkapan(db: Db, pengajuanId: number): Promise<
 }
 
 /**
- * Samakan daftar berkas wajib pengajuan yang masih bisa diedit pengaju (draft/dikembalikan) dengan master jenisnya.
- * Dipanggil saat admin mengubah berkas wajib suatu jenis dan saat pengajuan diajukan ke PUM. Pengajuan yang sudah
- * diajukan/diverifikasi/selesai tidak berubah. Centang PUM & tanda N/A untuk berkas yang tidak wajib lagi dihapus.
- * Mengembalikan jumlah pengajuan yang daftarnya berubah.
+ * Samakan daftar berkas (wajib/opsional) pengajuan yang masih bisa diedit pengaju (draft/dikembalikan) dengan master
+ * jenisnya. Dipanggil saat admin mengubah berkas suatu jenis dan saat pengajuan diajukan ke PUM. Pengajuan yang sudah
+ * diajukan/diverifikasi/selesai tidak berubah. Centang PUM untuk berkas yang keluar dari daftar dihapus; tanda N/A hanya
+ * dipertahankan untuk berkas yang masih wajib. Mengembalikan jumlah pengajuan yang daftarnya berubah.
  */
 export async function sinkronDaftarBerkas(
   db: Db,
@@ -546,26 +558,32 @@ export async function sinkronDaftarBerkas(
        FROM pengajuan WHERE status IN ('draft','dikembalikan') AND ${'kategori' in sasaran ? 'kategori = ?' : 'id = ?'}`,
     'kategori' in sasaran ? sasaran.kategori : sasaran.pengajuanId,
   );
-  const master = new Map<Kategori, JenisBerkas[]>();
+  const master = new Map<Kategori, BerkasDaftar[]>();
   let berubah = 0;
   for (const r of rows) {
     if (!master.has(r.kategori)) master.set(r.kategori, (await ambilJenisPengajuan(db, r.kategori))?.berkas ?? []);
     const baru = master.get(r.kategori)!;
     const lama = parseBerkasDaftar(r.berkas_daftar);
-    if (lama && lama.join('|') === baru.join('|')) continue;
-    const na = parseBerkasNa(r.berkas_na).filter((j) => baru.includes(j));
+    if (lama && samaDaftarBerkas(lama, baru)) continue;
+    const wajibBaru = kodeWajib(baru);
+    const semuaBaru = baru.map((b) => b.kode);
+    const na = parseBerkasNa(r.berkas_na).filter((j) => wajibBaru.includes(j));
     await db.run('UPDATE pengajuan SET berkas_daftar = ?, berkas_na = ? WHERE id = ?', JSON.stringify(baru), JSON.stringify(na), r.id);
-    await db.run('DELETE FROM cek_berkas WHERE pengajuan_id = ? AND NOT (jenis = ANY(?))', r.id, baru);
+    await db.run('DELETE FROM cek_berkas WHERE pengajuan_id = ? AND NOT (jenis = ANY(?))', r.id, semuaBaru);
     await segarkanKelengkapan(db, Number(r.id));
     if (lama) {
-      const label = await labelJenisBerkas(db, [...lama, ...baru]);
-      const tambah = baru.filter((j) => !lama.includes(j)).map(label);
-      const kurang = lama.filter((j) => !baru.includes(j)).map(label);
+      const wajibLama = kodeWajib(lama);
+      const semuaLama = lama.map((b) => b.kode);
+      const label = await labelJenisBerkas(db, [...semuaLama, ...semuaBaru]);
+      const tambah = wajibBaru.filter((j) => !wajibLama.includes(j)).map(label);
+      const kurang = wajibLama.filter((j) => !wajibBaru.includes(j)).map(label);
+      const opsionalBaru = baru.filter((b) => !b.wajib && !semuaLama.includes(b.kode)).map((b) => label(b.kode));
       const ket = [
         tambah.length ? `wajib baru: ${tambah.join(', ')}` : null,
         kurang.length ? `tidak wajib lagi: ${kurang.join(', ')}` : null,
+        opsionalBaru.length ? `opsional baru: ${opsionalBaru.join(', ')}` : null,
       ].filter(Boolean);
-      await catatRiwayat(db, { id: Number(r.id), kode: r.kode }, userId, 'diubah', `Berkas wajib mengikuti master — ${ket.join(' · ') || 'urutan diperbarui'}`);
+      await catatRiwayat(db, { id: Number(r.id), kode: r.kode }, userId, 'diubah', `Berkas mengikuti master — ${ket.join(' · ') || 'urutan diperbarui'}`);
     }
     berubah++;
   }
@@ -609,13 +627,15 @@ async function simpanPeserta(db: Db, pengajuanId: number, data: PengajuanBersih)
   for (let i = 0; i < data.peserta.length; i++) {
     const p = data.peserta[i];
     await db.run(
-      `INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, uang_harian, uang_transport, urutan)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO pengajuan_peserta (pengajuan_id, pegawai_id, nilai, uang_harian, uang_transport, rekening_bank, rekening_nomor, urutan)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       pengajuanId,
       p.pegawai_id,
       p.nilai,
-      p.uang_harian ?? null,
-      p.uang_transport ?? null,
+      p.uang_harian,
+      p.uang_transport,
+      p.rekening_bank,
+      p.rekening_nomor,
       i + 1,
     );
   }
@@ -657,7 +677,7 @@ export async function buatPengajuan(db: Db, user: SessionUser, data: PengajuanBe
       data.total,
       data.catatan,
       JSON.stringify(jenis.berkas),
-      jenis.berkas.length,
+      kodeWajib(jenis.berkas).length,
       user.id,
       user.id,
       waktu,
@@ -704,6 +724,7 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
     );
     if (row.uang_siapa_id !== null) sebelumnya.add(Number(row.uang_siapa_id));
     await cekPegawai(txDb, data, sebelumnya);
+    const pesertaLama = await getPeserta(txDb, id);
 
     const waktu = nowIso();
     await txDb.run(
@@ -739,6 +760,14 @@ export async function ubahPengajuan(db: Db, user: SessionUser, id: number, data:
     const rekLama = teksRekening(row.rekening_bank ?? null, row.rekening_nomor ?? null);
     const rekBaru = teksRekening(data.rekening_bank, data.rekening_nomor);
     if (row.model === 'konsumsi' && rekLama !== rekBaru) perubahan.push(`Rekening ${rekLama} → ${rekBaru}`);
+    // Rekening per penerima yang berganti (penerima yang sama).
+    for (const p of data.peserta) {
+      const lama = pesertaLama.find((x) => Number(x.pegawai_id) === p.pegawai_id);
+      if (!lama) continue;
+      const a = teksRekening(lama.rekening_bank, lama.rekening_nomor);
+      const b = teksRekening(p.rekening_bank, p.rekening_nomor);
+      if (a !== b) perubahan.push(`Rekening ${lama.nama} ${a} → ${b}`);
+    }
     await catatRiwayat(txDb, row, user.id, 'diubah', perubahan.join(' · ') || null, waktu);
   });
 }
@@ -821,8 +850,8 @@ export async function cekBerkas(db: Db, user: SessionUser, id: number, data: Cek
     if (row.status !== 'diajukan_pum') {
       throw conflict('Berkas hanya dapat dicentang saat pengajuan berstatus Diajukan ke PUM');
     }
-    if (!(await daftarWajib(txDb, row)).includes(data.jenis)) {
-      throw badRequest('Jenis berkas tidak termasuk berkas wajib pengajuan ini', { jenis: 'Jenis berkas tidak valid' });
+    if (!(await daftarBerkas(txDb, row)).some((b) => b.kode === data.jenis)) {
+      throw badRequest('Jenis berkas tidak termasuk berkas pengajuan ini', { jenis: 'Jenis berkas tidak valid' });
     }
     const label = (await labelJenisBerkas(txDb, [data.jenis]))(data.jenis);
     const lama = await txDb.get<{ status: string; catatan: string | null }>(
@@ -906,7 +935,10 @@ export async function kembalikan(db: Db, user: SessionUser, id: number, catatan:
   });
 }
 
-/** Verifikasi PUM: semua berkas wajib sudah dicentang sesuai → status Diverifikasi PUM (menunggu input invoice). */
+/**
+ * Verifikasi PUM: semua berkas wajib sudah dicentang sesuai dan tidak ada berkas yang ditandai revisi
+ * → status Diverifikasi PUM (menunggu input invoice).
+ */
 export async function verifikasi(db: Db, user: SessionUser, id: number, data: VerifikasiBersih): Promise<void> {
   await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
@@ -918,12 +950,17 @@ export async function verifikasi(db: Db, user: SessionUser, id: number, data: Ve
     if (!k.semuaSesuai) {
       throw conflict(`Centang semua berkas wajib sebagai "sesuai" sebelum memverifikasi (baru ${k.sesuai}/${k.total}).`);
     }
+    if (k.revisi > 0) {
+      throw conflict(`Masih ada ${k.revisi} berkas yang ditandai perlu revisi. Kembalikan ke pengaju atau batalkan tanda revisinya.`);
+    }
+    await pastikanDanaTerdaftar(txDb, data.kode_dana, row.kode_dana);
     const waktu = nowIso();
     await txDb.run(
-      `UPDATE pengajuan SET status = 'diverifikasi_pum', project_hosting = ?, task_name = ?, catatan_pum = ?,
+      `UPDATE pengajuan SET status = 'diverifikasi_pum', project_hosting = ?, task_name = ?, kode_dana = ?, catatan_pum = ?,
          diverifikasi_by = ?, diverifikasi_at = ?, updated_by = ?, updated_at = ? WHERE id = ?`,
       data.project_hosting,
       data.task_name,
+      data.kode_dana,
       data.catatan,
       user.id,
       waktu,
@@ -935,6 +972,7 @@ export async function verifikasi(db: Db, user: SessionUser, id: number, data: Ve
       `Berkas ${k.sesuai}/${k.total} sesuai`,
       data.project_hosting ? `Project: ${data.project_hosting}` : null,
       data.task_name ? `Task: ${data.task_name}` : null,
+      data.kode_dana ? `Kode dana: ${data.kode_dana}` : null,
     ].filter(Boolean).join(' · ');
     await catatRiwayat(txDb, row, user.id, 'diverifikasi', ket, waktu);
     await kirimNotifikasi(
@@ -960,12 +998,16 @@ export async function ubahDataPum(db: Db, user: SessionUser, id: number, data: D
     if (row.status !== 'diajukan_pum' && !STATUS_LEWAT_VERIFIKASI.includes(row.status)) {
       throw conflict('Data PUM hanya dapat diubah setelah pengajuan diajukan ke PUM');
     }
-    if (row.project_hosting === data.project_hosting && row.task_name === data.task_name) return;
+    if (row.project_hosting === data.project_hosting && row.task_name === data.task_name && (row.kode_dana ?? null) === data.kode_dana) {
+      return;
+    }
+    await pastikanDanaTerdaftar(txDb, data.kode_dana, row.kode_dana);
     const waktu = nowIso();
     await txDb.run(
-      'UPDATE pengajuan SET project_hosting = ?, task_name = ?, updated_by = ?, updated_at = ? WHERE id = ?',
+      'UPDATE pengajuan SET project_hosting = ?, task_name = ?, kode_dana = ?, updated_by = ?, updated_at = ? WHERE id = ?',
       data.project_hosting,
       data.task_name,
+      data.kode_dana,
       user.id,
       waktu,
       id,
@@ -975,7 +1017,7 @@ export async function ubahDataPum(db: Db, user: SessionUser, id: number, data: D
       row,
       user.id,
       'data_pum_diubah',
-      `Project: ${data.project_hosting ?? '-'} · Task: ${data.task_name ?? '-'}`,
+      `Task: ${data.task_name ?? '-'} · Project: ${data.project_hosting ?? '-'} · Kode dana: ${data.kode_dana ?? '-'}`,
       waktu,
     );
   });
@@ -1159,9 +1201,9 @@ export async function pastikanBisaKelolaBerkas(db: Db, user: SessionUser, pengaj
   return row;
 }
 
-/** Jenis berkas boleh diunggah: Dokumen Lainnya, atau salah satu berkas wajib pengajuan ini. */
+/** Jenis berkas boleh diunggah: Dokumen Lainnya, atau salah satu berkas (wajib/opsional) pengajuan ini. */
 export async function jenisBerkasValid(db: Db, row: PengajuanRow, jenis: string): Promise<boolean> {
-  return jenis === JENIS_BERKAS_LAINNYA || (await daftarWajib(db, row)).includes(jenis);
+  return jenis === JENIS_BERKAS_LAINNYA || (await daftarBerkas(db, row)).some((b) => b.kode === jenis);
 }
 
 async function resetCek(db: Db, pengajuanId: number, jenis: string): Promise<void> {
@@ -1237,7 +1279,8 @@ export async function hapusBerkas(db: Db, user: SessionUser, berkasId: number): 
 export async function setBerkasNa(db: Db, user: SessionUser, pengajuanId: number, jenis: string, na: boolean): Promise<void> {
   await db.tx(async (txDb) => {
     const row = await pastikanBisaKelolaBerkas(txDb, user, pengajuanId);
-    if (!(await daftarWajib(txDb, row)).includes(jenis)) {
+    // Tanda "tidak diperlukan" hanya untuk berkas wajib (berkas opsional memang boleh tidak diunggah).
+    if (!kodeWajib(await daftarBerkas(txDb, row)).includes(jenis)) {
       throw badRequest('Jenis berkas tidak termasuk berkas wajib pengajuan ini', { jenis: 'Jenis berkas tidak valid' });
     }
     const label = (await labelJenisBerkas(txDb, [jenis]))(jenis);

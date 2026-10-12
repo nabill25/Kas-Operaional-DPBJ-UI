@@ -91,7 +91,7 @@ export default function MasterJenisBerkasPage() {
         </div>
       ) : tampil.length === 0 ? (
         <GlassCard>
-          <Kosong ikon={<FileStack />} judul={cari ? 'Jenis berkas tidak ditemukan' : 'Belum ada jenis berkas'} deskripsi="Tambahkan jenis berkas, lalu pilih sebagai berkas wajib di Master Jenis Pengajuan." />
+          <Kosong ikon={<FileStack />} judul={cari ? 'Jenis berkas tidak ditemukan' : 'Belum ada jenis berkas'} deskripsi="Tambahkan jenis berkas, lalu pilih sebagai berkas wajib atau opsional di Master Jenis Pengajuan." />
         </GlassCard>
       ) : (
         <motion.ul layout aria-label="Daftar jenis berkas" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -117,10 +117,10 @@ export default function MasterJenisBerkasPage() {
                       <p className="mt-2 text-xs text-fg-muted">
                         {wajibPada.length > 0 ? (
                           <>
-                            Wajib pada: <span className="font-semibold text-fg">{wajibPada.map((k) => kamus.jenis(k).label).join(', ')}</span>
+                            Dipakai pada: <span className="font-semibold text-fg">{wajibPada.map((k) => kamus.jenis(k).label).join(', ')}</span>
                           </>
                         ) : (
-                          'Belum menjadi berkas wajib jenis pengajuan mana pun'
+                          'Belum dipakai jenis pengajuan mana pun'
                         )}
                       </p>
                     </div>
@@ -152,7 +152,7 @@ export default function MasterJenisBerkasPage() {
         <p className="flex items-start gap-2">
           <Info className="mt-px size-3.5 shrink-0" aria-hidden />
           <span>
-            Jenis berkas yang masih wajib pada suatu jenis pengajuan tidak dapat dinonaktifkan — keluarkan dulu dari daftar berkas wajibnya di{' '}
+            Jenis berkas yang masih tercantum (wajib/opsional) pada suatu jenis pengajuan tidak dapat dinonaktifkan — keluarkan dulu dari daftar berkasnya di{' '}
             <Link to="/master/jenis-pengajuan" className="font-semibold text-fg underline-offset-2 hover:underline">
               Master Jenis Pengajuan
             </Link>
@@ -236,7 +236,7 @@ function FormJenisBerkas({
           id="jb-aktif"
           aktif={aktif}
           onChange={setAktif}
-          keterangan={masihWajib && jb.aktif ? 'Masih wajib pada jenis pengajuan — tidak dapat dinonaktifkan' : 'Dapat dipilih sebagai berkas wajib'}
+          keterangan={masihWajib && jb.aktif ? 'Masih tercantum pada jenis pengajuan — tidak dapat dinonaktifkan' : 'Dapat dipilih sebagai berkas wajib atau opsional'}
         />
       )}
       <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">

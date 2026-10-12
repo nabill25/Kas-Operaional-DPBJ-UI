@@ -13,11 +13,12 @@ import {
   WARNA_JENIS_PILIHAN,
   modelPeserta,
   type IkonJenis,
+  type Mekanisme,
   type ModelForm,
   type WarnaJenis,
 } from '../../../shared/constants';
 import { maksPeserta } from '../../../shared/konfig';
-import type { JenisPengajuan } from '../../../shared/types';
+import type { BerkasDaftar, JenisPengajuan } from '../../../shared/types';
 import { validateJenisPengajuan } from '../../../shared/validation';
 import { warnaSeri } from '../../components/dashboard/palet';
 import { IKON_JENIS } from '../../components/ui/Badge';
@@ -28,6 +29,7 @@ import { Kosong, Skeleton } from '../../components/ui/Kosong';
 import { MenuItem, MenuPemisah } from '../../components/ui/Menu';
 import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Segmented } from '../../components/ui/Segmented';
 import { useKamus } from '../../context/KonfigContext';
 import { useKonfirmasi } from '../../context/KonfirmasiContext';
 import { useTema } from '../../context/ThemeContext';
@@ -83,7 +85,7 @@ export default function MasterJenisPengajuanPage() {
     <div>
       <PageHeader
         judul="Master Jenis Pengajuan"
-        deskripsi="Kategori pengajuan beserta model form, awalan kode, dan berkas wajibnya. Jenis aktif langsung muncul di Buat Pengajuan."
+        deskripsi="Kategori pengajuan beserta model form, awalan kode, mekanisme, dan berkas wajib/opsionalnya. Jenis aktif langsung muncul di Buat Pengajuan."
         aksi={
           <Button ikon={<Plus className="size-4" />} onClick={() => setForm({ open: true, j: null })}>
             Tambah Jenis Pengajuan
@@ -139,17 +141,29 @@ export default function MasterJenisPengajuanPage() {
                         {j.bawaan && <ChipInfo>Bawaan</ChipInfo>}
                         <ChipInfo>{MODEL_FORM_INFO[j.model].label}</ChipInfo>
                         {modelPeserta(j.model) && <ChipInfo>Maks. {maksPeserta(j)} orang</ChipInfo>}
+                        <ChipInfo>{j.mekanisme_tetap ? `Selalu ${j.mekanisme_tetap}` : 'KO / LS'}</ChipInfo>
                         <ChipInfo>{dipakai} pengajuan</ChipInfo>
                       </div>
                       <div className="mt-3">
-                        <p className="text-[10.5px] font-bold tracking-[0.08em] text-fg-subtle uppercase">Berkas wajib</p>
+                        <p className="text-[10.5px] font-bold tracking-[0.08em] text-fg-subtle uppercase">
+                          Berkas · {j.berkas.filter((b) => b.wajib).length} wajib
+                          {j.berkas.some((b) => !b.wajib) ? `, ${j.berkas.filter((b) => !b.wajib).length} opsional` : ''}
+                        </p>
                         {j.berkas.length === 0 ? (
                           <p className="mt-1 text-xs text-fg-muted">Tidak ada (hanya {LABEL_BERKAS_LAINNYA} opsional)</p>
                         ) : (
-                          <ol className="mt-1 flex flex-wrap gap-1.5" aria-label={`Berkas wajib ${j.label}`}>
+                          <ol className="mt-1 flex flex-wrap gap-1.5" aria-label={`Berkas ${j.label}`}>
                             {j.berkas.map((b, i) => (
-                              <li key={b} className="rounded-lg bg-fg/[0.05] px-2 py-1 text-xs font-medium text-fg">
-                                <span className="text-fg-subtle">{i + 1}.</span> {kamus.labelBerkas(b)}
+                              <li
+                                key={b.kode}
+                                data-sifat={b.wajib ? 'wajib' : 'opsional'}
+                                className={cn(
+                                  'rounded-lg px-2 py-1 text-xs font-medium text-fg',
+                                  b.wajib ? 'bg-fg/[0.05]' : 'ring-1 ring-fg/15 ring-inset',
+                                )}
+                              >
+                                <span className="text-fg-subtle">{i + 1}.</span> {kamus.labelBerkas(b.kode)}
+                                {!b.wajib && <span className="text-fg-subtle"> · opsional</span>}
                               </li>
                             ))}
                           </ol>
@@ -163,7 +177,7 @@ export default function MasterJenisPengajuanPage() {
                     </div>
                     <MenuAksi label={`Aksi untuk ${j.label}`}>
                       <MenuItem ikon={<PencilLine />} onSelect={() => setForm({ open: true, j })}>
-                        Ubah & atur berkas wajib
+                        Ubah & atur berkas
                       </MenuItem>
                       <MenuItem ikon={<Power />} onSelect={() => void ubahAktif(j)}>
                         {j.aktif ? 'Nonaktifkan' : 'Aktifkan kembali'}
@@ -183,8 +197,9 @@ export default function MasterJenisPengajuanPage() {
 
       <div className="mt-5 space-y-1.5 text-xs text-fg-muted">
         <p className="flex items-start gap-2">
-          <Info className="mt-px size-3.5 shrink-0" aria-hidden /> Mengubah berkas wajib berlaku untuk pengajuan baru dan pengajuan yang masih Draft
-          atau Dikembalikan. Pengajuan yang sudah diajukan ke PUM, diverifikasi, atau selesai tetap memakai daftar lamanya.
+          <Info className="mt-px size-3.5 shrink-0" aria-hidden /> Mengubah daftar berkas (wajib/opsional) berlaku untuk pengajuan baru dan
+          pengajuan yang masih Draft atau Dikembalikan. Pengajuan yang sudah diajukan ke PUM, diverifikasi, atau selesai tetap memakai daftar
+          lamanya.
         </p>
         <p className="flex items-start gap-2">
           <Lock className="mt-px size-3.5 shrink-0" aria-hidden /> Model form tidak dapat diganti setelah jenis dibuat. Jenis bawaan tidak dapat
@@ -197,7 +212,7 @@ export default function MasterJenisPengajuanPage() {
         onOpenChange={(o) => setForm((f) => ({ ...f, open: o }))}
         terkunci={simpan.isPending}
         judul={form.j ? `Ubah ${form.j.label}` : 'Tambah jenis pengajuan'}
-        deskripsi="Atur nama, awalan kode, model form, berkas wajib, dan tampilan di grafik."
+        deskripsi="Atur nama, awalan kode, model form, mekanisme, berkas wajib/opsional, dan tampilan di grafik."
         ikon={<Shapes className="size-5" />}
         lebar="lg"
       >
@@ -217,6 +232,7 @@ function keData(j: JenisPengajuan, ubah: Partial<DataJenisPengajuan> = {}): Data
     model: j.model,
     maks_peserta: j.maks_peserta,
     kata_kunci_task: j.kata_kunci_task,
+    mekanisme_tetap: j.mekanisme_tetap,
     warna: j.warna,
     ikon: j.ikon,
     aktif: j.aktif,
@@ -246,15 +262,17 @@ function FormJenis({
   const [model, setModel] = useState<ModelForm>(j?.model ?? 'umum');
   const [maks, setMaks] = useState(String(j?.maks_peserta ?? MAKS_PESERTA_BARU));
   const [kataKunci, setKataKunci] = useState(j?.kata_kunci_task ?? '');
+  const [mekanisme, setMekanisme] = useState<Mekanisme | ''>(j?.mekanisme_tetap ?? '');
   const [warna, setWarna] = useState<WarnaJenis>(j?.warna ?? warnaBebas);
   const [ikon, setIkon] = useState<IkonJenis>(j?.ikon ?? 'briefcase');
   const [aktif, setAktif] = useState(j?.aktif ?? true);
-  const [berkas, setBerkas] = useState<string[]>(j?.berkas ?? []);
+  const [berkas, setBerkas] = useState<BerkasDaftar[]>(j?.berkas ?? []);
   const [tambah, setTambah] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const prefixTerkunci = !!j && (j.dipakai ?? 0) > 0;
   const Ikon = IKON_JENIS[ikon];
-  const pilihanBerkas = kamus.konfig.jenisBerkas.filter((b) => b.aktif && !berkas.includes(b.kode));
+  const pilihanBerkas = kamus.konfig.jenisBerkas.filter((b) => b.aktif && !berkas.some((x) => x.kode === b.kode));
+  const ubahSifat = (kode: string, wajib: boolean) => setBerkas((d) => d.map((b) => (b.kode === kode ? { ...b, wajib } : b)));
 
   const geser = (i: number, arah: -1 | 1) =>
     setBerkas((d) => {
@@ -273,6 +291,7 @@ function FormJenis({
       model,
       maks_peserta: modelPeserta(model) ? maks : null,
       kata_kunci_task: kataKunci,
+      mekanisme_tetap: mekanisme || null,
       warna,
       ikon,
       aktif,
@@ -289,7 +308,7 @@ function FormJenis({
       toast.success(j ? `${hasil.label} diperbarui` : `${hasil.label} ditambahkan`, {
         description:
           disinkron > 0
-            ? `${disinkron} pengajuan Draft/Dikembalikan ikut memakai daftar berkas wajib yang baru.`
+            ? `${disinkron} pengajuan Draft/Dikembalikan ikut memakai daftar berkas yang baru.`
             : j
               ? undefined
               : 'Jenis ini sudah bisa dipilih di Buat Pengajuan.',
@@ -405,52 +424,92 @@ function FormJenis({
         </Field>
       )}
 
-      {/* Berkas wajib */}
+      {/* Berkas wajib & opsional */}
       <fieldset data-field="berkas">
         <legend className="mb-1.5 flex w-full items-center justify-between gap-2 text-[13px] font-semibold text-fg">
-          Berkas wajib (urut tampil)
+          Berkas (urut tampil)
           <Link to="/master/jenis-berkas" className="text-xs font-semibold text-fg-muted underline-offset-2 hover:text-fg hover:underline">
             Kelola jenis berkas
           </Link>
         </legend>
+        <p className="mb-2 text-xs text-fg-muted">
+          <b className="text-fg">Wajib</b> dihitung kelengkapan & harus dicentang sesuai PUM sebelum verifikasi.{' '}
+          <b className="text-fg">Opsional</b> tetap tampil di tabel berkas tanpa tanda wajib.
+        </p>
         {berkas.length === 0 ? (
           <p className="rounded-2xl bg-fg/[0.03] px-3.5 py-3 text-xs text-fg-muted ring-1 ring-fg/[0.06]">
-            Belum ada berkas wajib. {LABEL_BERKAS_LAINNYA} selalu tersedia sebagai berkas opsional.
+            Belum ada berkas. {LABEL_BERKAS_LAINNYA} selalu tersedia sebagai berkas opsional.
           </p>
         ) : (
-          <ol className="space-y-1.5" aria-label="Berkas wajib terpilih">
-            {berkas.map((b, i) => (
-              <li key={b} className="flex items-center gap-2 rounded-xl bg-fg/[0.03] py-1.5 pr-1.5 pl-3 ring-1 ring-fg/[0.06]">
-                <span className="w-5 text-xs font-bold text-fg-subtle">{i + 1}.</span>
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{kamus.labelBerkas(b)}</span>
-                <button
-                  type="button"
-                  disabled={i === 0}
-                  onClick={() => geser(i, -1)}
-                  className="grid size-8 place-items-center rounded-lg text-fg-muted transition hover:bg-fg/[0.06] hover:text-fg disabled:opacity-30"
-                  aria-label={`Naikkan ${kamus.labelBerkas(b)}`}
+          <ol className="space-y-1.5" aria-label="Berkas terpilih">
+            {berkas.map((b, i) => {
+              const nama = kamus.labelBerkas(b.kode);
+              return (
+                <li
+                  key={b.kode}
+                  data-berkas-master={b.kode}
+                  data-sifat={b.wajib ? 'wajib' : 'opsional'}
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl bg-fg/[0.03] py-1.5 pr-1.5 pl-3 ring-1 ring-fg/[0.06]"
                 >
-                  <ArrowUp className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={i === berkas.length - 1}
-                  onClick={() => geser(i, 1)}
-                  className="grid size-8 place-items-center rounded-lg text-fg-muted transition hover:bg-fg/[0.06] hover:text-fg disabled:opacity-30"
-                  aria-label={`Turunkan ${kamus.labelBerkas(b)}`}
-                >
-                  <ArrowDown className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBerkas((d) => d.filter((x) => x !== b))}
-                  className="grid size-8 place-items-center rounded-lg text-fg-muted transition hover:bg-red-500/10 hover:text-red-600"
-                  aria-label={`Keluarkan ${kamus.labelBerkas(b)}`}
-                >
-                  <X className="size-4" />
-                </button>
-              </li>
-            ))}
+                  <span className="w-5 text-xs font-bold text-fg-subtle">{i + 1}.</span>
+                  <span className="min-w-0 flex-1 basis-40 truncate text-sm font-semibold text-fg">{nama}</span>
+                  <div role="radiogroup" aria-label={`Sifat ${nama}`} className="flex rounded-lg bg-fg/[0.05] p-0.5 ring-1 ring-fg/[0.06]">
+                    {(
+                      [
+                        [true, 'Wajib'],
+                        [false, 'Opsional'],
+                      ] as const
+                    ).map(([nilai, teks]) => (
+                      <button
+                        key={teks}
+                        type="button"
+                        role="radio"
+                        aria-checked={b.wajib === nilai}
+                        onClick={() => ubahSifat(b.kode, nilai)}
+                        className={cn(
+                          'h-7 rounded-md px-2.5 text-xs font-semibold transition',
+                          b.wajib === nilai
+                            ? nilai
+                              ? 'bg-red-500/12 text-red-700 ring-1 ring-red-500/25 dark:text-red-300'
+                              : 'bg-surface text-fg shadow-sm ring-1 ring-fg/10'
+                            : 'text-fg-muted hover:text-fg',
+                        )}
+                      >
+                        {teks}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      disabled={i === 0}
+                      onClick={() => geser(i, -1)}
+                      className="grid size-8 place-items-center rounded-lg text-fg-muted transition hover:bg-fg/[0.06] hover:text-fg disabled:opacity-30"
+                      aria-label={`Naikkan ${nama}`}
+                    >
+                      <ArrowUp className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={i === berkas.length - 1}
+                      onClick={() => geser(i, 1)}
+                      className="grid size-8 place-items-center rounded-lg text-fg-muted transition hover:bg-fg/[0.06] hover:text-fg disabled:opacity-30"
+                      aria-label={`Turunkan ${nama}`}
+                    >
+                      <ArrowDown className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBerkas((d) => d.filter((x) => x.kode !== b.kode))}
+                      className="grid size-8 place-items-center rounded-lg text-fg-muted transition hover:bg-red-500/10 hover:text-red-600"
+                      aria-label={`Keluarkan ${nama}`}
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         )}
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
@@ -471,11 +530,11 @@ function FormJenis({
             ikon={<FileStack className="size-4" />}
             disabled={!tambah}
             onClick={() => {
-              setBerkas((d) => [...d, tambah]);
+              setBerkas((d) => [...d, { kode: tambah, wajib: true }]);
               setTambah('');
             }}
           >
-            Tambah berkas wajib
+            Tambah berkas
           </Button>
         </div>
         {errors.berkas && <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">{errors.berkas}</p>}
@@ -485,6 +544,30 @@ function FormJenis({
           </p>
         )}
       </fieldset>
+
+      <Field
+        label="Mekanisme pembayaran"
+        htmlFor="jp-mekanisme"
+        error={errors.mekanisme_tetap}
+        hint={
+          mekanisme
+            ? `Pilihan KO/LS tidak ditampilkan di form; pengajuan selalu ${mekanisme}.`
+            : 'Pengaju memilih KO atau LS di form pengajuan.'
+        }
+      >
+        <Segmented
+          id="jp-mekanisme"
+          label="Mekanisme pembayaran"
+          layoutId="seg-jp-mekanisme"
+          value={mekanisme}
+          onChange={setMekanisme}
+          opsi={[
+            { value: '', label: 'KO atau LS' },
+            { value: 'LS', label: 'Selalu LS' },
+            { value: 'KO', label: 'Selalu KO' },
+          ]}
+        />
+      </Field>
 
       <Field
         label="Kata kunci Task Name (opsional)"
