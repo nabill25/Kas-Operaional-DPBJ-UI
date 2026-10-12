@@ -113,17 +113,22 @@ function IsianPum({
   const pasanganDikenal = !!cariProject(daftar, project)?.tasks.some((t) => t.task === task);
 
   // Isian kosong: task otomatis dari kata kunci jenis (mis. Konsumsi → Beban Konsumsi) begitu master termuat.
+  // Data lama (task & project sudah terisi sebelum ada kode dana): kode dana diisi dari pasangannya bila masih kosong.
   const sudahOtomatis = useRef(false);
   useEffect(() => {
     if (sudahOtomatis.current || !masterPt) return;
     sudahOtomatis.current = true;
-    if (project || task) return;
+    if (project || task) {
+      const dana = project && task && !kodeDana ? kodeDanaPasangan(daftar, project, task) : null;
+      if (dana) onUbah({ project, task, kodeDana: dana });
+      return;
+    }
     const t = taskOtomatis(daftar, kataKunci);
     if (!t) return;
     const pr = projectOtomatis(daftar, t) ?? '';
     onUbah({ task: t, project: pr, kodeDana: (pr && kodeDanaPasangan(daftar, pr, t)) || '' });
     setOtomatis({ task: true, project: !!pr });
-  }, [masterPt, daftar, kataKunci, project, task, onUbah]);
+  }, [masterPt, daftar, kataKunci, project, task, kodeDana, onUbah]);
 
   const opsiTask = useMemo<OpsiCari[]>(() => {
     const keOpsi = (t: OpsiTask, grup: string): OpsiCari => ({ value: t.task, kode: t.kode, label: t.nama, grup });
@@ -237,7 +242,9 @@ function IsianPum({
             : danaOtomatis
               ? kodeDana === danaOtomatis
                 ? `Otomatis dari master Project & Task ${tahun}`
-                : `Master: ${danaOtomatis} — diubah manual`
+                : kodeDana
+                  ? `Master: ${danaOtomatis} — diubah manual`
+                  : `Master: ${danaOtomatis} — dikosongkan`
               : pasanganDikenal
                 ? 'Pasangan ini belum diberi kode dana di master — pilih manual bila perlu'
                 : 'Project/task di luar master — pilih kode dana manual bila perlu'

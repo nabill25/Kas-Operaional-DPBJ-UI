@@ -402,7 +402,9 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
   no. rekening — bila panel ≥ 54rem (Perjadin) / ≥ 50rem (lainnya), mis. laptop 1280 px; lebih sempit 2 kolom, HP bertumpuk.
 - **Isian PUM** (modal Verifikasi & "Ubah task name / project / kode dana"): [Tahun anggaran bila master > 1 tahun] → Task Name
   (otomatis dari kata kunci jenis bila hanya satu) → Project Costing (hanya project yang memiliki task itu; otomatis bila hanya
-  satu) → Kode dana (otomatis dari pasangan; bisa diubah). Tahun awal = tahun project tersimpan / tahun kegiatan.
+  satu) → Kode dana (otomatis dari pasangan; bisa diubah). Tahun awal = tahun project tersimpan / tahun kegiatan. Data lama
+  (task & project sudah terisi sebelum ada kode dana): kode dana terisi otomatis dari pasangannya saat isian dibuka (tersimpan
+  setelah PUM menekan Simpan/Verifikasi).
 - **Master Project & Task**: tab Project Costing · Task Name · Kode Dana; segmen Tahun anggaran (tahun berdata + tahun ini &
   tahun depan); tahun kosong menampilkan kartu "Salin dari <tahun>"; chip "Dana 51" per pasangan di kartu project.
 - Responsif (diaudit 320–1440 px): tabel lebar (Daftar Pengajuan, Rekap) hanya ≥1280 px dengan `table-fixed` + `<colgroup>`;

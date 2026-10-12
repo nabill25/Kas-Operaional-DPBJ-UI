@@ -229,12 +229,20 @@ test('admin: master Bank menjadi saran isian rekening; master Project & Task mun
   await masukAPI(page, 'pum');
   const r = await page.request.get('/api/pengajuan?status=diverifikasi_pum&limit=1');
   const id = (await r.json()).data[0].id as number;
+  // Data lama: task & project terisi sebelum ada kode dana → saat isian dibuka, kode dana terisi otomatis dari pasangannya.
+  const lamaPum = await page.request.put(`/api/pengajuan/${id}/data-pum`, {
+    data: { project_hosting: 'D0030.09.01.6.002:Koordinasi Tata Kelola Pengadaan', task_name: '723207_Beban Konsumsi', kode_dana: '' },
+  });
+  expect(lamaPum.ok()).toBeTruthy();
   await page.goto(`/pengajuan/${id}`);
+  await expect(page.getByTestId('kode-dana')).toContainText('Belum diisi');
   await page.getByRole('button', { name: 'Aksi PUM' }).click();
   await page.getByRole('menuitem', { name: 'Ubah task name / project / kode dana' }).click();
   const dPum = page.getByRole('dialog', { name: 'Task name, project costing & kode dana' });
-  // Dua tahun anggaran di master → pilihan tahun tampil (bawaan: tahun kegiatan, 2026).
+  // Dua tahun anggaran di master → pilihan tahun tampil (bawaan: tahun project tersimpan, 2026).
   await expect(dPum.getByRole('radio', { name: '2026', exact: true })).toBeChecked();
+  await expect(dPum.getByRole('combobox', { name: 'Kode dana' })).toHaveValue('51');
+  await expect(dPum.getByText('Otomatis dari master Project & Task 2026')).toBeVisible();
   await dPum.getByRole('combobox', { name: 'Task Name' }).click();
   await page.getByRole('textbox', { name: 'Cari task' }).fill('721999');
   await page.getByRole('option', { name: /Honor Kontrak Borongan/ }).click();
