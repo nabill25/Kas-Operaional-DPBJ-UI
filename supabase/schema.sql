@@ -96,6 +96,10 @@ create table pegawai (
   updated_at      timestamptz not null default now()
 );
 
+-- Akun ↔ data pegawai (ditautkan admin di menu Pengguna); pemilik akun mengisi rekeningnya sendiri di Pengaturan → Profil.
+alter table users add column pegawai_id bigint references pegawai (id) on delete set null;
+create unique index ux_users_pegawai on users (pegawai_id) where pegawai_id is not null;
+
 -- ─── Master data (dikelola admin, menu Master Data) ──────────
 
 -- Jenis berkas kelengkapan. "Dokumen Lainnya" (kode lainnya) bukan bagian master: selalu opsional.

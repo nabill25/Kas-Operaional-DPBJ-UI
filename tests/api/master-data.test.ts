@@ -407,7 +407,7 @@ describe('Master Bank', () => {
     expect(res.body).toMatchObject({ nama: 'Bank Nagari Syariah', aktif: false });
 
     await op.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0], { rekening_bank: 'bni', rekening_nomor: '0123456789' }));
-    await op.put(`/api/pegawai/${ctx.pegawai[1]}`).send({ nama: 'Rizky Pratama', rekening_bank: 'BNI', rekening_nomor: '0987654321' });
+    await admin.put(`/api/pegawai/${ctx.pegawai[1]}`).send({ nama: 'Rizky Pratama', rekening_bank: 'BNI', rekening_nomor: '0987654321' });
     const bni = ((await op.get('/api/master/bank')).body as Bank[]).find((b) => b.nama === 'BNI');
     expect(bni?.dipakai).toBe(2);
 
@@ -611,10 +611,10 @@ describe('Berkas wajib & opsional (master Jenis Pengajuan)', () => {
 
 describe('Rekening per penerima & mekanisme tetap', () => {
   it('rekening tiap penerima tersimpan di pengajuan (tidak ikut berubah bila master pegawai berubah); perubahan tercatat', async () => {
-    let res = await op.post('/api/pegawai').send({ nama: 'Pegawai Rek', rekening_bank: 'Bank Mandiri' });
+    let res = await admin.post('/api/pegawai').send({ nama: 'Pegawai Rek', rekening_bank: 'Bank Mandiri' });
     expect(res.status).toBe(400);
     expect(res.body.errors).toEqual({ rekening_nomor: 'Isi nomor rekening' });
-    res = await op.post('/api/pegawai').send({ nama: 'Pegawai Rek', rekening_bank: ' Bank  Mandiri ', rekening_nomor: '157-00.01 234' });
+    res = await admin.post('/api/pegawai').send({ nama: 'Pegawai Rek', rekening_bank: ' Bank  Mandiri ', rekening_nomor: '157-00.01 234' });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ rekening_bank: 'Bank Mandiri', rekening_nomor: '1570001234' });
     const id = res.body.id as number;
@@ -641,7 +641,7 @@ describe('Rekening per penerima & mekanisme tetap', () => {
       [null, null],
     ]);
     // Master pegawai berubah → rekening di pengajuan tetap.
-    await op.put(`/api/pegawai/${id}`).send({ nama: 'Pegawai Rek', rekening_bank: '', rekening_nomor: '' });
+    await admin.put(`/api/pegawai/${id}`).send({ nama: 'Pegawai Rek', rekening_bank: '', rekening_nomor: '' });
     expect(((await op.get(`/api/pengajuan/${p.id}`)).body as PengajuanDetail).peserta[0]).toMatchObject({ rekening_bank: 'Bank Mandiri' });
     // Ubah rekening penerima → tercatat di riwayat.
     res = await op.put(`/api/pengajuan/${p.id}`).send(

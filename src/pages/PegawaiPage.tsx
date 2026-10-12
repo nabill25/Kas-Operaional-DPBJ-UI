@@ -33,7 +33,7 @@ export default function PegawaiPage() {
   const [status, setStatus] = useState<FilterStatus>('aktif');
   const [form, setForm] = useState<{ open: boolean; pegawai: Pegawai | null }>({ open: false, pegawai: null });
 
-  const bisaKelola = punyaPeran('operator', 'admin');
+  // Hanya admin yang menambah/mengubah pegawai; PUM & pimpinan hanya melihat.
   const admin = punyaPeran('admin');
 
   const tampil = useMemo(() => {
@@ -83,7 +83,7 @@ export default function PegawaiPage() {
         judul="Master Pegawai"
         deskripsi="Daftar orang (dengan ID tersendiri) untuk “uang siapa” dan penerima per orang — dasar rekap per orang. Rekening pegawai mengisi otomatis rekening “uang siapa”."
         aksi={
-          bisaKelola && (
+          admin && (
             <Button ikon={<UserPlus className="size-4" />} onClick={() => setForm({ open: true, pegawai: null })}>
               Tambah Pegawai
             </Button>
@@ -179,13 +179,11 @@ export default function PegawaiPage() {
                     <MenuItem ikon={<ChartColumn />} onSelect={() => navigate(`/pengajuan?pegawai_id=${p.id}`)}>
                       Lihat pengajuan terkait
                     </MenuItem>
-                    {bisaKelola && (
-                      <MenuItem ikon={<PencilLine />} onSelect={() => setForm({ open: true, pegawai: p })}>
-                        Ubah data
-                      </MenuItem>
-                    )}
                     {admin && (
                       <>
+                        <MenuItem ikon={<PencilLine />} onSelect={() => setForm({ open: true, pegawai: p })}>
+                          Ubah data
+                        </MenuItem>
                         <MenuPemisah />
                         <MenuItem ikon={<Power />} onSelect={() => void ubahAktif(p)}>
                           {p.aktif ? 'Nonaktifkan' : 'Aktifkan kembali'}

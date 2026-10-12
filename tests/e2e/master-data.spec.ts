@@ -116,7 +116,7 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   await expect(page.getByText('Honor Borongan September').first()).toBeVisible();
 });
 
-test('rekening pegawai mengisi otomatis rekening "uang siapa" & bisa dicatat dari halaman Pegawai', async ({ page }) => {
+test('rekening pegawai mengisi otomatis rekening "uang siapa"; pengaju tanpa master Pegawai mengisi rekeningnya di Profil', async ({ page }) => {
   await masukAPI(page, 'operator');
   await page.goto('/pengajuan/baru');
   await page.getByRole('button', { name: 'Pilih Konsumsi' }).click();
@@ -139,16 +139,40 @@ test('rekening pegawai mengisi otomatis rekening "uang siapa" & bisa dicatat dar
   await expect(nomor).toHaveValue('0123456780');
   await expect(sumber).toContainText('belum tercatat di master Pegawai');
 
-  // Catat rekening Ahmad Fauzan dari halaman Pegawai.
+  // Pengaju tidak punya menu/halaman Master Pegawai; profilnya belum ditautkan ke data pegawai.
+  const nav = page.getByRole('navigation', { name: 'Navigasi utama' });
+  await expect(nav.getByRole('link', { name: 'Pengaturan' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Pegawai' })).toHaveCount(0);
   await page.goto('/pegawai');
-  await page.getByRole('button', { name: 'Aksi untuk Ahmad Fauzan' }).click();
-  await page.getByRole('menuitem', { name: 'Ubah data' }).click();
-  await page.locator('#pg-rekening-bank').fill('BRI');
-  await page.locator('#pg-rekening-nomor').fill('0341 0100 0999 307');
-  await page.getByRole('button', { name: 'Simpan perubahan' }).click();
-  await expect(page.getByRole('dialog')).toBeHidden();
-  const kartu = page.getByRole('listitem').filter({ hasText: 'Ahmad Fauzan' });
-  await expect(kartu.getByTestId('rekening-pegawai')).toHaveText('BRI · 034101000999307');
+  await expect(page.getByText(/tidak memiliki akses/i).first()).toBeVisible();
+  await page.goto('/pengaturan');
+  await expect(page.getByTestId('profil-belum-tertaut')).toBeVisible();
+
+  // Admin menautkan akun operator ke data pegawai Ahmad Fauzan (menu Pengguna).
+  await keluarAPI(page);
+  await masukAPI(page, 'admin');
+  await page.goto('/pengguna');
+  await page.getByRole('button', { name: 'Ubah Operator DPBJ' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Ubah pengguna' });
+  await dialog.locator('#u-pegawai').click();
+  await page.getByLabel('Cari pegawai').fill('Ahmad');
+  await page.getByRole('option', { name: /Ahmad Fauzan/ }).click();
+  await expect(dialog.locator('#u-pegawai')).toContainText('Ahmad Fauzan');
+  await dialog.getByRole('button', { name: 'Simpan perubahan' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId('pegawai-akun').filter({ hasText: 'Ahmad Fauzan' })).toBeVisible();
+
+  // Pengaju mengisi rekeningnya sendiri di Pengaturan → Profil (tersimpan di data pegawai yang ditautkan).
+  await keluarAPI(page);
+  await masukAPI(page, 'operator');
+  await page.goto('/pengaturan');
+  const profil = page.getByTestId('kartu-profil');
+  await expect(profil.getByTestId('profil-pegawai')).toContainText('Ahmad Fauzan');
+  await profil.locator('#profil-bank').fill('BRI');
+  await profil.locator('#profil-nomor').fill('0341 0100 0999 307');
+  await profil.getByRole('button', { name: 'Simpan rekening' }).click();
+  await expect(profil.locator('#profil-nomor')).toHaveValue('034101000999307');
+  await expect(profil.getByRole('button', { name: 'Simpan rekening' })).toBeDisabled();
 
   await page.goto('/pengajuan/baru');
   await page.getByRole('button', { name: 'Pilih Konsumsi' }).click();

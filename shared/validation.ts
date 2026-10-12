@@ -373,6 +373,20 @@ export interface UserBersih {
   role: Role;
   password: string | null;
   aktif: boolean;
+  /** Data pegawai yang ditautkan: undefined = tidak diubah, null = lepas tautan. */
+  pegawai_id?: number | null;
+}
+
+/** Id pegawai opsional untuk tautan akun: undefined = tidak dikirim, null/kosong = lepas, angka positif = tautkan. */
+function idPegawaiOpsional(v: unknown, e: FieldErrors): number | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return null;
+  const n = typeof v === 'number' ? v : typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : Number.NaN;
+  if (!Number.isInteger(n) || n <= 0) {
+    e.pegawai_id = 'Data pegawai tidak valid';
+    return undefined;
+  }
+  return n;
 }
 
 /** Email = username login (akun dikelola di Supabase Auth). */
@@ -401,12 +415,37 @@ export function validateUser(raw: unknown, mode: 'buat' | 'ubah'): Hasil<UserBer
   }
 
   const aktif = r.aktif === undefined ? true : r.aktif === true || r.aktif === 1 || r.aktif === '1';
+  const pegawai_id = idPegawaiOpsional(r.pegawai_id, e);
 
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return {
     ok: true,
-    data: { username, nama, role: r.role as Role, password: password || null, aktif },
+    data: { username, nama, role: r.role as Role, password: password || null, aktif, pegawai_id },
   };
+}
+
+export interface ProfilRekeningBersih {
+  rekening_bank: string | null;
+  rekening_nomor: string | null;
+}
+
+/** Profil akun: Bank & No. Rekening milik sendiri (aturan sama dengan rekening pegawai; kosongkan keduanya = hapus). */
+export function validateProfilRekening(raw: unknown): Hasil<ProfilRekeningBersih> {
+  const r = objek(raw);
+  const e: FieldErrors = {};
+  const rek = validasiRekening(r.rekening_bank, r.rekening_nomor, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { rekening_bank: rek.bank, rekening_nomor: rek.nomor } };
+}
+
+/** Persetujuan pendaftaran: peran wajib, data pegawai opsional. */
+export function validateSetujui(raw: unknown): Hasil<{ role: Role; pegawai_id: number | null }> {
+  const r = objek(raw);
+  const e: FieldErrors = {};
+  if (!termasuk(ROLE_LIST, r.role)) e.role = 'Pilih peran pengguna';
+  const pegawai_id = idPegawaiOpsional(r.pegawai_id, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { role: r.role as Role, pegawai_id: pegawai_id ?? null } };
 }
 
 export interface DaftarBersih {

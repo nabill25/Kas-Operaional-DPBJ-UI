@@ -21,6 +21,7 @@ import type {
   PengajuanDetail,
   PengajuanInput,
   PengajuanRingkas,
+  ProfilAkun,
   RekapFilter,
   RekapPegawaiData,
   RekapPegawaiDetail,
@@ -57,6 +58,7 @@ export const qk = {
   rekapPegawai: (f: RekapFilter) => ['rekap', 'pegawai', f] as const,
   rekapPegawaiDetail: (id: number, f: RekapFilter) => ['rekap', 'pegawai', id, f] as const,
   users: ['users'] as const,
+  profil: ['profil'] as const,
   konfig: ['konfig'] as const,
   masterJenisPengajuan: ['master', 'jenis-pengajuan'] as const,
   masterJenisBerkas: ['master', 'jenis-berkas'] as const,
@@ -300,14 +302,37 @@ export function useSimpanUser() {
   });
 }
 
-/** Pendaftaran mandiri: setujui dengan peran tertentu (akun langsung aktif). */
+/** Pendaftaran mandiri: setujui dengan peran tertentu [+ data pegawai] (akun langsung aktif). */
 export function useSetujuiPendaftaran() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, role }: { id: number; role: Role }) => api<User>(`/users/${id}/setujui`, { body: { role } }),
+    mutationFn: ({ id, role, pegawai_id }: { id: number; role: Role; pegawai_id: number | null }) =>
+      api<User>(`/users/${id}/setujui`, { body: { role, pegawai_id } }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.users });
       void qc.invalidateQueries({ queryKey: qk.notifikasi });
+    },
+  });
+}
+
+// ───────────── Profil akun ─────────────
+
+export function useProfil() {
+  return useQuery({
+    queryKey: qk.profil,
+    queryFn: ({ signal }) => api<ProfilAkun>('/auth/profil', { signal }),
+  });
+}
+
+/** Simpan Bank & No. Rekening milik sendiri (data pegawai yang ditautkan admin). */
+export function useSimpanProfil() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { rekening_bank: string; rekening_nomor: string }) =>
+      api<ProfilAkun>('/auth/profil', { method: 'PUT', body: data }),
+    onSuccess: (profil) => {
+      qc.setQueryData(qk.profil, profil);
+      void qc.invalidateQueries({ queryKey: qk.pegawai });
     },
   });
 }

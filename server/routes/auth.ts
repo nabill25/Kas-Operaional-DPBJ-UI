@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Role } from '../../shared/constants';
-import type { User } from '../../shared/types';
-import { EMAIL_RE, validateDaftar, validateGantiPassword } from '../../shared/validation';
+import type { ProfilAkun, User } from '../../shared/types';
+import { EMAIL_RE, validateDaftar, validateGantiPassword, validateProfilRekening } from '../../shared/validation';
 import {
   LoginLimiter,
   SESSION_COOKIE,
@@ -27,9 +27,15 @@ export interface UserRow {
   role: Role;
   aktif: boolean;
   menunggu_persetujuan: boolean;
+  pegawai_id: number | null;
+  /** Dari SELECT_USER (LEFT JOIN pegawai). */
+  pegawai_nama?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/** Baris pengguna + nama pegawai yang ditautkan. Tambahkan `WHERE u.…` / `ORDER BY …` sesudahnya. */
+export const SELECT_USER = 'SELECT u.*, g.nama AS pegawai_nama FROM users u LEFT JOIN pegawai g ON g.id = u.pegawai_id';
 
 export function keUser(row: UserRow): User {
   return {
@@ -39,9 +45,20 @@ export function keUser(row: UserRow): User {
     role: row.role,
     aktif: row.aktif === true,
     menunggu_persetujuan: row.menunggu_persetujuan === true,
+    pegawai_id: row.pegawai_id ?? null,
+    pegawai_nama: row.pegawai_nama ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+}
+
+async function ambilProfil(db: Db, userId: number): Promise<ProfilAkun> {
+  const pegawai = await db.get<NonNullable<ProfilAkun['pegawai']>>(
+    `SELECT g.id, g.nama, g.nip, g.jabatan, g.rekening_bank, g.rekening_nomor, g.aktif
+       FROM users u JOIN pegawai g ON g.id = u.pegawai_id WHERE u.id = ?`,
+    userId,
+  );
+  return { pegawai: pegawai ?? null };
 }
 
 /** Terjemahkan kegagalan Supabase Auth menjadi respons HTTP yang bisa dipahami pengguna. */
@@ -117,7 +134,7 @@ export function authRoutes(db: Db, cfg: AppConfig, auth: AuthProvider): Router {
       expires: expiresAt,
       path: '/',
     });
-    res.json({ user: keUser(row) });
+    res.json({ user: keUser((await db.get<UserRow>(`${SELECT_USER} WHERE u.id = ?`, row.id))!) });
   });
 
   // Pendaftaran mandiri: akun dibuat menunggu persetujuan admin (belum bisa masuk), admin dinotifikasi.
@@ -199,8 +216,30 @@ export function authRoutes(db: Db, cfg: AppConfig, auth: AuthProvider): Router {
   });
 
   r.get('/me', async (req, res) => {
-    const row = req.user ? await db.get<UserRow>('SELECT * FROM users WHERE id = ?', req.user.id) : undefined;
+    const row = req.user ? await db.get<UserRow>(`${SELECT_USER} WHERE u.id = ?`, req.user.id) : undefined;
     res.json({ user: row ? keUser(row) : null });
+  });
+
+  // Profil: pemilik akun mengisi Bank & No. Rekening data pegawainya sendiri (tautan akun ↔ pegawai diatur admin).
+  r.get('/profil', requireAuth, async (req, res) => {
+    res.json(await ambilProfil(db, userOf(req).id));
+  });
+
+  r.put('/profil', requireAuth, async (req, res) => {
+    const user = userOf(req);
+    const data = assertValid(validateProfilRekening(req.body));
+    const row = await db.get<{ pegawai_id: number | null }>('SELECT pegawai_id FROM users WHERE id = ?', user.id);
+    if (!row?.pegawai_id) {
+      throw conflict('Akun Anda belum ditautkan ke data pegawai. Minta admin menautkannya di menu Pengguna.');
+    }
+    await db.run(
+      'UPDATE pegawai SET rekening_bank = ?, rekening_nomor = ?, updated_at = ? WHERE id = ?',
+      data.rekening_bank,
+      data.rekening_nomor,
+      nowIso(),
+      row.pegawai_id,
+    );
+    res.json(await ambilProfil(db, user.id));
   });
 
   r.post('/password', requireAuth, async (req, res) => {

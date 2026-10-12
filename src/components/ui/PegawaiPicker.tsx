@@ -3,6 +3,7 @@ import { Popover } from 'radix-ui';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 import type { Pegawai } from '../../../shared/types';
+import { useAuth } from '../../context/AuthContext';
 import { ApiError } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { usePegawai, useSimpanPegawai } from '../../lib/queries';
@@ -18,10 +19,9 @@ interface PegawaiPickerProps {
   kecuali?: number[];
   invalid?: boolean;
   placeholder?: string;
-  bolehTambah?: boolean;
 }
 
-/** Combobox pegawai: cari, pilih dengan keyboard, atau tambah pegawai baru langsung. */
+/** Combobox pegawai: cari & pilih dengan keyboard. Admin dapat menambah pegawai baru langsung dari sini. */
 export function PegawaiPicker({
   id,
   value,
@@ -29,8 +29,10 @@ export function PegawaiPicker({
   kecuali = [],
   invalid,
   placeholder = 'Pilih pegawai…',
-  bolehTambah = true,
 }: PegawaiPickerProps) {
+  const { punyaPeran } = useAuth();
+  // Master Pegawai dikelola admin; pengaju hanya memilih nama yang sudah terdaftar.
+  const bolehTambah = punyaPeran('admin');
   const { data: semua = [], isLoading } = usePegawai();
   const simpan = useSimpanPegawai();
   const [open, setOpen] = useState(false);
@@ -55,7 +57,8 @@ export function PegawaiPicker({
 
   // Nama yang sudah terdaftar (persis sama) tidak ditawarkan sebagai pegawai baru agar tidak dobel.
   const namaTerdaftar = q.length > 0 && semua.some((p) => p.nama.trim().toLowerCase() === q);
-  const adaOpsiTambah = bolehTambah && q.length >= 2 && !namaTerdaftar;
+  const namaBaru = q.length >= 2 && !namaTerdaftar;
+  const adaOpsiTambah = bolehTambah && namaBaru;
   const jumlahItem = opsi.length + (adaOpsiTambah ? 1 : 0);
 
   useEffect(() => {
@@ -213,6 +216,11 @@ export function PegawaiPicker({
                 )}
                 {!isLoading && opsi.length === 0 && !adaOpsiTambah && tersembunyi.length === 0 && (
                   <p className="px-3 py-4 text-center text-sm text-fg-muted">Pegawai tidak ditemukan.</p>
+                )}
+                {!isLoading && !bolehTambah && namaBaru && opsi.length === 0 && (
+                  <p className="px-3 pb-3 text-center text-xs text-fg-muted" role="note">
+                    Nama belum terdaftar? Minta admin menambahkannya di Master Pegawai.
+                  </p>
                 )}
                 {opsi.map((p, i) => (
                   <div

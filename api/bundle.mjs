@@ -44064,6 +44064,16 @@ function validatePegawai(raw) {
     data: { nama, nip: nip || null, jabatan: jabatan || null, rekening_bank: rek.bank, rekening_nomor: rek.nomor }
   };
 }
+function idPegawaiOpsional(v, e) {
+  if (v === void 0) return void 0;
+  if (v === null || v === "") return null;
+  const n = typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v) ? Number(v) : Number.NaN;
+  if (!Number.isInteger(n) || n <= 0) {
+    e.pegawai_id = "Data pegawai tidak valid";
+    return void 0;
+  }
+  return n;
+}
 var EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 function validateUser(raw, mode) {
   const r = objek(raw);
@@ -44084,11 +44094,27 @@ function validateUser(raw, mode) {
     else if (password.length > 100) e.password = "Password maksimal 100 karakter";
   }
   const aktif = r.aktif === void 0 ? true : r.aktif === true || r.aktif === 1 || r.aktif === "1";
+  const pegawai_id = idPegawaiOpsional(r.pegawai_id, e);
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
   return {
     ok: true,
-    data: { username, nama, role: r.role, password: password || null, aktif }
+    data: { username, nama, role: r.role, password: password || null, aktif, pegawai_id }
   };
+}
+function validateProfilRekening(raw) {
+  const r = objek(raw);
+  const e = {};
+  const rek = validasiRekening(r.rekening_bank, r.rekening_nomor, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { rekening_bank: rek.bank, rekening_nomor: rek.nomor } };
+}
+function validateSetujui(raw) {
+  const r = objek(raw);
+  const e = {};
+  if (!termasuk(ROLE_LIST, r.role)) e.role = "Pilih peran pengguna";
+  const pegawai_id = idPegawaiOpsional(r.pegawai_id, e);
+  if (Object.keys(e).length > 0) return { ok: false, errors: e };
+  return { ok: true, data: { role: r.role, pegawai_id: pegawai_id ?? null } };
 }
 function validateDaftar(raw) {
   const r = objek(raw);
@@ -46042,6 +46068,7 @@ async function hapusObjekAman(storage, keys) {
 }
 
 // server/routes/auth.ts
+var SELECT_USER = "SELECT u.*, g.nama AS pegawai_nama FROM users u LEFT JOIN pegawai g ON g.id = u.pegawai_id";
 function keUser(row) {
   return {
     id: row.id,
@@ -46050,9 +46077,19 @@ function keUser(row) {
     role: row.role,
     aktif: row.aktif === true,
     menunggu_persetujuan: row.menunggu_persetujuan === true,
+    pegawai_id: row.pegawai_id ?? null,
+    pegawai_nama: row.pegawai_nama ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at
   };
+}
+async function ambilProfil(db, userId) {
+  const pegawai = await db.get(
+    `SELECT g.id, g.nama, g.nip, g.jabatan, g.rekening_bank, g.rekening_nomor, g.aktif
+       FROM users u JOIN pegawai g ON g.id = u.pegawai_id WHERE u.id = ?`,
+    userId
+  );
+  return { pegawai: pegawai ?? null };
 }
 function ubahGagalAuth(err) {
   if (err instanceof AuthGagal) {
@@ -46117,7 +46154,7 @@ function authRoutes(db, cfg, auth) {
       expires: expiresAt,
       path: "/"
     });
-    res.json({ user: keUser(row) });
+    res.json({ user: keUser(await db.get(`${SELECT_USER} WHERE u.id = ?`, row.id)) });
   });
   r.post("/daftar", async (req, res) => {
     const kunci = `daftar|${req.ip ?? "-"}`;
@@ -46189,8 +46226,27 @@ function authRoutes(db, cfg, auth) {
     res.json({ ok: true });
   });
   r.get("/me", async (req, res) => {
-    const row = req.user ? await db.get("SELECT * FROM users WHERE id = ?", req.user.id) : void 0;
+    const row = req.user ? await db.get(`${SELECT_USER} WHERE u.id = ?`, req.user.id) : void 0;
     res.json({ user: row ? keUser(row) : null });
+  });
+  r.get("/profil", requireAuth, async (req, res) => {
+    res.json(await ambilProfil(db, userOf(req).id));
+  });
+  r.put("/profil", requireAuth, async (req, res) => {
+    const user = userOf(req);
+    const data = assertValid(validateProfilRekening(req.body));
+    const row = await db.get("SELECT pegawai_id FROM users WHERE id = ?", user.id);
+    if (!row?.pegawai_id) {
+      throw conflict("Akun Anda belum ditautkan ke data pegawai. Minta admin menautkannya di menu Pengguna.");
+    }
+    await db.run(
+      "UPDATE pegawai SET rekening_bank = ?, rekening_nomor = ?, updated_at = ? WHERE id = ?",
+      data.rekening_bank,
+      data.rekening_nomor,
+      nowIso(),
+      row.pegawai_id
+    );
+    res.json(await ambilProfil(db, user.id));
   });
   r.post("/password", requireAuth, async (req, res) => {
     const user = userOf(req);
@@ -46743,7 +46799,7 @@ function pegawaiRoutes(db) {
     if (!pegawai) throw notFound("Pegawai tidak ditemukan");
     res.json(pegawai);
   });
-  r.post("/", requireRole("operator", "admin"), async (req, res) => {
+  r.post("/", requireRole("admin"), async (req, res) => {
     const data = assertValid(validatePegawai(req.body));
     await cekNipUnik(db, data.nip);
     const waktu = nowIso();
@@ -46760,7 +46816,7 @@ function pegawaiRoutes(db) {
     );
     res.status(201).json(await getPegawai(db, lastInsertRowid));
   });
-  r.put("/:id", requireRole("operator", "admin"), async (req, res) => {
+  r.put("/:id", requireRole("admin"), async (req, res) => {
     const id = parseId(req.params.id, "Pegawai");
     if (!await getPegawai(db, id)) throw notFound("Pegawai tidak ditemukan");
     const data = assertValid(validatePegawai(req.body));
@@ -47055,11 +47111,21 @@ function berkasRoutes(db, storage) {
 
 // server/routes/users.ts
 var import_express6 = __toESM(require_express2(), 1);
+async function pastikanPegawaiBebas(db, pegawaiId, userId) {
+  if (!await db.get("SELECT id FROM pegawai WHERE id = ?", pegawaiId)) {
+    throw badRequest("Data pegawai tidak ditemukan", { pegawai_id: "Data pegawai tidak ditemukan" });
+  }
+  const lain = await db.get("SELECT nama FROM users WHERE pegawai_id = ? AND id <> ?", pegawaiId, userId ?? 0);
+  if (lain) {
+    throw badRequest("Data pegawai sudah ditautkan ke akun lain", { pegawai_id: `Sudah ditautkan ke akun ${lain.nama}` });
+  }
+}
 function usersRoutes(db, auth) {
   const r = (0, import_express6.Router)();
   r.use(requireRole("admin"));
+  const ambil = async (id) => keUser(await db.get(`${SELECT_USER} WHERE u.id = ?`, id));
   r.get("/", async (_req, res) => {
-    const rows = await db.all("SELECT * FROM users ORDER BY menunggu_persetujuan DESC, aktif DESC, role ASC, nama ASC");
+    const rows = await db.all(`${SELECT_USER} ORDER BY u.menunggu_persetujuan DESC, u.aktif DESC, u.role ASC, u.nama ASC`);
     res.json(rows.map(keUser));
   });
   r.post("/", async (req, res) => {
@@ -47067,6 +47133,7 @@ function usersRoutes(db, auth) {
     if (await db.get("SELECT id FROM users WHERE username = ?", data.username)) {
       throw badRequest("Email sudah dipakai", { username: "Email sudah dipakai" });
     }
+    if (data.pegawai_id) await pastikanPegawaiBebas(db, data.pegawai_id, null);
     const password = data.password ?? "";
     let akun;
     let akunBaru = true;
@@ -47083,16 +47150,18 @@ function usersRoutes(db, auth) {
     const waktu = nowIso();
     try {
       const { lastInsertRowid } = await db.run(
-        "INSERT INTO users (auth_id, username, nama, role, aktif, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+        `INSERT INTO users (auth_id, username, nama, role, aktif, pegawai_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         akun.id,
         data.username,
         data.nama,
         data.role,
         data.aktif,
+        data.pegawai_id ?? null,
         waktu,
         waktu
       );
-      res.status(201).json(keUser(await db.get("SELECT * FROM users WHERE id = ?", lastInsertRowid)));
+      res.status(201).json(await ambil(lastInsertRowid));
     } catch (err) {
       if (akunBaru) await auth.hapus(akun.id).catch((e) => console.error("[users] rollback akun gagal:", e.message));
       throw err;
@@ -47109,6 +47178,8 @@ function usersRoutes(db, auth) {
     if (id === me.id && (data.role !== "admin" || !data.aktif)) {
       throw conflict("Anda tidak dapat menurunkan peran atau menonaktifkan akun Anda sendiri");
     }
+    const pegawaiId = data.pegawai_id === void 0 ? lama.pegawai_id : data.pegawai_id;
+    if (pegawaiId && pegawaiId !== lama.pegawai_id) await pastikanPegawaiBebas(db, pegawaiId, id);
     if (lama.role === "admin" && lama.aktif && (data.role !== "admin" || !data.aktif)) {
       const adminLain = (await db.get(
         `SELECT COUNT(*)::int AS c FROM users WHERE role = 'admin' AND aktif = true AND id <> ?`,
@@ -47129,13 +47200,14 @@ function usersRoutes(db, auth) {
       if (data.password) await auth.ubahPassword(authId, data.password);
       await txDb.run(
         // Mengaktifkan akun yang menunggu persetujuan sekaligus menyetujuinya.
-        `UPDATE users SET auth_id = ?, username = ?, nama = ?, role = ?, aktif = ?,
+        `UPDATE users SET auth_id = ?, username = ?, nama = ?, role = ?, aktif = ?, pegawai_id = ?,
            menunggu_persetujuan = (menunggu_persetujuan AND NOT ?), updated_at = ? WHERE id = ?`,
         authId,
         data.username,
         data.nama,
         data.role,
         data.aktif,
+        pegawaiId,
         data.aktif,
         nowIso(),
         id
@@ -47144,24 +47216,25 @@ function usersRoutes(db, auth) {
         if (id !== me.id) await deleteUserSessions(txDb, id);
       }
     });
-    res.json(keUser(await db.get("SELECT * FROM users WHERE id = ?", id)));
+    res.json(await ambil(id));
   });
   r.post("/:id/setujui", async (req, res) => {
     const id = parseId(req.params.id, "Pengguna");
-    const role = (req.body ?? {}).role;
-    if (typeof role !== "string" || !ROLE_LIST.includes(role)) {
-      throw badRequest("Pilih peran untuk akun ini", { role: "Pilih peran pengguna" });
-    }
+    const valid = validateSetujui(req.body);
+    if (!valid.ok && valid.errors.role) throw badRequest("Pilih peran untuk akun ini", valid.errors);
+    const data = assertValid(valid);
     const row = await db.get("SELECT * FROM users WHERE id = ?", id);
     if (!row) throw notFound("Pengguna tidak ditemukan");
     if (!row.menunggu_persetujuan) throw conflict("Akun ini tidak sedang menunggu persetujuan");
+    if (data.pegawai_id) await pastikanPegawaiBebas(db, data.pegawai_id, id);
     await db.run(
-      "UPDATE users SET role = ?, aktif = true, menunggu_persetujuan = false, updated_at = ? WHERE id = ?",
-      role,
+      "UPDATE users SET role = ?, aktif = true, menunggu_persetujuan = false, pegawai_id = ?, updated_at = ? WHERE id = ?",
+      data.role,
+      data.pegawai_id,
       nowIso(),
       id
     );
-    res.json(keUser(await db.get("SELECT * FROM users WHERE id = ?", id)));
+    res.json(await ambil(id));
   });
   r.delete("/:id", async (req, res) => {
     const id = parseId(req.params.id, "Pengguna");

@@ -40,8 +40,8 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | B2 | ☐ Klik **Simpan draft** tanpa isian | Kolom wajib bertanda merah + pesan; layar menggulir ke isian pertama yang salah |
 | B3 | ☐ Isi nama kegiatan, tanggal, jumlah orang `12`, jumlah uang `1500000` | Uang otomatis tampil `1.500.000`; muncul "Rata-rata Rp 125.000 per orang" |
 | B4 | ☐ **Uang siapa**: klik, ketik "nur", pilih *Nurul Hidayah* (bisa pakai ↑ ↓ Enter) | Nama terpilih tampil di kotak |
-| B5 | ☐ Pada "Uang siapa" ketik nama baru (mis. "Budi Uji") → *Tambah "Budi Uji" sebagai pegawai baru* → **Simpan & pilih** | Pegawai baru dibuat & langsung terpilih |
-| B6 | ☐ Ketik nama pegawai yang **sudah ada persis** (mis. "Nurul Hidayah") | Opsi "Tambah … sebagai pegawai baru" **tidak** muncul (mencegah data ganda) |
+| B5 | ☐ Pada "Uang siapa" ketik nama yang belum terdaftar (mis. "Budi Uji") | Tidak ada opsi menambah pegawai (pengaju tidak mengelola master data); muncul "Nama belum terdaftar? Minta admin menambahkannya di Master Pegawai." |
+| B6 | ☐ (Login **admin**) Pada "Uang siapa" ketik nama baru → *Tambah "Budi Uji" sebagai pegawai baru* → **Simpan & pilih**; lalu ketik nama yang **sudah ada persis** | Pegawai baru dibuat & langsung terpilih; untuk nama yang sudah ada, opsi "Tambah …" **tidak** muncul (mencegah data ganda) |
 | B6a | ☐ **Rekening uang siapa** (opsional): isi Bank **BNI** + No. Rekening `0123 456 789` | Catatan "Jika bukan Bank Mandiri, biaya transfer akan dibebankan kepada pemilik rekening." berwarna kuning; isi hanya bank tanpa nomor → "Isi nomor rekening" |
 | B7 | ☐ Pilih mekanisme **KO**, klik **Simpan draft** | Detail; kode `KSM-2026-xxxx`; status **Draft**; kotak kuning "…lalu klik Ajukan ke PUM" |
 | B7a | ☐ Detail → **Uang siapa** | Nama pegawai, **BNI · 0123456789** (tombol salin), catatan biaya transfer, keterangan "Belum dibayarkan" setelah diajukan |
@@ -211,6 +211,18 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | L12c | ☐ Tab **Kode Dana** → **Tambah Kode Dana** (mis. `71`, "Dana Hibah"); ubah nama; nonaktifkan; hapus | Kode dana baru bisa dipilih pada pasangan project–task & oleh PUM; kode yang sudah dipakai pasangan/pengajuan tidak bisa dihapus (nonaktifkan saja) |
 | L13 | ☐ **Bank** → tambah "Bank Nagari", lalu nonaktifkan | Muncul / hilang dari saran isian Bank pada form Konsumsi & Pegawai; rekening yang sudah tersimpan tidak berubah |
 | L14 | ☐ Operator → Konsumsi → pilih "uang siapa" pegawai yang punya rekening | Bank & No. Rekening terisi otomatis ("diisi otomatis dari data pegawai"); ganti pegawai → ikut berganti; isian yang diubah manual tidak ditimpa |
+
+## M. Pengaju tanpa master data & Profil (rekening sendiri)
+
+| # | Langkah | Hasil yang diharapkan |
+|---|---|---|
+| M1 | ☐ Login `operator` → perhatikan menu | Tidak ada grup **Master Data / Pegawai**; membuka `/pegawai` → "Tidak memiliki akses" |
+| M2 | ☐ Operator → **Pengaturan** | Kartu **Profil**: "Akun Anda belum ditautkan ke data pegawai…" |
+| M3 | ☐ Login `admin` → **Pengguna** → ubah akun operator → **Data pegawai (opsional)**: pilih nama pegawainya → **Simpan perubahan** | Di daftar akun muncul "Data pegawai: <nama>"; pegawai yang sama tidak bisa ditautkan ke akun lain ("Sudah ditautkan ke akun …") |
+| M4 | ☐ Operator → Pengaturan → **Profil**: isi Bank & No. Rekening → **Simpan rekening** | Toast "Rekening disimpan"; nomor dibersihkan dari spasi/titik; bank tanpa nomor (atau sebaliknya) ditolak; bila bukan Bank Mandiri catatan biaya transfer berwarna kuning |
+| M5 | ☐ Operator → Buat Pengajuan → pilih nama dirinya sebagai "Uang siapa" / penerima | Bank & No. Rekening terisi otomatis dari profil |
+| M6 | ☐ Admin → ubah akun → **Lepas** data pegawai → simpan | Profil operator kembali "belum ditautkan"; rekening yang sudah tersimpan di data pegawai tetap ada |
+| M7 | ☐ Admin → **Setujui** pendaftaran baru: pilih peran + data pegawai | Akun aktif sekaligus tertaut ke data pegawai |
 
 ---
 

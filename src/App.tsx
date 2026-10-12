@@ -89,7 +89,14 @@ export function App() {
           }
         />
         <Route path="rekap" element={<RekapPage />} />
-        <Route path="pegawai" element={<PegawaiPage />} />
+        <Route
+          path="pegawai"
+          element={
+            <Peran izin={['pum', 'pimpinan', 'admin']}>
+              <PegawaiPage />
+            </Peran>
+          }
+        />
         <Route
           path="pengguna"
           element={

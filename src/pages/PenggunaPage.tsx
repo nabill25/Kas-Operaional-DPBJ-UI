@@ -13,6 +13,7 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { Skeleton } from '../components/ui/Kosong';
 import { Modal } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/PageHeader';
+import { PegawaiPicker } from '../components/ui/PegawaiPicker';
 import { useUser } from '../context/AuthContext';
 import { useKonfirmasi } from '../context/KonfirmasiContext';
 import { ApiError } from '../lib/api';
@@ -150,6 +151,11 @@ export default function PenggunaPage() {
                     {u.username}
                     <span className="hidden sm:inline"> · dibuat {formatTanggal(u.created_at, 'pendek')}</span>
                   </p>
+                  {u.pegawai_nama && (
+                    <p className="truncate text-xs text-fg-subtle" data-testid="pegawai-akun">
+                      Data pegawai: {u.pegawai_nama}
+                    </p>
+                  )}
                   {/* HP: peran & status tampil di bawah email (kolomnya disembunyikan di layar sempit) */}
                   <div className="mt-1.5 flex flex-wrap gap-1.5 sm:hidden">
                     <span className={cn('inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap', GAYA_PERAN[u.role])}>
@@ -237,6 +243,34 @@ function PilihPeran({
   );
 }
 
+/** Data pegawai milik akun (opsional): pemilik akun lalu mengisi bank & rekeningnya sendiri di Pengaturan → Profil. */
+function PilihPegawaiAkun({
+  id,
+  nilai,
+  onUbah,
+  error,
+}: {
+  id: string;
+  nilai: number | null;
+  onUbah: (id: number | null) => void;
+  error?: string;
+}) {
+  return (
+    <Field label="Data pegawai (opsional)" htmlFor={id} error={error} hint="Pemilik akun mengisi bank & nomor rekeningnya sendiri di Pengaturan → Profil.">
+      <div className="flex gap-2">
+        <div className="min-w-0 flex-1">
+          <PegawaiPicker id={id} value={nilai} onChange={(pid) => onUbah(pid)} invalid={!!error} placeholder="Pilih nama pegawai…" />
+        </div>
+        {nilai !== null && (
+          <Button varian="kedua" onClick={() => onUbah(null)} aria-label="Lepas data pegawai">
+            Lepas
+          </Button>
+        )}
+      </div>
+    </Field>
+  );
+}
+
 function SetujuiModal({ user, onTutup }: { user: User | null; onTutup: () => void }) {
   const setujui = useSetujuiPendaftaran();
   return (
@@ -263,13 +297,16 @@ function IsiSetujui({
   onSelesai: () => void;
 }) {
   const [role, setRole] = useState<Role>('operator');
+  const [pegawaiId, setPegawaiId] = useState<number | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const kirim = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      await setujui.mutateAsync({ id: user.id, role });
+      await setujui.mutateAsync({ id: user.id, role, pegawai_id: pegawaiId });
       toast.success(`Akun ${user.nama} disetujui sebagai ${ROLE_LABEL[role]}`);
       onSelesai();
     } catch (err) {
+      if (err instanceof ApiError) setErrors(err.errors);
       toast.error(err instanceof ApiError ? err.message : 'Gagal menyetujui pendaftaran');
     }
   };
@@ -282,6 +319,7 @@ function IsiSetujui({
         </legend>
         <PilihPeran nama="s-role" nilai={role} onUbah={setRole} />
       </fieldset>
+      <PilihPegawaiAkun id="s-pegawai" nilai={pegawaiId} onUbah={setPegawaiId} error={errors.pegawai_id} />
       <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
         <Button varian="kedua" onClick={onSelesai} disabled={setujui.isPending}>
           Batal
@@ -336,11 +374,12 @@ function IsiFormPengguna({
   const [role, setRole] = useState<Role>(user?.role ?? 'operator');
   const [password, setPassword] = useState('');
   const [aktif, setAktif] = useState(user?.aktif ?? true);
+  const [pegawaiId, setPegawaiId] = useState<number | null>(user?.pegawai_id ?? null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const kirim = async (e: FormEvent) => {
     e.preventDefault();
-    const data = { username, nama, role, password, aktif };
+    const data = { username, nama, role, password, aktif, pegawai_id: pegawaiId };
     const h = validateUser(data, user ? 'ubah' : 'buat');
     if (!h.ok) {
       setErrors(h.errors);
@@ -388,6 +427,7 @@ function IsiFormPengguna({
           </p>
         )}
       </fieldset>
+      <PilihPegawaiAkun id="u-pegawai" nilai={pegawaiId} onUbah={setPegawaiId} error={errors.pegawai_id} />
       <Field
         label={user ? 'Password baru (opsional)' : 'Password'}
         htmlFor="u-password"

@@ -50,7 +50,8 @@ export function pegawaiRoutes(db: Db): Router {
     res.json(pegawai);
   });
 
-  r.post('/', requireRole('operator', 'admin'), async (req, res) => {
+  // Master Pegawai dikelola admin (Okt 2026: pengaju tidak lagi menambah/mengubah pegawai; rekening sendiri lewat Profil).
+  r.post('/', requireRole('admin'), async (req, res) => {
     const data = assertValid(validatePegawai(req.body));
     await cekNipUnik(db, data.nip);
     const waktu = nowIso();
@@ -68,7 +69,7 @@ export function pegawaiRoutes(db: Db): Router {
     res.status(201).json(await getPegawai(db, lastInsertRowid));
   });
 
-  r.put('/:id', requireRole('operator', 'admin'), async (req, res) => {
+  r.put('/:id', requireRole('admin'), async (req, res) => {
     const id = parseId(req.params.id, 'Pegawai');
     if (!(await getPegawai(db, id))) throw notFound('Pegawai tidak ditemukan');
     const data = assertValid(validatePegawai(req.body));

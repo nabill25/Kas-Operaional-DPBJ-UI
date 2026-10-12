@@ -14,7 +14,9 @@ hingga **Selesai (Paid)** setelah proses MDK selesai, notifikasi otomatis, dashb
   (mis. Kontrak Borongan) dengan model form **Umum** (pegawai + nilai per orang), awalan kode, dan berkas sendiri.
 - **Master Data (admin)**: Jenis Pengajuan (berkas **wajib/opsional**, mekanisme KO/LS atau tetap, batas orang, warna, ikon),
   Jenis Berkas, Project Costing & Task Name **per tahun anggaran** (2026, 2027, …; salin dari tahun lain) beserta **kode dana**
-  tiap pasangan (51/61 sesuai laporan sisa anggaran), Bank; **rekening pegawai** di master Pegawai mengisi otomatis rekening.
+  tiap pasangan (51/61 sesuai laporan sisa anggaran), Bank, Pegawai; **rekening pegawai** mengisi otomatis rekening di form.
+- **Profil akun**: admin menautkan akun ke data pegawai; pemilik akun (mis. pengaju) mengisi Bank & No. Rekening miliknya sendiri
+  di **Pengaturan → Profil**. Pengaju tidak mengelola master data.
 - **Konsumsi**: jenis konsumsi (Kudapan / Makan Siang / keduanya), "uang siapa" + **rekening (bank & no. rekening)**
   dengan catatan biaya transfer non-Mandiri; PUM menandai **Sudah dibayarkan**.
 - **Transport per orang** (batas orang dari master, bawaan 2; ID pegawai sendiri; mekanisme selalu **LS**): Rumah Tangga = nilai uang;

@@ -45,6 +45,20 @@ test('admin: tambah pegawai, ubah, nonaktifkan, hapus', async ({ page, galat }) 
   await expect(daftar.locator('li', { hasText: nama })).toHaveCount(0);
 });
 
+test('admin: tambah pegawai baru langsung dari form pengajuan (pengaju tidak bisa)', async ({ page }) => {
+  const nama = `Pegawai Form ${Date.now() % 100000}`;
+  await masukAPI(page, 'admin');
+  await page.goto('/pengajuan/baru');
+  await page.getByRole('button', { name: 'Pilih Transport Rumah Tangga' }).click();
+  await page.locator('#peserta-0-pegawai_id').click();
+  await page.getByLabel('Cari pegawai').fill(nama);
+  await page.getByRole('option', { name: new RegExp(`Tambah .${nama}. sebagai pegawai baru`) }).click();
+  await page.locator('#pp-jabatan').fill('Staf Uji');
+  await page.getByRole('button', { name: 'Simpan & pilih' }).click();
+  await expect(page.locator('#peserta-0-pegawai_id')).toContainText(nama);
+  await expect(page.locator('#peserta-0-rekening_bank')).toHaveValue('');
+});
+
 test('admin: buat pengguna baru lalu pengguna tersebut bisa login', async ({ page, browser }) => {
   const username = `uji${Date.now() % 100000}@dpbj.test`;
   await masukAPI(page, 'admin');

@@ -17,9 +17,8 @@ async function harusSebaris(page: Page, fields: string[]) {
   }
 }
 
-test('Perjadin: selalu LS, uang harian & transport + bank & rekening per orang, validasi, pegawai baru dari form, maks. 2 orang, berkas N/A', async ({ page }) => {
+test('Perjadin: selalu LS, uang harian & transport + bank & rekening per orang, validasi, pengaju tanpa tambah pegawai, maks. 2 orang, berkas N/A', async ({ page }) => {
   const nama = `Perjalanan Dinas Uji ${Date.now()}`;
-  const pegawaiBaru = `Pegawai Uji ${Date.now() % 100000}`;
 
   await masukAPI(page, 'operator');
   await page.goto('/pengajuan/baru');
@@ -37,15 +36,17 @@ test('Perjadin: selalu LS, uang harian & transport + bank & rekening per orang, 
   await expect(page.getByText('Jenis uang')).toHaveCount(0);
   await harusSebaris(page, ['lokasi_tujuan', 'jenis_transport']);
 
-  // Peserta 1: tambah pegawai baru langsung dari combobox
+  // Pengaju tidak menambah pegawai baru (master Pegawai dikelola admin): nama belum terdaftar → petunjuk ke admin
   await page.locator('#peserta-0-pegawai_id').click();
-  await page.getByLabel('Cari pegawai').fill(pegawaiBaru);
-  await page.getByRole('option', { name: new RegExp(`Tambah .${pegawaiBaru}. sebagai pegawai baru`) }).click();
-  await page.locator('#pp-jabatan').fill('Staf Uji');
-  await page.getByRole('button', { name: 'Simpan & pilih' }).click();
-  await expect(page.locator('#peserta-0-pegawai_id')).toContainText(pegawaiBaru);
+  await page.getByLabel('Cari pegawai').fill('Pegawai Belum Terdaftar');
+  await expect(page.getByRole('option', { name: /sebagai pegawai baru/ })).toHaveCount(0);
+  await expect(page.getByText('Nama belum terdaftar? Minta admin menambahkannya di Master Pegawai.')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByLabel('Cari pegawai')).toHaveCount(0);
+  // Peserta 1: pegawai terdaftar tanpa rekening
+  await pilihPegawai(page, 'peserta-0-pegawai_id', 'Rizky Pratama');
   await page.locator('#peserta-0-uang_harian').fill('450000');
-  // Pegawai baru belum punya rekening → bank & nomor kosong (opsional)
+  // Pegawai tanpa rekening di master → bank & nomor kosong (opsional)
   await expect(page.locator('#peserta-0-rekening_bank')).toHaveValue('');
   await expect(page.locator('#peserta-0-rekening_nomor')).toHaveValue('');
 
@@ -77,7 +78,7 @@ test('Perjadin: selalu LS, uang harian & transport + bank & rekening per orang, 
   // Detail
   await expect(page).toHaveURL(/\/pengajuan\/\d+$/);
   await expect(page.getByRole('heading', { name: nama })).toBeVisible();
-  await expect(page.getByText(pegawaiBaru).first()).toBeVisible();
+  await expect(page.getByText('Rizky Pratama').first()).toBeVisible();
   await expect(page.getByText('Total (2 orang)')).toBeVisible();
   // Rekening penerima tersimpan di pengajuan (orang 1 tanpa rekening)
   await expect(page.getByTestId('rekening-peserta')).toHaveCount(1);

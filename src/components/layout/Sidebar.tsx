@@ -73,7 +73,8 @@ export const GRUP_NAV: { judul: string; item: ItemNav[] }[] = [
   {
     judul: 'Master Data',
     item: [
-      { ke: '/pegawai', label: 'Pegawai', ikon: Users, peran: SEMUA, aktif: (p) => p.startsWith('/pegawai') },
+      // Pengaju (operator) tidak mengelola master data; rekeningnya sendiri diisi di Pengaturan → Profil.
+      { ke: '/pegawai', label: 'Pegawai', ikon: Users, peran: ['pum', 'pimpinan', 'admin'], aktif: (p) => p.startsWith('/pegawai') },
       {
         ke: '/master/jenis-pengajuan',
         label: 'Jenis Pengajuan',

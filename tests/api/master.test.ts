@@ -18,31 +18,35 @@ beforeEach(async () => {
 afterEach(() => ctx.tutup());
 
 describe('Master Pegawai', () => {
-  it('semua peran dapat membaca; operator & admin dapat menambah/mengubah', async () => {
+  it('semua peran dapat membaca (pilihan di form); hanya admin yang dapat menambah/mengubah', async () => {
     const list = await pimpinan.get('/api/pegawai');
     expect(list.status).toBe(200);
     expect(list.body).toHaveLength(5);
     expect(list.body[0]).toMatchObject({ aktif: true, dipakai: 0 });
+    expect((await op.get('/api/pegawai')).status).toBe(200);
 
-    expect((await pum.post('/api/pegawai').send({ nama: 'Orang Baru' })).status).toBe(403);
-    expect((await pimpinan.post('/api/pegawai').send({ nama: 'Orang Baru' })).status).toBe(403);
+    // Pengaju tidak mengelola master data (Okt 2026): tambah/ubah pegawai hanya admin.
+    for (const agen of [op, pum, pimpinan]) {
+      expect((await agen.post('/api/pegawai').send({ nama: 'Orang Baru' })).status).toBe(403);
+      expect((await agen.put(`/api/pegawai/${ctx.pegawai[0]}`).send({ nama: 'Ganti Nama' })).status).toBe(403);
+    }
 
-    const baru = await op.post('/api/pegawai').send({ nama: '  Dewi   Kartika ', nip: '1990 0101 2020 1220 01', jabatan: 'Staf' });
+    const baru = await admin.post('/api/pegawai').send({ nama: '  Dewi   Kartika ', nip: '1990 0101 2020 1220 01', jabatan: 'Staf' });
     expect(baru.status).toBe(201);
     expect(baru.body).toMatchObject({ nama: 'Dewi Kartika', nip: '199001012020122001', jabatan: 'Staf', aktif: true });
 
-    const ubah = await op.put(`/api/pegawai/${baru.body.id}`).send({ nama: 'Dewi K.', nip: '', jabatan: '' });
+    const ubah = await admin.put(`/api/pegawai/${baru.body.id}`).send({ nama: 'Dewi K.', nip: '', jabatan: '' });
     expect(ubah.status).toBe(200);
     expect(ubah.body).toMatchObject({ nama: 'Dewi K.', nip: null, jabatan: null });
   });
 
   it('validasi nama & NIP unik', async () => {
-    let res = await op.post('/api/pegawai').send({ nama: 'A', nip: '12ab' });
+    let res = await admin.post('/api/pegawai').send({ nama: 'A', nip: '12ab' });
     expect(res.status).toBe(400);
     expect(res.body.errors).toMatchObject({ nama: expect.any(String), nip: expect.any(String) });
 
-    await op.post('/api/pegawai').send({ nama: 'Pegawai Satu', nip: '123456' });
-    res = await op.post('/api/pegawai').send({ nama: 'Pegawai Dua', nip: '123456' });
+    await admin.post('/api/pegawai').send({ nama: 'Pegawai Satu', nip: '123456' });
+    res = await admin.post('/api/pegawai').send({ nama: 'Pegawai Dua', nip: '123456' });
     expect(res.status).toBe(400);
     expect(res.body.errors.nip).toContain('Pegawai Satu');
   });
@@ -165,5 +169,85 @@ describe('Kelola Pengguna', () => {
     expect(res.body.aktif).toBe(false);
     const ditolak = await request(ctx.app).post('/api/auth/login').send({ username: EMAIL.operator, password: 'passbaru1' });
     expect(ditolak.status).toBe(403);
+  });
+});
+
+describe('Profil akun (tautan data pegawai & rekening sendiri)', () => {
+  const idAkun = async (peran: keyof typeof EMAIL) =>
+    ((await admin.get('/api/users')).body as { id: number; username: string }[]).find((u) => u.username === EMAIL[peran])!.id;
+  const dataOp = { username: EMAIL.operator, nama: 'Operator DPBJ', role: 'operator', aktif: true };
+
+  it('belum ditautkan → profil kosong & rekening tidak bisa disimpan', async () => {
+    expect((await op.get('/api/auth/profil')).body).toEqual({ pegawai: null });
+    const res = await op.put('/api/auth/profil').send({ rekening_bank: 'BNI', rekening_nomor: '0123456789' });
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('belum ditautkan');
+    expect((await request(ctx.app).get('/api/auth/profil')).status).toBe(401);
+  });
+
+  it('admin menautkan akun ke pegawai; pemilik akun mengisi rekeningnya sendiri; satu pegawai satu akun', async () => {
+    const opId = await idAkun('operator');
+    let res = await admin.put(`/api/users/${opId}`).send({ ...dataOp, pegawai_id: ctx.pegawai[2] });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ pegawai_id: ctx.pegawai[2], pegawai_nama: 'Nurul Hidayah' });
+    expect((await op.get('/api/auth/me')).body.user).toMatchObject({ pegawai_id: ctx.pegawai[2], pegawai_nama: 'Nurul Hidayah' });
+    expect(((await admin.get('/api/users')).body as { id: number; pegawai_nama: string | null }[]).find((u) => u.id === opId)?.pegawai_nama).toBe(
+      'Nurul Hidayah',
+    );
+
+    // Pegawai yang sama tidak bisa ditautkan ke akun lain; pegawai tak dikenal ditolak.
+    const pumId = await idAkun('pum');
+    const dataPum = { username: EMAIL.pum, nama: 'Petugas PUM', role: 'pum', aktif: true };
+    res = await admin.put(`/api/users/${pumId}`).send({ ...dataPum, pegawai_id: ctx.pegawai[2] });
+    expect(res.status).toBe(400);
+    expect(res.body.errors.pegawai_id).toContain('Operator DPBJ');
+    expect((await admin.put(`/api/users/${pumId}`).send({ ...dataPum, pegawai_id: 99999 })).body.errors).toEqual({
+      pegawai_id: 'Data pegawai tidak ditemukan',
+    });
+    expect((await admin.put(`/api/users/${pumId}`).send({ ...dataPum, pegawai_id: 'abc' })).body.errors).toEqual({
+      pegawai_id: 'Data pegawai tidak valid',
+    });
+
+    // Profil: data pegawai + rekening; validasi sama dengan rekening pegawai; nomor dibersihkan.
+    expect((await op.get('/api/auth/profil')).body.pegawai).toMatchObject({ id: ctx.pegawai[2], nama: 'Nurul Hidayah', rekening_bank: null });
+    res = await op.put('/api/auth/profil').send({ rekening_bank: 'Bank Mandiri', rekening_nomor: '' });
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual({ rekening_nomor: 'Isi nomor rekening' });
+    res = await op.put('/api/auth/profil').send({ rekening_bank: ' Bank  Mandiri ', rekening_nomor: '157-0001 234 567' });
+    expect(res.status).toBe(200);
+    expect(res.body.pegawai).toMatchObject({ rekening_bank: 'Bank Mandiri', rekening_nomor: '1570001234567' });
+    // Tersimpan di master Pegawai → mengisi otomatis form pengajuan.
+    expect((await admin.get(`/api/pegawai/${ctx.pegawai[2]}`)).body).toMatchObject({ rekening_bank: 'Bank Mandiri', rekening_nomor: '1570001234567' });
+    // Kosongkan keduanya = hapus rekening.
+    res = await op.put('/api/auth/profil').send({ rekening_bank: '', rekening_nomor: '' });
+    expect(res.body.pegawai).toMatchObject({ rekening_bank: null, rekening_nomor: null });
+
+    // Mengubah pengguna tanpa field pegawai_id (klien lama) tidak melepas tautan; null melepasnya.
+    res = await admin.put(`/api/users/${opId}`).send(dataOp);
+    expect(res.body.pegawai_id).toBe(ctx.pegawai[2]);
+    res = await admin.put(`/api/users/${opId}`).send({ ...dataOp, pegawai_id: null });
+    expect(res.body).toMatchObject({ pegawai_id: null, pegawai_nama: null });
+    expect((await op.get('/api/auth/profil')).body).toEqual({ pegawai: null });
+    // Setelah lepas, pegawai bisa ditautkan ke akun lain.
+    expect((await admin.put(`/api/users/${pumId}`).send({ ...dataPum, pegawai_id: ctx.pegawai[2] })).status).toBe(200);
+  });
+
+  it('tautan saat membuat akun & menyetujui pendaftaran; menghapus pegawai melepas tautan', async () => {
+    let res = await admin.post('/api/users').send({ username: 'op3@dpbj.test', nama: 'Operator Tiga', role: 'operator', password: 'rahasia1', pegawai_id: ctx.pegawai[3] });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ pegawai_id: ctx.pegawai[3], pegawai_nama: 'Bambang Sutrisno' });
+    res = await admin.post('/api/users').send({ username: 'op4@dpbj.test', nama: 'Operator Empat', role: 'operator', password: 'rahasia1', pegawai_id: ctx.pegawai[3] });
+    expect(res.status).toBe(400);
+    expect(res.body.errors.pegawai_id).toContain('Operator Tiga');
+
+    expect((await request(ctx.app).post('/api/auth/daftar').send({ nama: 'Pendaftar Baru', username: 'baru@dpbj.test', password: 'rahasia1' })).status).toBe(201);
+    const pendaftar = ((await admin.get('/api/users')).body as { id: number; username: string }[]).find((u) => u.username === 'baru@dpbj.test')!;
+    res = await admin.post(`/api/users/${pendaftar.id}/setujui`).send({ role: 'operator', pegawai_id: ctx.pegawai[4] });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ role: 'operator', aktif: true, pegawai_id: ctx.pegawai[4] });
+
+    // Pegawai yang belum dipakai pengajuan boleh dihapus admin → tautan akun ikut lepas.
+    expect((await admin.delete(`/api/pegawai/${ctx.pegawai[4]}`)).status).toBe(200);
+    expect(((await admin.get('/api/users')).body as { id: number; pegawai_id: number | null }[]).find((u) => u.id === pendaftar.id)?.pegawai_id).toBeNull();
   });
 });

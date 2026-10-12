@@ -24,8 +24,16 @@ export interface User {
   aktif: boolean;
   /** Mendaftar sendiri lewat halaman Daftar dan belum disetujui admin (belum bisa masuk). */
   menunggu_persetujuan: boolean;
+  /** Data pegawai milik akun ini (ditautkan admin); pemilik akun mengisi rekeningnya di Pengaturan → Profil. */
+  pegawai_id: number | null;
+  pegawai_nama: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Profil akun yang sedang masuk: data pegawai yang ditautkan admin beserta rekeningnya. */
+export interface ProfilAkun {
+  pegawai: Pick<Pegawai, 'id' | 'nama' | 'nip' | 'jabatan' | 'rekening_bank' | 'rekening_nomor' | 'aktif'> | null;
 }
 
 export interface Pegawai {

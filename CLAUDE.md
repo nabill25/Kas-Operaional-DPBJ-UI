@@ -41,7 +41,8 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 | Tahun anggaran (master) | Master project & task dikelompokkan per tahun (`tahun`; kode unik per tahun; pasangan harus setahun). Data Kasubdit = 2026; tahun kosong (mis. 2027) bisa disalin dari tahun lain ("Salin dari 2026") |
 | Rekening | Bank & No. Rekening tujuan pembayaran oleh PUM (opsional, berpasangan): milik "uang siapa" (model Konsumsi, `pengajuan.rekening_*`) atau **tiap penerima** (model lain, `pengajuan_peserta.rekening_*`, Okt 2026). Terisi otomatis dari rekening pegawai (master Pegawai) lalu tersimpan di pengajuan (tidak ikut berubah bila master berubah); nama bank disarankan dari **master Bank** (isian tetap bebas) |
 | Sudah dibayarkan | Tanda PUM bahwa uang konsumsi sudah dibayarkan ke pemilik uang (`dibayar_at`/`dibayar_by`) |
-| Pegawai | Master data orang (punya `id` sendiri, NIP, jabatan, **rekening** opsional) → dipakai untuk "Uang siapa" & penerima per orang, agar bisa **direkap per orang** |
+| Pegawai | Master data orang (punya `id` sendiri, NIP, jabatan, **rekening** opsional) → dipakai untuk "Uang siapa" & penerima per orang, agar bisa **direkap per orang**. Dikelola **admin**; pengaju hanya memilih nama yang terdaftar (Okt 2026) |
+| Profil akun | Admin menautkan akun pengguna ke satu data pegawai (`users.pegawai_id`, menu Pengguna); pemilik akun lalu mengisi **Bank & No. Rekening miliknya** di Pengaturan → Profil (tersimpan di master Pegawai → terisi otomatis saat namanya dipilih di form) |
 | Peserta | Orang yang menerima nilai uang pada pengajuan bermodel selain Konsumsi (batas orang dari master jenis; bawaan Transport 2), masing-masing dengan bank & no. rekening (opsional). Perjadin: uang harian + uang transport per orang |
 | Berkas | Dokumen unggahan (PDF/gambar/Office) per jenis kelengkapan |
 | N/A berkas | Berkas **wajib** yang ditandai "tidak diperlukan" oleh pengaju (dianggap terpenuhi; tetap dicentang PUM). Berkas opsional tidak bisa N/A |
@@ -197,13 +198,15 @@ otomatis menandai notifikasi pengajuan itu dibaca. Pimpinan tidak menerima notif
 | Isi/ubah Task Name, Project Costing & kode dana (diajukan_pum, diverifikasi_pum, diajukan_mdk, selesai) | ✗ | ✓ | ✗ | ✓ |
 | Input No. Invoice MDK (ajukan ke MDK), ubah invoice, tandai **Selesai**, batalkan selesai | ✗ | ✓ | ✗ | ✓ |
 | Tandai uang konsumsi "sudah dibayarkan" / batalkan | ✗ | ✓ | ✗ | ✓ |
-| Master Pegawai: lihat | ✓ | ✓ | ✓ | ✓ |
-| Master Pegawai: tambah/ubah (termasuk rekening pegawai) | ✓ | ✗ | ✗ | ✓ |
+| Halaman/menu Master Pegawai (lihat) | ✗ | ✓ | ✓ | ✓ |
+| Daftar pegawai sebagai pilihan di form (API `GET /api/pegawai`) | ✓ | ✓ | ✓ | ✓ |
+| Master Pegawai: tambah/ubah (termasuk rekening pegawai & "Tambah … sebagai pegawai baru" di form) | ✗ | ✗ | ✗ | ✓ |
 | Master Pegawai: hapus (hanya jika belum dipakai) / nonaktifkan | ✗ | ✗ | ✗ | ✓ |
 | Master Jenis Pengajuan, Jenis Berkas, Project & Task (+ Kode Dana), Bank: dibaca (form, tampilan, kotak cari) | ✓ | ✓ | ✓ | ✓ |
 | Master Jenis Pengajuan, Jenis Berkas, Project & Task (+ Kode Dana, salin tahun), Bank: menu & tambah/ubah/nonaktifkan/hapus | ✗ | ✗ | ✗ | ✓ |
 | Kelola Pengguna, setujui/tolak pendaftaran | ✗ | ✗ | ✗ | ✓ |
-| Halaman Pengaturan (tema warna, info akun, ganti password) | ✓ | ✓ | ✓ | ✓ |
+| Halaman Pengaturan (profil: rekening sendiri bila akun ditautkan ke data pegawai, tema warna, info akun, ganti password) | ✓ | ✓ | ✓ | ✓ |
+| Menautkan akun ke data pegawai (menu Pengguna: tambah/ubah/setujui akun) | ✗ | ✗ | ✗ | ✓ |
 
 **Pendaftaran mandiri** (`/daftar`): akun baru dibuat `aktif=false`, `menunggu_persetujuan=true`, peran sementara
 `operator`; admin dinotifikasi (`jenis=registrasi`, badge di menu Pengguna), lalu **Setujui** (pilih peran → aktif) atau
@@ -221,7 +224,8 @@ Perubahan skema berikutnya = **file baru di `supabase/migrasi/`** (idempoten, ha
 `schema.sql` juga dan terapkan ke Supabase **sebelum** kode yang memakainya di-deploy.
 
 - `users` (id, `auth_id` → auth.users, username = **email** unik huruf kecil, nama, role
-  `operator|pum|pimpinan|admin`, aktif, `menunggu_persetujuan`) — **tanpa password**: password dikelola Supabase Auth.
+  `operator|pum|pimpinan|admin`, aktif, `menunggu_persetujuan`, **pegawai_id** → pegawai (opsional, unik — satu pegawai
+  satu akun, `on delete set null`; ditautkan admin)) — **tanpa password**: password dikelola Supabase Auth.
 - `sessions` (token_hash sha256, user_id, expires_at) — cookie httpOnly `kas_sid`, 7 hari (Secure di Vercel)
 - `pegawai` (id, nama, nip opsional unik, jabatan, **rekening_bank, rekening_nomor** (opsional, berpasangan), aktif)
 - Master data (admin): `jenis_pengajuan` (kode PK, label, label_pendek, prefix unik, deskripsi, model, maks_peserta,
@@ -303,10 +307,13 @@ berkasnya `[{kode, wajib}]` & jenis berkas — dimuat client sekali setelah logi
 tahun tidak dapat diubah), `POST task`, `PUT|DELETE task/:id` {tahun, kode, nama, aktif}, `POST project-task/salin` {dari, ke}
 (201 + jumlah project/task/pasangan; 409 bila tahun tujuan sudah berisi, 404 bila tahun asal kosong), `GET|POST dana`,
 `PUT|DELETE dana/:kode` {kode, nama, aktif} (kode tetap; hapus 409 bila dipakai pasangan/pengajuan).
-Pegawai: `POST|PUT /api/pegawai` menerima `rekening_bank`, `rekening_nomor`. Pengajuan: tiap `peserta[]` menerima
+Pegawai: `GET /api/pegawai` semua peran (pilihan di form); `POST|PUT /api/pegawai` **admin saja**, menerima `rekening_bank`,
+`rekening_nomor`. Profil: `GET|PUT /api/auth/profil` {rekening_bank, rekening_nomor} → data pegawai akun ini (409 bila akun
+belum ditautkan; kosongkan keduanya = hapus rekening). Pengajuan: tiap `peserta[]` menerima
 `rekening_bank`, `rekening_nomor` (galat per baris `peserta.<i>.rekening_*`).
 Akun: `POST /api/auth/login` {username=email, password}, `POST /api/auth/daftar` {nama, username, password},
-`POST /api/users/:id/setujui` {role}, `DELETE /api/users/:id` (tolak pendaftaran). Lainnya: `GET /api/pengajuan/saran-pum`,
+`POST|PUT /api/users` {…, pegawai_id} (tidak dikirim = tetap, `null` = lepas; 400 bila pegawai sudah ditautkan ke akun lain),
+`POST /api/users/:id/setujui` {role, pegawai_id?}, `DELETE /api/users/:id` (tolak pendaftaran). Lainnya: `GET /api/pengajuan/saran-pum`,
 `GET /api/notifikasi` (antrian incl. `pendaftar` untuk admin), `POST /api/notifikasi/baca` {id?}, `GET /api/health`
 (status database + `peringatan` konfigurasi).
 
@@ -348,7 +355,9 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
   "List Dokumen Pendukung", list "Kelengkapan berkas"; baris Dokumen Lainnya `data-berkas="lainnya"`), kotak "Pilih <label>" /
   "Pilih semua dokumen" + `data-testid="aksi-terpilih"` (Download (ZIP), Tandai Sesuai (n)), kotak "<label> sesuai", tombol
   "<label> perlu revisi", tautan "Download <file>" & tombol "Preview <file>", kotak cari "Cari dokumen",
-  `data-testid="ringkasan-berkas" | "kode-dana" | "tahun-kosong"`, `data-dana`, `data-berkas-master` + `data-sifat` (form master
+  `data-testid="ringkasan-berkas" | "kode-dana" | "tahun-kosong" | "kartu-profil" | "profil-pegawai" | "profil-belum-tertaut" |
+  "pegawai-akun"`, isian profil `#profil-bank` / `#profil-nomor`, pilihan data pegawai akun `#u-pegawai` / `#s-pegawai`,
+  `data-dana`, `data-berkas-master` + `data-sifat` (form master
   Jenis Pengajuan; radiogroup "Sifat <berkas>"), `data-baris-penerima` + `#peserta-0-rekening_bank` / `#peserta-0-rekening_nomor`,
   isian PUM: combobox "Task Name" → "Project Costing" → select "Kode dana", `data-kode` (kartu Verifikasi PUM),
   `data-testid="kartu-pum" | "aksi-pum" | "catatan-pengembalian"`, stepper = list "Tahapan pengajuan" + `aria-current="step"`,
@@ -389,7 +398,9 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 - Dashboard: baris KPI atas = urutan alur (Diajukan ke PUM → Diverifikasi PUM → Diajukan ke MDK → Selesai), baris bawah
   = Dikembalikan, Berkas belum lengkap, Draft/Rata-rata. Verifikasi PUM: tab Perlu diperiksa · Input invoice · Di MDK ·
   Dikembalikan · Selesai (Paid).
-- Tampilan per peran: menu & tombol aksi hanya muncul untuk peran yang berhak (lihat §5); pimpinan baca-saja.
+- Tampilan per peran: menu & tombol aksi hanya muncul untuk peran yang berhak (lihat §5); pimpinan baca-saja. Pengaju tidak
+  melihat menu Pegawai (grup Master Data kosong → tersembunyi); Pengaturan berisi kartu **Profil** (data pegawai tertaut +
+  Bank & No. Rekening) di atas Tema warna.
 - **Berkas = tabel "List Dokumen Pendukung"** (Okt 2026, mengikuti contoh pemilik project): kotak "Cari dokumen" di kanan atas;
   kolom ☐ pilih · **Jenis Dokumen Pendukung** (pil merah "Wajib" di atas nama; opsional tanpa pil) · **Nama dokumen** (ikon +
   nama dipotong di tengah, `potongTengah`) · **Status dokumen** (Sudah Verifikasi hijau / Perlu Revisi merah / Belum Verifikasi
@@ -450,6 +461,9 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
   tiap penerima (keterangan "Dari data pegawai" di bawah isian Bank). Rekening disalin ke pengajuan saat disimpan; perubahan
   tercatat di riwayat ("Rekening <nama> <lama> → <baru>").
 - Mekanisme tetap diterapkan server (`jenis.mekanisme_tetap` menimpa kiriman client), sehingga data lama/klien lama tetap konsisten.
+- Tautan akun ↔ data pegawai hanya oleh **admin** (bukan pengaju sendiri): rekening menentukan tujuan pembayaran, jadi pengaju
+  tidak boleh menautkan diri ke pegawai lain lalu mengganti rekeningnya. Profil hanya mengubah rekening pegawai miliknya
+  (`PUT /api/auth/profil`); nama/NIP/jabatan tetap lewat admin. Satu pegawai hanya untuk satu akun (indeks unik).
 - Download beberapa dokumen = ZIP dibuat di browser (`fflate`, tanpa kompresi ulang; satu folder per jenis dokumen) dari URL
   unduh biasa — tanpa endpoint baru (batas respons fungsi Vercel 4,5 MB).
 - Kode dana disalin ke pengajuan (bukan relasi): mengubah master tidak mengubah pengajuan lama; kode dana yang sudah dipakai
@@ -481,6 +495,9 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
     (operator & admin). **Kontrak Borongan** belum dibuat — mekanismenya belum pasti; disiapkan model **Umum** (pegawai + nilai
     per orang, periode opsional) dan contoh jenis berkas Laporan Pekerjaan, Presensi, Kontrak. Perlu kolom/isian khusus lain
     (mis. nomor kontrak, volume pekerjaan)? Perlu rekening per penerima di PDF?
+16. **Pengaju tanpa master data & Profil** (Okt 2026, dikonfirmasi: pengaju tidak boleh menambah nama pegawai baru) — asumsi:
+    PUM & pimpinan tetap melihat halaman Pegawai (baca saja); Profil tersedia untuk semua peran (akun yang ditautkan admin);
+    pengaju yang namanya belum terdaftar meminta admin menambahkannya di Master Pegawai.
 15. **Berkas wajib/opsional, mekanisme tetap, rekening per penerima, tahun & kode dana** (Okt 2026) — asumsi:
     berkas opsional yang ditandai revisi oleh PUM tetap menahan verifikasi (dikembalikan atau tanda revisinya dibatalkan);
     berkas opsional tidak bisa ditandai N/A; mekanisme selalu LS hanya untuk Transport Rumah Tangga & Perjadin (jenis lain,
