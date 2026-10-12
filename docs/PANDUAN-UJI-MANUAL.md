@@ -45,10 +45,11 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | B6a | ☐ **Rekening uang siapa** (opsional): isi Bank **BNI** + No. Rekening `0123 456 789` | Catatan "Jika bukan Bank Mandiri, biaya transfer akan dibebankan kepada pemilik rekening." berwarna kuning; isi hanya bank tanpa nomor → "Isi nomor rekening" |
 | B7 | ☐ Pilih mekanisme **KO**, klik **Simpan draft** | Detail; kode `KSM-2026-xxxx`; status **Draft**; kotak kuning "…lalu klik Ajukan ke PUM" |
 | B7a | ☐ Detail → **Uang siapa** | Nama pegawai, **BNI · 0123456789** (tombol salin), catatan biaya transfer, keterangan "Belum dibayarkan" setelah diajukan |
-| B8 | ☐ Panel **Kelengkapan berkas** (tabel: Berkas & file · Pemeriksaan PUM · Aksi): unggah PDF untuk *Notula* | Bilah progres tampil, lalu baris hijau "1 file terunggah"; cincin 1/4 |
+| B8 | ☐ Tabel **List Dokumen Pendukung** (kolom: kotak pilih · Jenis Dokumen Pendukung · Nama dokumen · Status dokumen · Action; kotak **Cari dokumen** di kanan atas): unggah PDF untuk *Notula* | Bilah progres tampil; baris berlabel merah **Wajib**, nama file + ikon, status kuning **Belum Verifikasi**, tombol **Download** & **Preview**; cincin 1/4 |
 | B9 | ☐ Seret-lepas (drag & drop) gambar JPG/PNG ke baris *Undangan* | Baris berubah kuning saat diseret, file terunggah |
 | B10 | ☐ Coba unggah file `.exe`/`.zip` atau file > 10 MB | Ditolak dengan pesan jelas; tidak ada file tersimpan |
-| B11 | ☐ Klik nama file / ikon mata | Pratinjau PDF/gambar dalam jendela; tombol *Unduh* & *Buka di tab baru* |
+| B11 | ☐ Klik nama file / **Preview** | Pratinjau PDF/gambar dalam jendela; tombol *Download* & *Buka di tab baru*. Nama file panjang terpotong di tengah (ekstensi tetap terlihat) |
+| B11a | ☐ Ketik "undangan" di **Cari dokumen**; kosongkan lagi. Centang kotak di awal 2 baris yang sudah ada file → **Download (ZIP)** | Tabel menyaring baris; bilah "2 dokumen dipilih" muncul; ZIP berisi satu folder per jenis dokumen (1 file saja → langsung terunduh) |
 | B12 | ☐ Isi "Dokumen lainnya" (nama + unggah) | Tercatat sebagai tambahan, **tidak** mengubah hitungan berkas wajib |
 | B13 | ☐ Klik **Ajukan ke PUM** saat berkas baru 2/4 | Konfirmasi menyebut berkas yang kurang; **Tetap ajukan** → status **Diajukan ke PUM** |
 | B14 | ☐ Perhatikan halaman setelah diajukan | Tombol Ubah/Hapus hilang; berkas terkunci ("sedang diperiksa PUM"); ada **Tarik kembali** |
@@ -61,11 +62,13 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
-| C1 | ☐ Buat Pengajuan → **Transport Rumah Tangga** | Bagian "Penerima & nilai uang" dengan 1 baris orang |
-| C2 | ☐ Orang 1: pilih pegawai + nilai `150000`; **Tambah orang** → orang 2 + nilai `100000` | Bilah bawah: "Total pengajuan · 2 orang" **Rp 250.000** |
+| C1 | ☐ Buat Pengajuan → **Transport Rumah Tangga** | Bagian "Penerima & nilai uang" dengan 1 baris orang; **tidak ada** pilihan Mekanisme KO/LS (Transport selalu **LS**) |
+| C2 | ☐ Orang 1: pilih pegawai + nilai `150000`; **Tambah orang** → orang 2 + nilai `100000` | Satu baris per orang: **Nama · Nilai uang · Bank · No. Rekening** (laptop); bilah bawah: "Total pengajuan · 2 orang" **Rp 250.000** |
+| C2a | ☐ Pilih pegawai yang **punya rekening** di data Pegawai; lalu pegawai tanpa rekening | Bank & No. Rekening terisi otomatis ("Dari data pegawai"); pegawai tanpa rekening → kosong (opsional). Ubah nomornya manual lalu ganti pegawai → isian manual **tidak** ditimpa |
+| C2b | ☐ Isi Bank tanpa No. Rekening → simpan | "Isi nomor rekening" (bank & nomor harus berpasangan); bank bukan Mandiri → catatan biaya transfer di bawah daftar penerima berwarna kuning |
 | C3 | ☐ Tombol tambah orang setelah 2 orang | Nonaktif, bertuliskan **Maksimal 2 orang** |
 | C4 | ☐ Orang 2: cari pegawai yang sama dengan orang 1 | Tidak muncul sebagai pilihan; ada keterangan "… sudah dipilih di baris lain" |
-| C5 | ☐ Simpan → lihat detail | Jumlah orang = 2 (otomatis), total = jumlah nilai per orang, berkas wajib: Surat Tugas & Laporan Kegiatan |
+| C5 | ☐ Simpan → lihat detail | Mekanisme **LS**; jumlah orang = 2 (otomatis), total = jumlah nilai per orang; rekening tampil di bawah nama tiap orang (tombol salin); berkas wajib: Surat Tugas & Laporan Kegiatan |
 
 ## D. Operator — Transport Perjadin
 
@@ -73,11 +76,11 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 |---|---|---|
 | D1 | ☐ Buat Pengajuan → **Transport Perjadin**; isi *dari* 10 Okt, *sampai* 8 Okt; simpan | Error "Tanggal selesai tidak boleh sebelum tanggal mulai" |
 | D2 | ☐ Ubah *sampai* ke 12 Okt | Muncul "Lama kegiatan 3 hari" |
-| D3 | ☐ Perhatikan form | Tidak ada pilihan *Jenis uang*; **Jenis transport** berada di samping **Mekanisme** |
+| D3 | ☐ Perhatikan form | Tidak ada pilihan *Jenis uang* maupun *Mekanisme* (selalu **LS**); **Jenis transport** berada di samping **Lokasi tujuan**; tiap orang sebaris: **Nama · Uang harian · Uang transport · Bank · No. Rekening** (laptop 1280 px ke atas) |
 | D3a | ☐ Pilih **Dalam Kota**, isi lokasi; orang 1: **Uang harian** `450000`; orang 2: biarkan kedua uang kosong → simpan | Orang 2: "Isi uang harian dan/atau uang transport" |
-| D3b | ☐ Orang 2: Uang harian `200000` + Uang transport `100000` → simpan | "Jumlah orang 2: Rp 300.000"; total Rp 750.000; detail menampilkan rincian uang harian & uang transport per orang |
-| D4 | ☐ Berkas *Invoice Hotel* → tombol **⋯** → **Tandai tidak diperlukan** (juga *Invoice Tiket*) | Baris abu-abu "Ditandai tidak diperlukan oleh pengaju"; dihitung terpenuhi |
-| D5 | ☐ Unggah file ke baris yang ditandai tidak diperlukan | Tanda dilepas otomatis, baris menjadi hijau |
+| D3b | ☐ Orang 2: Uang harian `200000` + Uang transport `100000` → simpan | "Jumlah orang 2: Rp 300.000"; total Rp 750.000; detail menampilkan rincian uang harian & uang transport per orang + rekeningnya |
+| D4 | ☐ Berkas *Invoice Hotel* → tombol **⋯** → **Tandai tidak diperlukan** (juga *Invoice Tiket*) | Status **Tidak Diperlukan** ("Ditandai tidak diperlukan oleh pengaju"); dihitung terpenuhi |
+| D5 | ☐ Unggah file ke baris yang ditandai tidak diperlukan | Tanda dilepas otomatis, status menjadi **Belum Verifikasi** |
 
 ## E. PUM — pemeriksaan & centang berkas
 
@@ -85,20 +88,21 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 |---|---|---|
 | E1 | ☐ Login `pum` | Muncul toast "n notifikasi belum dibaca"; lonceng berangka merah; menu **Verifikasi PUM** berbadge |
 | E2 | ☐ Klik lonceng | Daftar notifikasi ("Pengajuan baru menunggu pemeriksaan …"), yang belum dibaca bertitik merah; **Tandai semua dibaca** |
-| E3 | ☐ Menu **Verifikasi PUM** → tab **Perlu diperiksa** | Pengajuan *Diajukan ke PUM*, terlama di atas; lencana lama menunggu (≥ 7 hari kuning), "Dicek x/y sesuai" |
-| E4 | ☐ Klik **Periksa berkas** pada pengajuan dari B18 | Detail dengan panel **Periksa kelengkapan berkas** (bingkai kuning) + petunjuk |
+| E3 | ☐ Menu **Verifikasi PUM** → tab **Perlu diperiksa** | Pengajuan *Diajukan ke PUM*, terlama di atas; lencana lama menunggu (≥ 7 hari kuning), "Dicek x/y sesuai" (+ "n perlu revisi" bila ada) |
+| E4 | ☐ Klik **Periksa berkas** pada pengajuan dari B18 | Detail dengan tabel **List Dokumen Pendukung** (bingkai kuning) + petunjuk |
 | E5 | ☐ Perhatikan tombol **Verifikasi** (atas) & **Verifikasi pengajuan** (bawah panel) | Nonaktif; tertulis "Centang n berkas lagi sebagai Sesuai…" |
-| E6 | ☐ Buka berkas *Notula*, lalu klik tombol centang **Sesuai** (kolom Aksi) | Tombol menjadi hijau; kolom *Pemeriksaan PUM*: "Sesuai · <nama PUM>, baru saja"; cincin "Dicentang sesuai" naik |
-| E7 | ☐ Klik **Sesuai** sekali lagi (hapus centang) | Centang batal; riwayat mencatat "Centang berkas dibatalkan" |
+| E6 | ☐ **Preview** berkas *Notula*, lalu klik centang **Sesuai** (kolom Action) | Tombol menjadi hijau; status **Sudah Verifikasi** + "<nama PUM>, baru saja"; cincin "Dicentang sesuai" naik |
+| E7 | ☐ Klik **Sesuai** sekali lagi (hapus centang) | Centang batal (status kembali Belum Verifikasi); riwayat mencatat "Centang berkas dibatalkan" |
 | E8 | ☐ Pada *Undangan* klik **Revisi** (retur) → kosongkan catatan → **Simpan catatan revisi** | Pesan "Tuliskan apa yang perlu direvisi" |
-| E9 | ☐ Isi catatan (mis. "Tanda tangan ketua belum ada") → simpan | Baris berbingkai kuning; kolom *Pemeriksaan PUM*: "Perlu revisi" + catatan + **Batalkan tanda**; kartu **Verifikasi PUM**: "1 berkas ditandai perlu revisi" |
+| E9 | ☐ Isi catatan (mis. "Tanda tangan ketua belum ada") → simpan | Status merah **Perlu Revisi** + catatan + **Batalkan tanda**; ringkasan "… · 1 perlu revisi"; kartu **Verifikasi PUM**: "1 berkas ditandai perlu revisi"; Verifikasi tetap nonaktif selama ada tanda revisi (juga pada berkas opsional) |
 | E10 | ☐ Klik **Kembalikan** → kosongkan alasan → kirim | "Alasan pengembalian wajib diisi" |
 | E11 | ☐ Pilih alasan cepat / tulis alasan → **Kembalikan ke pengaju** | Dialog menampilkan daftar berkas revisi; status **Dikembalikan**; toast "Notifikasi otomatis terkirim ke pengaju" |
-| E12 | ☐ Buka pengajuan *Diajukan ke PUM* lain → centang **Sesuai** semua berkas wajib | Muncul "Semua berkas wajib sesuai"; tombol **Verifikasi** aktif |
-| E13 | ☐ **Verifikasi** → **Project Costing**: klik, ketik "tata kelola", pilih *D0030.09.01.6.002 Koordinasi Tata Kelola Pengadaan* | **Task Name** terisi otomatis *723207 Beban Konsumsi* ("Terisi otomatis: task Konsumsi untuk project ini"); daftar task hanya berisi task project itu |
-| E13a | ☐ Klik **Verifikasi** pada dialog | Status **Diverifikasi PUM**; stepper aktif di *Verifikasi PUM*; kotak biru kehijauan "Diverifikasi PUM — menunggu input invoice MDK"; project/task tampil di kartu Verifikasi PUM; belum ada tombol **Selesai** |
+| E12 | ☐ Buka pengajuan *Diajukan ke PUM* lain (Konsumsi) → centang kotak di awal beberapa baris → **Tandai Sesuai (n)**, sisanya centang **Sesuai** satu per satu | Baris terpilih langsung **Sudah Verifikasi**; muncul "Semua berkas wajib sesuai"; tombol **Verifikasi** aktif |
+| E13 | ☐ **Verifikasi** → perhatikan urutan isian | **Task Name** di atas, lalu **Project Costing**, lalu **Kode dana**. Task terisi otomatis *723207 Beban Konsumsi* ("Terisi otomatis: task Konsumsi"); project masih kosong; kode dana "Terisi otomatis setelah task & project dipilih" |
+| E13b | ☐ **Project Costing**: klik, ketik "tata kelola", pilih *D0030.09.01.6.002 Koordinasi Tata Kelola Pengadaan* | Daftar project hanya berisi project yang memiliki task terpilih; **Kode dana** terisi **51 · Dana Masyarakat (BP) - Tidak Terikat** ("Otomatis dari master Project & Task 2026"). Ganti project ke *D0030.06.01.6.002* → kode dana berganti **61** (Non BP) |
+| E13a | ☐ Klik **Verifikasi** pada dialog | Status **Diverifikasi PUM**; stepper aktif di *Verifikasi PUM*; kotak biru kehijauan "Diverifikasi PUM — menunggu input invoice MDK"; task, project, & **kode dana** (beserta nama sumber dananya) tampil di kartu Verifikasi PUM; riwayat "… · Kode dana: 61"; belum ada tombol **Selesai** |
 | E14 | ☐ Berkas setelah diverifikasi | Terkunci; centang tidak bisa diubah lagi |
-| E15 | ☐ Kartu **Verifikasi PUM** → **Ubah project costing / task name** | Bisa diubah; riwayat mencatat perubahan |
+| E15 | ☐ Kartu **Verifikasi PUM** → **Ubah task name, project & kode dana** (atau menu **Aksi PUM** → *Ubah task name / project / kode dana*) | Bisa diubah (kode dana boleh dipilih manual); riwayat mencatat "Task: … · Project: … · Kode dana: …" |
 | E16 | ☐ Cari draft operator (mis. lewat URL detail) | PUM tidak dapat melihat draft ("tidak ditemukan") |
 
 ## F. PUM — invoice, diajukan ke MDK, selesai (paid)
@@ -148,9 +152,9 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | I5 | ☐ **Rekap & Laporan** → periode *Tahun ini* | Total nilai sama dengan "Total nilai pengajuan" di dashboard (tahun sama) |
 | I6 | ☐ Ubah filter Kategori/Mekanisme/Status | Ringkasan & tabel berubah; URL ikut berubah (bisa di-bookmark) |
 | I7 | ☐ **Unduh PDF** (per pengajuan) | `Rekap_Pengajuan_….pdf`: kop DPBJ, ringkasan, tabel 6 status, rincian, total, nomor halaman |
-| I8 | ☐ **Excel** | `.xlsx` terbuka di Excel; ada kolom *Project Costing*, *Task Name*, *Dicek PUM*; kolom Nilai berupa angka |
+| I8 | ☐ **Excel** | `.xlsx` terbuka di Excel; ada kolom *Task Name*, *Project Costing*, *Kode Dana*, *Dicek PUM*; kolom Nilai berupa angka |
 | I9 | ☐ Tab **Per pegawai** → klik satu pegawai → **Unduh PDF pegawai** | Rincian per orang (peran "uang siapa"/"peserta"), total sama dengan baris tabel |
-| I10 | ☐ Detail pengajuan → tombol **PDF** | Bukti: info, peserta, berkas + kolom **Cek PUM**, bagian **Proses PUM & MDK** (diverifikasi PUM, project/task, invoice & diajukan ke MDK, selesai), riwayat, tanda tangan Pengaju & PUM ("Diverifikasi PUM") |
+| I10 | ☐ Detail pengajuan → tombol **PDF** | Bukti: info, penerima (**Nama & rekening**), berkas + sifat **Wajib/Opsional** + kolom **Cek PUM**, bagian **Proses PUM & MDK** (diverifikasi PUM, task name, project costing, **kode dana**, invoice & diajukan ke MDK, selesai), riwayat, tanda tangan Pengaju & PUM ("Diverifikasi PUM") |
 
 ## J. Admin — master data & pengguna
 
@@ -179,24 +183,28 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | K5 | ☐ Toast muncul di tengah atas (di bawah topbar) | Tidak menutupi lonceng, menu akun, maupun tombol aksi halaman |
 | K6 | ☐ (Windows) Pengaturan → Aksesibilitas → Efek visual → matikan **Efek animasi** | Animasi diminimalkan (menghormati preferensi kurangi gerak) |
 
-## L. Admin — Master Data (Jenis Pengajuan, Jenis Berkas, Project & Task, Bank)
+## L. Admin — Master Data (Jenis Pengajuan, Jenis Berkas, Project & Task + Kode Dana per tahun, Bank)
 
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
 | L1 | ☐ Login `operator`/`pum`/`pimpinan` → lihat menu **Master Data** | Hanya **Pegawai** (dan Pengguna untuk admin); membuka `/master/jenis-pengajuan` → "Tidak memiliki akses" |
-| L2 | ☐ Login `admin` → **Jenis Pengajuan** | 3 jenis bawaan (Konsumsi KSM, Rumah Tangga TRT, Perjadin TPD) beserta berkas wajib berurutan, model form, jumlah pengajuan |
+| L2 | ☐ Login `admin` → **Jenis Pengajuan** | Jenis bawaan (Konsumsi KSM, Rumah Tangga TRT, Perjadin TPD) + jenis tambahan; tiap kartu: model form, mekanisme (**KO / LS** atau **Selalu LS** untuk Rumah Tangga & Perjadin), "Berkas · n wajib, m opsional", jumlah pengajuan |
 | L3 | ☐ **Jenis Berkas** → **Tambah Jenis Berkas** (mis. "Kuitansi", keterangan opsional) | Muncul di daftar; nama yang sama / "Dokumen Lainnya" ditolak |
-| L4 | ☐ Menu ⋯ **Notula** → Nonaktifkan / Hapus | Tidak bisa: masih wajib pada Konsumsi / jenis bawaan |
-| L5 | ☐ **Jenis Pengajuan** → **Tambah Jenis Pengajuan**: "Kontrak Borongan", singkat "Borongan", awalan **KBR**, model **Umum**, batas 3 orang, berkas wajib Laporan Pekerjaan, Presensi, Kontrak (atur urutan dengan ↑↓), kata kunci "tenaga lepas", warna & ikon | Tersimpan; kartu menampilkan KBR-YYYY-NNNN, model, maks. 3 orang, berkas wajib berurutan. Saat mengeklik warna/ikon, judul dialog tetap di tempat (tidak bergeser & tidak ada ruang kosong di bawah) |
+| L4 | ☐ Menu ⋯ **Notula** → Nonaktifkan / Hapus | Tidak bisa: masih tercantum pada Konsumsi / jenis bawaan |
+| L5 | ☐ **Jenis Pengajuan** → **Tambah Jenis Pengajuan**: "Kontrak Borongan", singkat "Borongan", awalan **KBR**, model **Umum**, batas 3 orang, berkas Laporan Pekerjaan & Kontrak (**Wajib**) + Presensi (**Opsional**) — atur urutan dengan ↑↓, kata kunci "tenaga lepas", mekanisme "KO atau LS", warna & ikon | Tersimpan; kartu menampilkan KBR-YYYY-NNNN, model, maks. 3 orang, "Berkas · 2 wajib, 1 opsional". Saat mengeklik warna/ikon, judul dialog tetap di tempat (tidak bergeser & tidak ada ruang kosong di bawah) |
 | L6 | ☐ Coba awalan yang sudah dipakai (mis. KSM) / nama yang sama | Ditolak dengan pesan pada isian terkait |
-| L7 | ☐ Login operator → **Buat Pengajuan** | Ada kartu **Kontrak Borongan** (UMUM, maks. 3 orang, berkas wajibnya) |
-| L8 | ☐ Pilih Kontrak Borongan: isi nama, **Tanggal / mulai periode** + **Sampai (opsional)**, mekanisme, 1–3 penerima + nilai → Simpan draft | Tidak ada isian lokasi; tombol tambah orang berhenti di 3; kode **KBR-YYYY-0001**; tabel berkas berisi 3 berkas wajib tadi; total = jumlah nilai |
-| L9 | ☐ Admin ubah berkas wajib Kontrak Borongan (tambah "Kuitansi") | Toast "1 pengajuan Draft/Dikembalikan ikut …"; draft tadi menampilkan Kuitansi + riwayat "Berkas wajib mengikuti master"; pengajuan yang sudah diajukan ke PUM tidak berubah |
+| L7 | ☐ Login operator → **Buat Pengajuan** | Ada kartu **Kontrak Borongan** (UMUM, maks. 3 orang, berkasnya) |
+| L8 | ☐ Pilih Kontrak Borongan: isi nama, **Tanggal / mulai periode** + **Sampai (opsional)**, mekanisme, 1–3 penerima + nilai (+ rekening opsional) → Simpan draft | Tidak ada isian lokasi; tombol tambah orang berhenti di 3; kode **KBR-YYYY-0001**; tabel berkas: Laporan Pekerjaan & Kontrak berlabel **Wajib**, Presensi tanpa label (opsional); ringkasan hanya menghitung 2 berkas wajib; Presensi tidak punya menu "tidak diperlukan"; total = jumlah nilai |
+| L9 | ☐ Admin ubah berkas Kontrak Borongan (tambah "Kuitansi" sebagai **Opsional**, ubah Presensi → **Wajib**) | Toast "1 pengajuan Draft/Dikembalikan ikut …"; draft tadi menampilkan Kuitansi (opsional) & Presensi berlabel Wajib + riwayat "Berkas mengikuti master — wajib baru: Presensi · opsional baru: Kuitansi"; pengajuan yang sudah diajukan ke PUM tidak berubah |
 | L10 | ☐ PUM memproses pengajuan Kontrak Borongan sampai **Selesai (Paid)** | Alur sama dengan jenis lain; muncul di dashboard (warna sendiri), rekap per pengajuan & per pegawai, filter kategori (dropdown), PDF/Excel |
 | L11 | ☐ Nonaktifkan Kontrak Borongan | Hilang dari Buat Pengajuan; pengajuan lama tetap bisa dibuka & diproses; awalan kode terkunci bila sudah dipakai |
-| L12 | ☐ **Project & Task** → tab **Task Name** → tambah task (kode tanpa "_"); tab **Project Costing** → tambah project + centang task | Muncul di kotak cari PUM (Verifikasi / Ubah project costing); task terisi otomatis bila satu-satunya yang cocok kata kunci jenis |
+| L12 | ☐ **Project & Task** (tahun **2026**) → tab **Task Name** → tambah task (kode tanpa "_"); tab **Project Costing** → tambah project + centang task + pilih **kode dana** tiap task | Muncul di kotak cari PUM (Verifikasi / Ubah task name, project & kode dana); task terisi otomatis bila satu-satunya yang cocok kata kunci jenis; kode dana terisi otomatis dari pasangan project–task |
+| L12a | ☐ Tab **Kode Dana** | Berisi **51** Dana Masyarakat (BP) - Tidak Terikat & **61** Dana Masyarakat (Non BP) - Tidak Terikat; bisa tambah kode baru; kode tidak dapat diubah; kode yang dipakai tidak dapat dihapus (nonaktifkan saja) |
+| L12b | ☐ Pilih tahun **2027** | Kotak "Master tahun anggaran 2027 masih kosong" + tombol **Salin dari 2026** → **Salin ke 2027**: project, task, pasangan & kode dananya tersalin (kartu bertahun 2027); tahun 2026 tetap utuh. Menyalin ke tahun yang sudah berisi ditolak |
+| L12c | ☐ PUM memverifikasi pengajuan bertanggal 2027 (setelah L12b) | Isian PUM menampilkan pilihan **Tahun anggaran** (2026/2027), awalnya tahun kegiatan; ganti tahun → task/project/kode dana diisi ulang dari master tahun itu |
 | L13 | ☐ **Bank** → tambah "Bank Nagari", lalu nonaktifkan | Muncul / hilang dari saran isian Bank pada form Konsumsi & Pegawai; rekening yang sudah tersimpan tidak berubah |
 | L14 | ☐ Operator → Konsumsi → pilih "uang siapa" pegawai yang punya rekening | Bank & No. Rekening terisi otomatis ("diisi otomatis dari data pegawai"); ganti pegawai → ikut berganti; isian yang diubah manual tidak ditimpa |
+| L15 | ☐ **Jenis Pengajuan** → ⋯ jenis tambahan (mis. Pengajuan Lain-lain) → **Ubah & atur berkas** → Mekanisme **Selalu LS** | Kartu menampilkan "Selalu LS"; form pengajuan jenis itu tidak lagi menampilkan pilihan KO/LS & tersimpan LS. Pilih "KO atau LS" untuk mengembalikan |
 
 ---
 

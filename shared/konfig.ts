@@ -21,6 +21,7 @@ export function jenisCadangan(kode: Kategori): JenisPengajuan {
     model: 'umum',
     maks_peserta: MAX_PESERTA_TRANSPORT,
     kata_kunci_task: null,
+    mekanisme_tetap: null,
     warna: 'abu',
     ikon: 'file-text',
     aktif: false,

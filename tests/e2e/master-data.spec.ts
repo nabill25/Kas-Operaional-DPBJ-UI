@@ -9,6 +9,9 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   for (const kode of ['konsumsi', 'rumah_tangga', 'perjadin']) await expect(page.locator(`[data-jenis-pengajuan="${kode}"]`)).toBeVisible();
   await expect(page.locator('[data-jenis-pengajuan="konsumsi"]')).toContainText('KSM-YYYY-NNNN');
   await expect(page.locator('[data-jenis-pengajuan="konsumsi"]')).toContainText('1. Notula');
+  // Mekanisme: Transport Rumah Tangga & Perjadin selalu LS; Konsumsi tetap memilih KO/LS.
+  await expect(page.locator('[data-jenis-pengajuan="konsumsi"]')).toContainText('KO / LS');
+  for (const kode of ['rumah_tangga', 'perjadin']) await expect(page.locator(`[data-jenis-pengajuan="${kode}"]`)).toContainText('Selalu LS');
 
   await page.getByRole('button', { name: 'Tambah Jenis Pengajuan' }).click();
   const dialog = page.getByRole('dialog');
@@ -21,14 +24,21 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   await dialog.locator('#jp-maks').fill('3');
   for (const nama of ['Laporan Pekerjaan', 'Presensi', 'Kontrak']) {
     await dialog.getByLabel('Pilih jenis berkas').selectOption({ label: nama });
-    await dialog.getByRole('button', { name: 'Tambah berkas wajib' }).click();
+    await dialog.getByRole('button', { name: 'Tambah berkas', exact: true }).click();
   }
   await dialog.getByRole('button', { name: 'Naikkan Kontrak' }).click();
-  await expect(dialog.getByRole('list', { name: 'Berkas wajib terpilih' }).getByRole('listitem')).toHaveText([
+  await expect(dialog.getByRole('list', { name: 'Berkas terpilih' }).getByRole('listitem')).toHaveText([
     /Laporan Pekerjaan/,
     /Kontrak/,
     /Presensi/,
   ]);
+  // Berkas baru wajib secara bawaan; Presensi dijadikan opsional.
+  const presensiMaster = dialog.locator('[data-berkas-master="presensi"]');
+  await expect(presensiMaster).toHaveAttribute('data-sifat', 'wajib');
+  await dialog.getByRole('radiogroup', { name: 'Sifat Presensi' }).getByRole('radio', { name: 'Opsional' }).click();
+  await expect(presensiMaster).toHaveAttribute('data-sifat', 'opsional');
+  await expect(dialog.getByRole('radiogroup', { name: 'Sifat Kontrak' }).getByRole('radio', { name: 'Wajib' })).toBeChecked();
+  await expect(dialog.getByRole('radio', { name: 'KO atau LS' })).toBeChecked();
   await dialog.locator('#jp-kata-kunci').fill('tenaga lepas');
   await dialog.getByTitle('Ungu').click();
   await expect(dialog.getByRole('radio', { name: 'Ungu' })).toBeChecked();
@@ -44,10 +54,12 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   await expect(kartu).toContainText('Kontrak Borongan');
   await expect(kartu).toContainText('KBR-YYYY-NNNN');
   await expect(kartu).toContainText('Maks. 3 orang');
-  await expect(kartu.getByRole('list', { name: 'Berkas wajib Kontrak Borongan' }).getByRole('listitem')).toHaveText([
+  await expect(kartu).toContainText('KO / LS');
+  await expect(kartu).toContainText('Berkas · 2 wajib, 1 opsional');
+  await expect(kartu.getByRole('list', { name: 'Berkas Kontrak Borongan' }).getByRole('listitem')).toHaveText([
     '1. Laporan Pekerjaan',
     '2. Kontrak',
-    '3. Presensi',
+    '3. Presensi · opsional',
   ]);
 
   // Operator: jenis baru muncul di Buat Pengajuan dengan form model Umum.
@@ -56,7 +68,7 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   await page.goto('/pengajuan/baru');
   const pilih = page.getByRole('button', { name: 'Pilih Kontrak Borongan' });
   await expect(pilih).toContainText('Maks. 3 orang per pengajuan');
-  await expect(pilih).toContainText('Presensi');
+  await expect(pilih).toContainText('Presensi · opsional');
   await pilih.click();
   await expect(page.getByRole('heading', { name: 'Pengajuan Kontrak Borongan' })).toBeVisible();
   await expect(page.locator('#lokasi_tujuan')).toHaveCount(0);
@@ -79,11 +91,23 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   await expect(page.getByText(new RegExp(`^KBR-${TAHUN}-0001$`)).first()).toBeVisible();
   await expect(page.getByText('Rp 4.000.000').first()).toBeVisible();
   const baris = page.getByRole('list', { name: 'Kelengkapan berkas' }).locator('[data-berkas]');
-  await expect(baris).toHaveCount(3);
+  await expect(baris).toHaveCount(4);
   await expect(baris.nth(0)).toHaveAttribute('data-berkas', 'laporan_pekerjaan');
   await expect(baris.nth(1)).toHaveAttribute('data-berkas', 'kontrak');
   await expect(baris.nth(2)).toHaveAttribute('data-berkas', 'presensi');
+  await expect(baris.nth(3)).toHaveAttribute('data-berkas', 'lainnya');
+  // Berkas opsional tampil tanpa tanda Wajib & tidak dihitung kelengkapan.
+  await expect(baris.nth(0)).toHaveAttribute('data-sifat', 'wajib');
+  await expect(baris.nth(0)).toContainText('Wajib');
+  await expect(baris.nth(2)).toHaveAttribute('data-sifat', 'opsional');
+  await expect(baris.nth(2)).not.toContainText('Wajib');
+  await expect(page.getByText('0 dari 2 berkas wajib terpenuhi')).toBeVisible();
   await unggahBerkas(page, 'presensi');
+  await expect(baris.nth(2)).toContainText('Belum Verifikasi');
+  await expect(page.getByText('0 dari 2 berkas wajib terpenuhi')).toBeVisible();
+  // Berkas opsional tidak bisa ditandai "tidak diperlukan" (hanya berkas wajib).
+  await expect(page.getByRole('button', { name: 'Opsi Presensi' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Opsi Kontrak' })).toBeVisible();
 
   // Daftar: 4 jenis → filter kategori berupa dropdown.
   await page.goto('/pengajuan');
@@ -147,40 +171,83 @@ test('admin: master Bank menjadi saran isian rekening; master Project & Task mun
   await expect(page.locator('#saran-bank option[value="Bank Nagari"]')).toHaveCount(1);
   await expect(page.locator('#saran-bank option[value="Bank Mandiri"]')).toHaveCount(1);
 
-  // Project & Task: tambah task, lalu project yang memakai task itu.
+  // Kode dana (kolom DANA laporan sisa anggaran): data awal 51 & 61; admin bisa menambah.
+  await page.goto('/master/project-task?tab=dana');
+  await expect(page.locator('[data-dana="51"]')).toContainText('Dana Masyarakat (BP) - Tidak Terikat');
+  await expect(page.locator('[data-dana="61"]')).toContainText('Dana Masyarakat (Non BP) - Tidak Terikat');
+  await page.getByRole('button', { name: 'Tambah Kode Dana' }).click();
+  await page.locator('#dn-kode').fill('71');
+  await page.locator('#dn-nama').fill('Dana Hibah');
+  await page.getByRole('dialog').getByRole('button', { name: 'Tambah kode dana' }).click();
+  await expect(page.locator('[data-dana="71"]')).toContainText('Dana Hibah');
+
+  // Project & Task per tahun anggaran (2026 berisi data Kasubdit; 2027 disiapkan): tambah task 2026, lalu project
+  // yang memakai task itu beserta kode dananya.
   await page.goto('/master/project-task?tab=task');
-  await page.getByRole('button', { name: 'Tambah Task' }).click();
+  const tahun2026 = page.getByRole('radio', { name: '2026', exact: true });
+  await expect(tahun2026).toBeChecked();
+  await expect(page.getByRole('radio', { name: '2027', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Tambah Task 2026' }).click();
   await page.locator('#tk-kode').fill('721999');
   await page.locator('#tk-nama').fill('Honor Kontrak Borongan');
   await expect(page.getByRole('dialog')).toContainText('721999_Honor Kontrak Borongan');
   await page.getByRole('dialog').getByRole('button', { name: 'Tambah task' }).click();
-  await expect(page.locator('[data-task="721999"]')).toBeVisible();
+  await expect(page.locator('[data-task="721999"]')).toContainText('2026');
 
   await page.getByRole('radio', { name: /Project Costing/ }).click();
-  await page.getByRole('button', { name: 'Tambah Project' }).click();
+  await expect(tahun2026).toBeChecked();
+  await page.getByRole('button', { name: 'Tambah Project 2026' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.locator('#pr-kode').fill('D0099.01.01.6.001');
   await dialog.locator('#pr-nama').fill('Kontrak Borongan Kantor');
   await dialog.getByPlaceholder('Cari kode atau nama task…').fill('721999');
   await dialog.getByRole('checkbox', { name: /Honor Kontrak Borongan/ }).check();
   await expect(dialog).toContainText('1 dipilih');
+  await dialog.getByRole('combobox', { name: 'Kode dana 721999' }).selectOption('61');
   await dialog.getByRole('button', { name: 'Tambah project' }).click();
-  await expect(page.locator('[data-project="D0099.01.01.6.001"]')).toContainText('Honor Kontrak Borongan');
+  const kartuProject = page.locator('[data-project="D0099.01.01.6.001"]');
+  await expect(kartuProject).toContainText('Honor Kontrak Borongan');
+  await expect(kartuProject).toContainText('Dana 61');
+  // Pasangan data Kasubdit sudah berkode dana.
+  await expect(page.locator('[data-project="D0030.09.01.6.001"]')).toContainText('Dana 61');
+  await expect(page.locator('[data-project="D0030.09.01.6.002"]')).toContainText('Dana 51');
 
-  // PUM: project baru ada di kotak cari & task-nya otomatis terisi bila hanya satu pilihan cocok.
+  // Tahun 2027 masih kosong → salin dari 2026 (project, task, pasangan & kode dananya).
+  await page.getByRole('radio', { name: '2027', exact: true }).click();
+  await expect(page).toHaveURL(/tahun=2027/);
+  const kosong = page.getByTestId('tahun-kosong');
+  await expect(kosong).toContainText('Master tahun anggaran 2027 masih kosong');
+  await kosong.getByRole('button', { name: 'Salin dari 2026' }).click();
+  await page.getByRole('button', { name: 'Salin ke 2027' }).click();
+  await expect(kosong).toHaveCount(0);
+  await expect(kartuProject).toContainText('2027');
+  await expect(kartuProject).toContainText('Dana 61');
+  await expect(page.locator('[data-project="D0030.07.01.6.001"]')).toContainText('2027');
+
+  // PUM: task baru ada di kotak cari; hanya satu project yang memilikinya → project & kode dana terisi otomatis.
   await keluarAPI(page);
   await masukAPI(page, 'pum');
   const r = await page.request.get('/api/pengajuan?status=diverifikasi_pum&limit=1');
   const id = (await r.json()).data[0].id as number;
   await page.goto(`/pengajuan/${id}`);
   await page.getByRole('button', { name: 'Aksi PUM' }).click();
-  await page.getByRole('menuitem', { name: 'Ubah project costing / task name' }).click();
-  await page.getByRole('combobox', { name: 'Project Costing' }).click();
-  await page.getByRole('textbox', { name: 'Cari project' }).fill('D0099');
-  await page.getByRole('option', { name: /Kontrak Borongan Kantor/ }).click();
-  await expect(page.getByRole('combobox', { name: 'Project Costing' })).toContainText('Kontrak Borongan Kantor');
-  await page.getByRole('combobox', { name: 'Task Name' }).click();
-  await expect(page.getByRole('option', { name: /721999/ })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Ubah task name / project / kode dana' }).click();
+  const dPum = page.getByRole('dialog', { name: 'Task name, project costing & kode dana' });
+  // Dua tahun anggaran di master → pilihan tahun tampil (bawaan: tahun kegiatan, 2026).
+  await expect(dPum.getByRole('radio', { name: '2026', exact: true })).toBeChecked();
+  await dPum.getByRole('combobox', { name: 'Task Name' }).click();
+  await page.getByRole('textbox', { name: 'Cari task' }).fill('721999');
+  await page.getByRole('option', { name: /Honor Kontrak Borongan/ }).click();
+  await expect(dPum.getByRole('combobox', { name: 'Project Costing' })).toContainText('Kontrak Borongan Kantor');
+  await expect(dPum.getByText('Terisi otomatis: satu-satunya project yang memiliki task ini')).toBeVisible();
+  await expect(dPum.getByRole('combobox', { name: 'Kode dana' })).toHaveValue('61');
+  await dPum.getByRole('button', { name: 'Simpan', exact: true }).click();
+  await expect(dPum).toBeHidden();
+  const kartuPum = page.getByTestId('kartu-pum');
+  await expect(kartuPum).toContainText('721999_Honor Kontrak Borongan');
+  await expect(kartuPum).toContainText('D0099.01.01.6.001:Kontrak Borongan Kantor');
+  await expect(page.getByTestId('kode-dana')).toContainText('61');
+  await expect(page.getByText('Kode dana: 61').first()).toBeVisible(); // riwayat
 });
 
 test('menu & halaman Master Data (selain Pegawai) hanya untuk admin', async ({ page }) => {
@@ -202,5 +269,5 @@ test('menu & halaman Master Data (selain Pegawai) hanya untuk admin', async ({ p
   }
   await nav.getByRole('link', { name: 'Jenis Berkas' }).click();
   await expect(page.getByRole('heading', { name: 'Master Jenis Berkas' })).toBeVisible();
-  await expect(page.locator('[data-jenis-berkas="notulen"]')).toContainText('Wajib pada: Konsumsi');
+  await expect(page.locator('[data-jenis-berkas="notulen"]')).toContainText('Dipakai pada: Konsumsi');
 });

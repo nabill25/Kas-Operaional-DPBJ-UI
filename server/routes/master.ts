@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import {
+  RE_KODE_DANA,
   validateBank,
+  validateDana,
   validateJenisBerkas,
   validateJenisPengajuan,
   validateProject,
+  validateSalinTahun,
   validateTask,
 } from '../../shared/validation';
 import { requireRole, userOf } from '../auth';
@@ -12,22 +15,27 @@ import { assertValid, notFound, parseId } from '../http';
 import {
   ambilJenisPengajuan,
   buatBank,
+  buatDana,
   buatJenisBerkas,
   buatJenisPengajuan,
   buatProject,
   buatTask,
   daftarBank,
+  daftarDana,
   daftarJenisBerkas,
   daftarJenisPengajuan,
   daftarProjectTask,
   hapusBank,
+  hapusDana,
   hapusJenisBerkas,
   hapusJenisPengajuan,
   hapusProject,
   hapusTask,
   modelJenis,
   muatKonfig,
+  salinTahun,
   ubahBank,
+  ubahDana,
   ubahJenisBerkas,
   ubahJenisPengajuan,
   ubahProject,
@@ -38,6 +46,11 @@ import { sinkronDaftarBerkas } from '../services/pengajuan';
 /** Kode master teks (jenis pengajuan / jenis berkas) dari parameter URL. */
 function kodeParam(v: unknown, label: string): string {
   if (typeof v !== 'string' || !/^[a-z][a-z0-9_]{1,39}$/.test(v)) throw notFound(`${label} tidak ditemukan`);
+  return v;
+}
+
+function kodeDanaParam(v: unknown): string {
+  if (typeof v !== 'string' || !RE_KODE_DANA.test(v)) throw notFound('Kode dana tidak ditemukan');
   return v;
 }
 
@@ -158,6 +171,33 @@ export function masterRoutes(db: Db): Router {
 
   r.delete('/task/:id', admin, async (req, res) => {
     await hapusTask(db, parseId(req.params.id, 'Task'));
+    res.json({ ok: true });
+  });
+
+  // Salin master satu tahun anggaran ke tahun lain yang masih kosong (mis. 2026 → 2027).
+  r.post('/project-task/salin', admin, async (req, res) => {
+    const { dari, ke } = assertValid(validateSalinTahun(req.body));
+    res.status(201).json({ ...(await salinTahun(db, dari, ke)), data: await daftarProjectTask(db) });
+  });
+
+  // ── Kode dana ──
+  r.get('/dana', async (_req, res) => {
+    res.json(await daftarDana(db));
+  });
+
+  r.post('/dana', admin, async (req, res) => {
+    const kode = await buatDana(db, assertValid(validateDana(req.body)));
+    res.status(201).json((await daftarDana(db)).find((d) => d.kode === kode));
+  });
+
+  r.put('/dana/:kode', admin, async (req, res) => {
+    const kode = kodeDanaParam(req.params.kode);
+    await ubahDana(db, kode, assertValid(validateDana(req.body)));
+    res.json((await daftarDana(db)).find((d) => d.kode === kode));
+  });
+
+  r.delete('/dana/:kode', admin, async (req, res) => {
+    await hapusDana(db, kodeDanaParam(req.params.kode));
     res.json({ ok: true });
   });
 

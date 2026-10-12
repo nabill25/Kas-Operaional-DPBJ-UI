@@ -1,6 +1,6 @@
 // Daftar asli Project Costing & Task Name dari Kasubdit (38 pasangan, urutan asli) — dulu tertanam di
 // shared/project-task.ts, kini master data di database. Dipakai test: data demo memilih pasangan secara
-// deterministik dari urutan ini, dan test memastikan seed master di supabase/schema.sql sama persis.
+// deterministik dari urutan ini, dan test memastikan seed master (tahun 2026 + kode dana) di supabase/schema.sql sama persis.
 // Format baris: <kode project>:<nama project>_<kode task>_<nama task>.
 const DATA_MENTAH = `
 D0030.07.01.6.001:Sosialisasi Revisi PRPBJ dan E-Proc_723207_Beban Konsumsi
@@ -52,7 +52,12 @@ export interface PasanganProjectTask {
   task: string;
   taskKode: string;
   taskNama: string;
+  /** Kode dana pasangan ini (Laporan Sisa Anggaran 2026, kolom DANA). */
+  kodeDana: string;
 }
+
+/** Pasangan berkode dana 61 (Dana Masyarakat Non BP) = semua task dua project ini; pasangan lain 51 (Dana Masyarakat BP). */
+const PROJECT_DANA_61 = new Set(['D0030.09.01.6.001', 'D0030.06.01.6.002']);
 
 const RE_BARIS = /^([^:]+):(.+)_(\d{6})_(.+)$/;
 
@@ -62,5 +67,13 @@ export const PROJECT_TASK_AWAL: readonly PasanganProjectTask[] = DATA_MENTAH.spl
   .map((l) => {
     const m = RE_BARIS.exec(l);
     if (!m) throw new Error(`Baris project/task tidak valid: ${l}`);
-    return { project: `${m[1]}:${m[2]}`, projectKode: m[1], projectNama: m[2], task: `${m[3]}_${m[4]}`, taskKode: m[3], taskNama: m[4] };
+    return {
+      project: `${m[1]}:${m[2]}`,
+      projectKode: m[1],
+      projectNama: m[2],
+      task: `${m[3]}_${m[4]}`,
+      taskKode: m[3],
+      taskNama: m[4],
+      kodeDana: PROJECT_DANA_61.has(m[1]) ? '61' : '51',
+    };
   });

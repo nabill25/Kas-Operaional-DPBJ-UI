@@ -200,7 +200,8 @@ export default function VerifikasiPage() {
               const acuan = acuanTunggu(p);
               const tunggu = acuan ? selisihHari(acuan) : 0;
               const lengkap = p.berkas_terpenuhi >= p.berkas_wajib;
-              const semuaSesuai = p.berkas_wajib > 0 && p.berkas_sesuai >= p.berkas_wajib;
+              // Sama dengan aturan server: semua berkas wajib sesuai & tidak ada berkas yang ditandai revisi.
+              const semuaSesuai = p.berkas_sesuai >= p.berkas_wajib && p.berkas_revisi === 0;
               return (
                 <GlassCard
                   key={p.id}
@@ -251,6 +252,7 @@ export default function VerifikasiPage() {
                       <Lencana nada={semuaSesuai ? 'hijau' : 'ungu'}>
                         Dicek {p.berkas_sesuai}/{p.berkas_wajib} sesuai
                       </Lencana>
+                      {p.berkas_revisi > 0 && <Lencana nada="merah">{p.berkas_revisi} perlu revisi</Lencana>}
                     </div>
                   )}
                   {tab === 'invoice' && (
@@ -261,11 +263,12 @@ export default function VerifikasiPage() {
                       <p className="flex items-center gap-1.5 truncate text-fg-muted">
                         <FolderKanban className="size-3.5 shrink-0" />
                         {p.project_hosting || p.task_name ? (
-                          <span className="truncate">
-                            <b className="text-fg">{p.project_hosting ?? '-'}</b> · {p.task_name ?? '-'}
+                          <span className="truncate" title={[p.task_name, p.project_hosting, p.kode_dana ? `Kode dana ${p.kode_dana}` : null].filter(Boolean).join(' · ')}>
+                            {p.task_name ?? '-'} · <b className="text-fg">{p.project_hosting ?? '-'}</b>
+                            {p.kode_dana ? ` · Dana ${p.kode_dana}` : ''}
                           </span>
                         ) : (
-                          'Project costing / task name belum diisi'
+                          'Task name / project costing belum diisi'
                         )}
                       </p>
                     </div>

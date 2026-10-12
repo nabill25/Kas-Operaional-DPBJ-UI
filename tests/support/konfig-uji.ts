@@ -1,7 +1,10 @@
 // Konfigurasi master untuk unit/komponen test — sama dengan seed master di supabase/schema.sql
 // (3 jenis pengajuan bawaan + jenis berkas), plus satu jenis contoh bermodel Umum (Kontrak Borongan).
-import type { JenisBerkasMaster, JenisPengajuan, Konfig, MasterProjectTask } from '../../shared/types';
+import type { BerkasDaftar, JenisBerkasMaster, JenisPengajuan, Konfig, MasterProject, MasterProjectTask, MasterTask } from '../../shared/types';
 import { PROJECT_TASK_AWAL } from './project-task-awal';
+
+/** Daftar berkas jenis pengajuan; semua wajib kecuali yang disebut di `opsional`. */
+const daftar = (kode: string[], opsional: string[] = []): BerkasDaftar[] => kode.map((k) => ({ kode: k, wajib: !opsional.includes(k) }));
 
 const jb = (kode: string, label: string, urutan: number, bawaan = true): JenisBerkasMaster => ({
   kode,
@@ -36,12 +39,13 @@ export const JENIS_BAWAAN_UJI: JenisPengajuan[] = [
     model: 'konsumsi',
     maks_peserta: null,
     kata_kunci_task: 'konsumsi',
+    mekanisme_tetap: null,
     warna: 'kuning',
     ikon: 'coffee',
     aktif: true,
     bawaan: true,
     urutan: 1,
-    berkas: ['notulen', 'undangan', 'invoice', 'daftar_hadir'],
+    berkas: daftar(['notulen', 'undangan', 'invoice', 'daftar_hadir']),
   },
   {
     kode: 'rumah_tangga',
@@ -52,12 +56,13 @@ export const JENIS_BAWAAN_UJI: JenisPengajuan[] = [
     model: 'rumah_tangga',
     maks_peserta: 2,
     kata_kunci_task: 'transportasi rumah tangga',
+    mekanisme_tetap: 'LS',
     warna: 'biru',
     ikon: 'car',
     aktif: true,
     bawaan: true,
     urutan: 2,
-    berkas: ['surat_tugas', 'laporan_kegiatan'],
+    berkas: daftar(['surat_tugas', 'laporan_kegiatan']),
   },
   {
     kode: 'perjadin',
@@ -68,12 +73,13 @@ export const JENIS_BAWAAN_UJI: JenisPengajuan[] = [
     model: 'perjadin',
     maks_peserta: 2,
     kata_kunci_task: 'perjadin',
+    mekanisme_tetap: 'LS',
     warna: 'hijau',
     ikon: 'plane',
     aktif: true,
     bawaan: true,
     urutan: 3,
-    berkas: ['surat_tugas', 'laporan_kegiatan', 'invoice_hotel', 'invoice_tiket'],
+    berkas: daftar(['surat_tugas', 'laporan_kegiatan', 'invoice_hotel', 'invoice_tiket']),
   },
 ];
 
@@ -86,12 +92,13 @@ export const JENIS_BORONGAN_UJI: JenisPengajuan = {
   model: 'umum',
   maks_peserta: 3,
   kata_kunci_task: 'tenaga lepas',
+  mekanisme_tetap: null,
   warna: 'ungu',
   ikon: 'hard-hat',
   aktif: true,
   bawaan: false,
   urutan: 4,
-  berkas: ['laporan_pekerjaan', 'presensi', 'kontrak'],
+  berkas: daftar(['laporan_pekerjaan', 'presensi', 'kontrak']),
 };
 
 /** Konfigurasi bawaan (seperti database baru). */
@@ -107,16 +114,23 @@ export function jenisUji(kode: string): JenisPengajuan | undefined {
   return KONFIG_UJI_BORONGAN.jenisPengajuan.find((j) => j.kode === kode);
 }
 
-/** Master Project & Task seperti di database (id berurutan) dari daftar asli Kasubdit. */
+/** Master Project & Task tahun 2026 seperti di database (id berurutan) dari daftar asli Kasubdit, beserta kode dananya. */
 export function masterProjectTaskUji(): MasterProjectTask {
-  const project = new Map<string, { id: number; kode: string; nama: string; aktif: boolean; task_ids: number[] }>();
-  const task = new Map<string, { id: number; kode: string; nama: string; aktif: boolean }>();
+  const project = new Map<string, MasterProject>();
+  const task = new Map<string, MasterTask>();
   for (const pt of PROJECT_TASK_AWAL) {
-    if (!task.has(pt.taskKode)) task.set(pt.taskKode, { id: task.size + 1, kode: pt.taskKode, nama: pt.taskNama, aktif: true });
+    if (!task.has(pt.taskKode)) task.set(pt.taskKode, { id: task.size + 1, tahun: 2026, kode: pt.taskKode, nama: pt.taskNama, aktif: true });
     if (!project.has(pt.projectKode)) {
-      project.set(pt.projectKode, { id: project.size + 1, kode: pt.projectKode, nama: pt.projectNama, aktif: true, task_ids: [] });
+      project.set(pt.projectKode, { id: project.size + 1, tahun: 2026, kode: pt.projectKode, nama: pt.projectNama, aktif: true, tasks: [] });
     }
-    project.get(pt.projectKode)!.task_ids.push(task.get(pt.taskKode)!.id);
+    project.get(pt.projectKode)!.tasks.push({ id: task.get(pt.taskKode)!.id, kode_dana: pt.kodeDana });
   }
-  return { project: [...project.values()], task: [...task.values()] };
+  return {
+    project: [...project.values()],
+    task: [...task.values()],
+    dana: [
+      { kode: '51', nama: 'Dana Masyarakat (BP) - Tidak Terikat', aktif: true, dipakai: 32 },
+      { kode: '61', nama: 'Dana Masyarakat (Non BP) - Tidak Terikat', aktif: true, dipakai: 6 },
+    ],
+  };
 }

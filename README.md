@@ -11,20 +11,23 @@ hingga **Selesai (Paid)** setelah proses MDK selesai, notifikasi otomatis, dashb
 ## Fitur
 
 - **Jenis pengajuan dari master data**: bawaan Konsumsi, Transport Rumah Tangga, Transport Perjadin; admin dapat menambah jenis baru
-  (mis. Kontrak Borongan) dengan model form **Umum** (pegawai + nilai per orang), awalan kode, dan berkas wajib sendiri.
-- **Master Data (admin)**: Jenis Pengajuan (berkas wajib, batas orang, warna, ikon), Jenis Berkas, Project Costing & Task Name,
-  Bank; **rekening pegawai** di master Pegawai mengisi otomatis rekening "uang siapa".
+  (mis. Kontrak Borongan) dengan model form **Umum** (pegawai + nilai per orang), awalan kode, mekanisme, dan berkas sendiri.
+- **Master Data (admin)**: Jenis Pengajuan (berkas **wajib/opsional**, mekanisme KO/LS atau tetap, batas orang, warna, ikon),
+  Jenis Berkas, Project Costing & Task Name **per tahun anggaran** (salin 2026 → 2027) beserta **kode dana** tiap pasangan, Kode Dana,
+  Bank; **rekening pegawai** di master Pegawai mengisi otomatis rekening "uang siapa" & rekening tiap penerima.
 - **Konsumsi**: jenis konsumsi (Kudapan / Makan Siang / keduanya), "uang siapa" + **rekening (bank & no. rekening)**
   dengan catatan biaya transfer non-Mandiri; PUM menandai **Sudah dibayarkan**.
-- **Transport per orang** (batas orang dari master, bawaan 2; ID pegawai sendiri): Rumah Tangga = nilai uang; Perjadin = **uang harian + uang transport**.
-  Total dijumlahkan otomatis & bisa direkap per orang.
-- **Kelengkapan berkas** dalam bentuk tabel (berkas & file · pemeriksaan PUM · aksi): unggah (klik / seret-lepas) PDF,
-  gambar, Word, Excel; pratinjau; tandai "tidak diperlukan"; dokumen tambahan bebas.
+- **Transport per orang** (batas orang dari master, bawaan 2; ID pegawai sendiri; mekanisme selalu **LS**): Rumah Tangga = nilai uang;
+  Perjadin = **uang harian + uang transport**; tiap orang dengan **bank & no. rekening**. Total dijumlahkan otomatis & bisa direkap per orang.
+- **List Dokumen Pendukung** (tabel: jenis dokumen + label Wajib · nama dokumen · status dokumen · Download/Preview, kotak cari):
+  unggah (klik / seret-lepas) PDF, gambar, Word, Excel; pratinjau; tandai "tidak diperlukan" (berkas wajib); pilih beberapa dokumen
+  untuk Download (ZIP) / Tandai Sesuai sekaligus; dokumen tambahan bebas.
 - **Alur status** (stepper 5 tahap): Draft → **Diajukan ke PUM** → (Dikembalikan → Diajukan ulang) → **Diverifikasi PUM** →
   **Diajukan ke MDK** (No. Invoice diinput, menunggu verifikasi MDK) → **Selesai (Paid)**. Riwayat (audit trail) lengkap.
-- **Verifikasi PUM**: centang tiap berkas wajib (*Sesuai* / *Revisi* + catatan), kembalikan dengan alasan, **Verifikasi**
-  (hanya bila semua berkas sesuai) sambil memilih **Project Costing** & **Task Name** dari kotak cari (master Project & Task),
-  input No. Invoice MDK (= diajukan ke MDK), lalu tekan **Selesai** setelah proses di MDK selesai.
+- **Verifikasi PUM**: centang tiap berkas (*Sesuai* / *Revisi* + catatan), kembalikan dengan alasan, **Verifikasi**
+  (hanya bila semua berkas wajib sesuai & tidak ada yang perlu revisi) sambil memilih **Task Name** lalu **Project Costing** dari
+  kotak cari (master Project & Task) — **kode dana** terisi otomatis —, input No. Invoice MDK (= diajukan ke MDK), lalu tekan
+  **Selesai** setelah proses di MDK selesai.
 - **Notifikasi otomatis** di aplikasi (lonceng + toast).
 - **Peran**: Operator/Pengaju, PUM, Pimpinan (hanya memantau), Administrator. Pendaftaran akun mandiri dengan persetujuan admin.
 - **Dashboard**, **rekap & laporan** (PDF dan Excel), tema warna (Biru Dongker DPBJ / Kuning UI / Pink), terang/gelap, responsif hingga ponsel.

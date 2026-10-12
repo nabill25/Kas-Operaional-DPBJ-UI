@@ -50,6 +50,9 @@ export interface PesertaInput {
   /** Hanya Perjadin (Rupiah, boleh 0); Rumah Tangga: null. */
   uang_harian?: number | null;
   uang_transport?: number | null;
+  /** Rekening tujuan pembayaran orang ini (opsional, berpasangan; terisi otomatis dari master Pegawai). */
+  rekening_bank?: string | null;
+  rekening_nomor?: string | null;
 }
 
 export interface Peserta {
@@ -63,7 +66,7 @@ export interface Peserta {
   uang_harian: number | null;
   uang_transport: number | null;
   urutan: number;
-  /** Rekening pegawai saat ini (dari master Pegawai), tujuan pembayaran per orang. */
+  /** Rekening tujuan pembayaran orang ini yang tercatat di pengajuan (diisi pengaju, awalnya dari master Pegawai). */
   rekening_bank: string | null;
   rekening_nomor: string | null;
 }
@@ -91,9 +94,17 @@ export interface CekBerkas {
   diperiksa_at: string;
 }
 
+/** Satu jenis berkas pada daftar berkas jenis pengajuan / pengajuan: wajib (dihitung kelengkapan) atau opsional. */
+export interface BerkasDaftar {
+  kode: JenisBerkas;
+  wajib: boolean;
+}
+
 export interface KelengkapanItem {
   jenis: JenisBerkas;
   label: string;
+  /** false = berkas opsional (tidak dihitung kelengkapan & tidak bisa ditandai "tidak diperlukan"). */
+  wajib: boolean;
   jumlah: number;
   na: boolean;
   terpenuhi: boolean;
@@ -101,17 +112,21 @@ export interface KelengkapanItem {
 }
 
 export interface Kelengkapan {
+  /** Berkas wajib & opsional pengajuan ini, urut tampil. */
   items: KelengkapanItem[];
+  /** Hitungan terpenuhi/total/sesuai hanya untuk berkas wajib. */
   terpenuhi: number;
   total: number;
   lengkap: boolean;
   persen: number;
   /** Jumlah berkas wajib yang sudah dicentang "sesuai" oleh PUM. */
   sesuai: number;
-  /** Jumlah berkas wajib yang ditandai "perlu revisi" oleh PUM. */
+  /** Jumlah berkas (wajib maupun opsional) yang ditandai "perlu revisi" oleh PUM. */
   revisi: number;
-  /** Semua berkas wajib sudah dicentang sesuai → boleh diverifikasi PUM. */
+  /** Semua berkas wajib sudah dicentang sesuai. */
   semuaSesuai: boolean;
+  /** Boleh diverifikasi PUM: semua berkas wajib sesuai dan tidak ada berkas yang ditandai perlu revisi. */
+  bisaVerifikasi: boolean;
 }
 
 export interface Riwayat {
@@ -156,10 +171,14 @@ export interface PengajuanRingkas {
   tanggal_invoice_mdk: string | null;
   project_hosting: string | null;
   task_name: string | null;
+  /** Kode dana pasangan project–task (master Project & Task), mis. "51". */
+  kode_dana: string | null;
   berkas_terpenuhi: number;
   berkas_wajib: number;
   /** Jumlah berkas wajib yang sudah dicentang sesuai oleh PUM. */
   berkas_sesuai: number;
+  /** Jumlah berkas (wajib/opsional) yang ditandai perlu revisi oleh PUM. */
+  berkas_revisi: number;
   created_by: number;
   created_by_nama: string;
   created_at: string;
@@ -358,14 +377,16 @@ export interface JenisPengajuan {
   maks_peserta: number | null;
   /** Kata kunci nama task untuk saran Task Name otomatis, mis. "konsumsi". */
   kata_kunci_task: string | null;
+  /** Mekanisme tetap (pilihan KO/LS tidak ditampilkan di form); null = pengaju memilih KO atau LS. */
+  mekanisme_tetap: Mekanisme | null;
   warna: WarnaJenis;
   ikon: IkonJenis;
   aktif: boolean;
   /** Jenis bawaan sistem: tidak dapat dihapus, model & kode tetap. */
   bawaan: boolean;
   urutan: number;
-  /** Kode jenis berkas wajib, urut tampil. */
-  berkas: JenisBerkas[];
+  /** Daftar berkas (wajib/opsional), urut tampil. */
+  berkas: BerkasDaftar[];
   /** Jumlah pengajuan berjenis ini (hanya pada daftar master). */
   dipakai?: number;
 }
@@ -395,25 +416,45 @@ export interface Bank {
   dipakai: number;
 }
 
+/** Task yang sah untuk suatu project beserta kode dananya (satu baris anggaran). */
+export interface MasterPasangan {
+  /** Id master task (tahun yang sama dengan project-nya). */
+  id: number;
+  kode_dana: string | null;
+}
+
 export interface MasterProject {
   id: number;
+  /** Tahun anggaran (kelompok master), mis. 2026. */
+  tahun: number;
   kode: string;
   nama: string;
   aktif: boolean;
-  /** Id task yang sah untuk project ini. */
-  task_ids: number[];
+  /** Task yang sah untuk project ini + kode dananya. */
+  tasks: MasterPasangan[];
 }
 
 export interface MasterTask {
   id: number;
+  tahun: number;
   kode: string;
   nama: string;
   aktif: boolean;
+}
+
+/** Kode dana (sumber dana anggaran), mis. 51 = Dana Masyarakat (BP) - Tidak Terikat. */
+export interface MasterDana {
+  kode: string;
+  nama: string;
+  aktif: boolean;
+  /** Jumlah pasangan project–task yang memakai kode ini (hanya informasi). */
+  dipakai: number;
 }
 
 export interface MasterProjectTask {
   project: MasterProject[];
   task: MasterTask[];
+  dana: MasterDana[];
 }
 
 export interface ApiErrorBody {
