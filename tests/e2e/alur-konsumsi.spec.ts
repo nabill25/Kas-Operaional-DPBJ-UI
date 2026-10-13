@@ -247,6 +247,38 @@ test('PUM menandai berkas perlu revisi & mengembalikan; pengaju dinotifikasi, me
   await expect(page.getByText('Diajukan ulang.')).toBeVisible();
 });
 
+test('PUM membuat & mengajukan pengajuan sendiri, lalu memeriksa & memverifikasinya', async ({ page }) => {
+  const nama = `Rapat PUM ${Date.now()}`;
+  await masukAPI(page, 'pum');
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Navigasi utama' }).getByRole('link', { name: 'Buat Pengajuan' }).click();
+  await page.getByRole('button', { name: 'Pilih Konsumsi' }).click();
+  await page.getByLabel('Nama kegiatan').fill(nama);
+  await page.getByLabel('Tanggal kegiatan').fill('2026-10-05');
+  await page.getByLabel('Jumlah orang').fill('5');
+  await page.getByLabel('Jumlah uang yang digunakan').fill('500000');
+  await pilihPegawai(page, 'uang_siapa_id', 'Nurul Hidayah');
+  await page.getByRole('radio', { name: 'KO' }).click();
+  await page.locator('[data-jenis-konsumsi="kudapan"]').click();
+  await page.getByRole('button', { name: 'Simpan draft' }).click();
+  await expect(page).toHaveURL(/\/pengajuan\/\d+$/);
+  await expect(page.getByRole('heading', { name: nama })).toBeVisible();
+  await expect(page.getByText('Draft', { exact: true }).first()).toBeVisible();
+
+  for (const jenis of BERKAS_KONSUMSI) await unggahBerkas(page, jenis);
+  await page.getByRole('button', { name: 'Ajukan ke PUM' }).click();
+  await page.getByRole('button', { name: 'Ajukan sekarang' }).click();
+  await expect(page.getByRole('button', { name: 'Tarik kembali' })).toBeVisible();
+
+  // PUM yang sama boleh memeriksa & memverifikasi pengajuannya sendiri
+  for (const jenis of BERKAS_KONSUMSI) await centangSesuai(page, jenis);
+  await page.getByRole('button', { name: 'Verifikasi', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Verifikasi pengajuan' });
+  await dialog.getByRole('button', { name: 'Verifikasi', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText('Diverifikasi PUM — menunggu input invoice MDK')).toBeVisible();
+});
+
 test('Pimpinan hanya memantau: tanpa menu & tombol aksi', async ({ page }) => {
   await masukAPI(page, 'pimpinan');
   await page.goto('/');

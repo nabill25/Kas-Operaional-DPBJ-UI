@@ -1,6 +1,6 @@
 import { lazy, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
-import type { Role } from '../shared/constants';
+import { ROLE_PENGAJU, type Role } from '../shared/constants';
 import { AppLayout } from './components/layout/AppLayout';
 import { Latar } from './components/layout/Latar';
 import { Logo } from './components/ui/Logo';
@@ -49,7 +49,7 @@ function Terlindungi() {
   );
 }
 
-function Peran({ izin, children }: { izin: Role[]; children: ReactNode }) {
+function Peran({ izin, children }: { izin: readonly Role[]; children: ReactNode }) {
   const { user } = useAuth();
   if (!user || !izin.includes(user.role)) return <TanpaAkses />;
   return <>{children}</>;
@@ -66,7 +66,7 @@ export function App() {
         <Route
           path="pengajuan/baru"
           element={
-            <Peran izin={['operator', 'admin']}>
+            <Peran izin={ROLE_PENGAJU}>
               <PengajuanBaruPage />
             </Peran>
           }
@@ -75,7 +75,7 @@ export function App() {
         <Route
           path="pengajuan/:id/ubah"
           element={
-            <Peran izin={['operator', 'admin']}>
+            <Peran izin={ROLE_PENGAJU}>
               <PengajuanUbahPage />
             </Peran>
           }

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Link, useLocation } from 'react-router';
-import { ROLE_LABEL, type Role } from '../../../shared/constants';
+import { ROLE_LABEL, ROLE_PENGAJU, type Role } from '../../../shared/constants';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/cn';
 import { useNotifikasi } from '../../lib/queries';
@@ -51,7 +51,7 @@ export const GRUP_NAV: { judul: string; item: ItemNav[] }[] = [
         ke: '/pengajuan/baru',
         label: 'Buat Pengajuan',
         ikon: FilePlus,
-        peran: ['operator', 'admin'],
+        peran: [...ROLE_PENGAJU],
         aktif: (p) => p === '/pengajuan/baru',
       },
     ],

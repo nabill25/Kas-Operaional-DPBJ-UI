@@ -216,17 +216,18 @@ describe('Berkas', () => {
     expect(lengkap.body.total).toBe(0);
   });
 
-  it('PUM boleh melihat/unduh berkas pengajuan yang diajukan, tapi tidak boleh mengubah berkas', async () => {
+  it('PUM (juga pengaju) melihat & mengelola berkas saat draft; setelah diajukan berkas terkunci untuk semua pengaju', async () => {
     const id = await buatKonsumsi();
     const up = await unggah(op, id, 'notulen', FILE_CONTOH.pdf, 'n.pdf');
     const berkasId = up.body.berkas[0].id as number;
-    // Saat draft, PUM tidak bisa melihat
-    expect((await pum.get(`/api/berkas/${berkasId}/file`).redirects(0)).status).toBe(404);
+    // Saat draft, PUM boleh melihat & mengunggah (sama seperti operator)
+    expect((await pum.get(`/api/berkas/${berkasId}/file`).redirects(0)).status).toBe(302);
+    expect((await unggah(pum, id, 'undangan', FILE_CONTOH.pdf, 'u.pdf')).status).toBe(201);
     await op.post(`/api/pengajuan/${id}/ajukan`);
     expect((await pum.get(`/api/berkas/${berkasId}/file`).redirects(0)).status).toBe(302);
-    expect((await pum.delete(`/api/berkas/${berkasId}`)).status).toBe(403);
-    expect((await unggah(pum, id, 'undangan', FILE_CONTOH.pdf, 'u.pdf')).status).toBe(403);
-    // Operator pun tidak bisa mengubah berkas saat diajukan
+    // Setelah diajukan: berkas terkunci bagi operator maupun PUM
+    expect((await pum.delete(`/api/berkas/${berkasId}`)).status).toBe(409);
+    expect((await unggah(pum, id, 'invoice', FILE_CONTOH.pdf, 'i.pdf')).status).toBe(409);
     expect((await op.delete(`/api/berkas/${berkasId}`)).status).toBe(409);
   });
 

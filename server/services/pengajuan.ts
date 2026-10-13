@@ -644,7 +644,7 @@ async function simpanPeserta(db: Db, pengajuanId: number, data: PengajuanBersih)
 // ───────────────────────────── Buat / ubah / hapus (pengaju) ─────────────────────────────
 
 export async function buatPengajuan(db: Db, user: SessionUser, data: PengajuanBersih, jenis: JenisPengajuan): Promise<number> {
-  if (!bolehKelola(user)) throw forbidden('Hanya operator/pengaju atau admin yang dapat membuat pengajuan');
+  if (!bolehKelola(user)) throw forbidden('Hanya operator, PUM, atau admin yang dapat membuat pengajuan');
   if (!jenis.aktif) {
     throw badRequest(`Jenis pengajuan ${jenis.label} sudah nonaktif sehingga tidak dapat dipakai untuk pengajuan baru`, {
       kategori: 'Jenis pengajuan nonaktif',
@@ -694,7 +694,7 @@ function teksRekening(bank: string | null, nomor: string | null): string {
 }
 
 function pastikanBisaEdit(user: SessionUser, row: PengajuanRow): void {
-  if (!bolehKelola(user)) throw forbidden('Hanya operator/pengaju atau admin yang dapat mengubah pengajuan');
+  if (!bolehKelola(user)) throw forbidden('Hanya operator, PUM, atau admin yang dapat mengubah pengajuan');
   if (!STATUS_BISA_EDIT.includes(row.status)) {
     throw conflict(
       row.status === 'diajukan_pum'
@@ -790,7 +790,7 @@ export async function hapusPengajuan(db: Db, user: SessionUser, id: number): Pro
 export async function ajukan(db: Db, user: SessionUser, id: number): Promise<void> {
   await db.tx(async (txDb) => {
     const awal = await ambilPengajuan(txDb, user, id);
-    if (!bolehKelola(user)) throw forbidden('Hanya operator/pengaju atau admin yang dapat mengajukan');
+    if (!bolehKelola(user)) throw forbidden('Hanya operator, PUM, atau admin yang dapat mengajukan');
     if (!STATUS_BISA_EDIT.includes(awal.status)) {
       throw conflict('Hanya pengajuan berstatus Draft atau Dikembalikan yang dapat diajukan ke PUM');
     }
@@ -828,7 +828,7 @@ export async function ajukan(db: Db, user: SessionUser, id: number): Promise<voi
 export async function tarikKembali(db: Db, user: SessionUser, id: number): Promise<void> {
   await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
-    if (!bolehKelola(user)) throw forbidden('Hanya operator/pengaju atau admin yang dapat menarik pengajuan');
+    if (!bolehKelola(user)) throw forbidden('Hanya operator, PUM, atau admin yang dapat menarik pengajuan');
     if (row.status !== 'diajukan_pum') {
       throw conflict('Hanya pengajuan yang masih diperiksa PUM (belum diverifikasi) yang dapat ditarik kembali');
     }
@@ -1194,7 +1194,7 @@ export async function batalkanSelesai(db: Db, user: SessionUser, id: number, ala
 
 export async function pastikanBisaKelolaBerkas(db: Db, user: SessionUser, pengajuanId: number): Promise<PengajuanRow> {
   const row = await ambilPengajuan(db, user, pengajuanId);
-  if (!bolehKelola(user)) throw forbidden('Hanya operator/pengaju atau admin yang dapat mengelola berkas');
+  if (!bolehKelola(user)) throw forbidden('Hanya operator, PUM, atau admin yang dapat mengelola berkas');
   if (!STATUS_BISA_EDIT.includes(row.status)) {
     throw conflict('Berkas hanya dapat diubah saat pengajuan berstatus Draft atau Dikembalikan');
   }

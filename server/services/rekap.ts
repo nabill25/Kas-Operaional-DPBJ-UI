@@ -1,6 +1,8 @@
 import {
   MEKANISME_LIST,
   ROLE_LIHAT_DRAFT,
+  ROLE_PENGAJU,
+  ROLE_PUM,
   STATUS_LIST,
   type Kategori,
   type Mekanisme,
@@ -359,8 +361,8 @@ export async function dashboard(db: Db, user: SessionUser, tahunInput: number): 
 
 async function antrian(db: Db, user: SessionUser): Promise<NotifikasiData['antrian']> {
   const hitung = async (s: Status) => (await db.get<{ c: number }>('SELECT COUNT(*)::int AS c FROM pengajuan WHERE status = ?', s))?.c ?? 0;
-  const pum = user.role === 'pum' || user.role === 'admin';
-  const pengaju = user.role === 'operator' || user.role === 'admin';
+  const pum = ROLE_PUM.includes(user.role);
+  const pengaju = ROLE_PENGAJU.includes(user.role);
   const pendaftar =
     user.role === 'admin'
       ? ((await db.get<{ c: number }>('SELECT COUNT(*)::int AS c FROM users WHERE menunggu_persetujuan = true'))?.c ?? 0)

@@ -29,7 +29,7 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | A3 | ☐ Login akun operator dengan password salah | Pesan "Email atau password salah" (kotak bergetar) |
 | A4 | ☐ Login akun operator dengan password benar | Masuk ke **Dashboard**, sapaan "Selamat …, <nama>" |
 | A5 | ☐ Klik avatar (kanan atas) → **Keluar** | Kembali ke halaman login; membuka `/pengajuan` diarahkan ke login |
-| A6 | ☐ Login akun PUM, buka `http://localhost:5210/pengajuan/baru` | "Tidak memiliki akses" (PUM tidak membuat pengajuan) |
+| A6 | ☐ Login akun **pimpinan**, buka `http://localhost:5210/pengajuan/baru` | "Tidak memiliki akses" (pimpinan hanya memantau). Akun PUM justru bisa membuka halaman ini (PUM juga dapat mengajukan) |
 | A7 | ☐ Login akun operator, buka `http://localhost:5210/verifikasi` | "Tidak memiliki akses" (hanya PUM & admin) |
 
 ## B. Operator — Konsumsi
@@ -108,7 +108,7 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | E13a | ☐ Klik **Verifikasi** pada dialog | Status **Diverifikasi PUM**; stepper aktif di *Verifikasi PUM*; kotak biru kehijauan "Diverifikasi PUM — menunggu input invoice MDK"; kartu Verifikasi PUM menampilkan Task name, Project costing & **Kode dana** (beserta namanya); riwayat "… Kode dana: 61"; belum ada tombol **Selesai** |
 | E14 | ☐ Berkas setelah diverifikasi | Terkunci; centang tidak bisa diubah lagi |
 | E15 | ☐ Kartu **Verifikasi PUM** → **Ubah task name, project & kode dana** (atau **Aksi PUM** → *Ubah task name / project / kode dana*) | Bisa diubah; riwayat mencatat "Task: … · Project: … · Kode dana: …" |
-| E16 | ☐ Cari draft operator (mis. lewat URL detail) | PUM tidak dapat melihat draft ("tidak ditemukan") |
+| E16 | ☐ PUM → **Buat Pengajuan** → isi & simpan draft → unggah berkas → **Ajukan ke PUM** | Draft dibuat atas nama PUM; PUM melihat semua draft (filter status *Draft* tersedia); setelah diajukan, PUM yang sama boleh mencentang & **memverifikasi** pengajuannya sendiri (tercatat di riwayat) |
 
 ## F. PUM — invoice, diajukan ke MDK, selesai (paid)
 

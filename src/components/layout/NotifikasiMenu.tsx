@@ -205,7 +205,7 @@ export function NotifikasiMenu() {
                 <p className="text-xs text-fg-muted">
                   {user.role === 'operator'
                     ? 'Anda akan diberi tahu saat PUM mengembalikan, meneruskan ke MDK, atau menyelesaikan pengajuan Anda.'
-                    : 'Anda akan diberi tahu saat ada pengajuan baru yang perlu diperiksa.'}
+                    : 'Anda akan diberi tahu saat ada pengajuan baru yang perlu diperiksa, juga perkembangan pengajuan yang Anda buat.'}
                 </p>
               </div>
             ) : (

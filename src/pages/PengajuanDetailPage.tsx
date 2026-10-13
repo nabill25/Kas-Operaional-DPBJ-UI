@@ -34,6 +34,7 @@ import {
   CATATAN_BIAYA_TRANSFER,
   JENIS_KONSUMSI_LABEL,
   JENIS_TRANSPORT_LABEL,
+  ROLE_PENGAJU,
   STATUS_BISA_DIBAYARKAN,
   STATUS_LEWAT_VERIFIKASI,
   isBankMandiri,
@@ -272,7 +273,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
   const [unduhPdf, setUnduhPdf] = useState(false);
   useTandaiNotifikasiDibaca(p.id);
 
-  const kelola = punyaPeran('operator', 'admin');
+  const kelola = punyaPeran(...ROLE_PENGAJU);
   const pum = punyaPeran('pum', 'admin');
   const bisaEdit = kelola && (p.status === 'draft' || p.status === 'dikembalikan');
   const bisaCek = pum && p.status === 'diajukan_pum';

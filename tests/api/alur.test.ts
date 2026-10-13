@@ -255,10 +255,9 @@ describe('Alur status: Draft → PUM → Verifikasi PUM → Diajukan ke MDK → 
 
   it('hak akses aksi per peran', async () => {
     const id = await buatDraft(true);
-    // PUM & pimpinan tidak melihat draft
-    expect((await pum.get(`/api/pengajuan/${id}`)).status).toBe(404);
+    // Pimpinan tidak melihat draft; PUM ikut sebagai pengaju (Okt 2026): melihat & boleh mengubah draft siapa pun
     expect((await pimpinan.get(`/api/pengajuan/${id}`)).status).toBe(404);
-    expect((await pum.post(`/api/pengajuan/${id}/ajukan`)).status).toBe(404);
+    expect((await pum.get(`/api/pengajuan/${id}`)).status).toBe(200);
     expect((await op.post(`/api/pengajuan/${id}/ajukan`)).status).toBe(200);
 
     // Setelah diajukan: pimpinan boleh melihat, tapi tidak boleh melakukan aksi apa pun
@@ -268,10 +267,10 @@ describe('Alur status: Draft → PUM → Verifikasi PUM → Diajukan ke MDK → 
     expect((await pimpinan.post(`/api/pengajuan/${id}/tarik`)).status).toBe(403);
     expect((await pimpinan.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0]))).status).toBe(403);
 
-    // PUM tidak boleh mengubah/mengajukan; operator tidak boleh memproses PUM
-    expect((await pum.post(`/api/pengajuan/${id}/ajukan`)).status).toBe(403);
-    expect((await pum.post(`/api/pengajuan/${id}/tarik`)).status).toBe(403);
-    expect((await pum.put(`/api/pengajuan/${id}`).send(dataKonsumsi(ctx.pegawai[0]))).status).toBe(403);
+    // PUM juga pengaju: boleh menarik kembali & mengajukan ulang (seperti operator); operator tidak boleh memproses PUM
+    expect((await pum.post(`/api/pengajuan/${id}/tarik`)).body.status).toBe('draft');
+    expect((await pum.post(`/api/pengajuan/${id}/ajukan`)).body.status).toBe('diajukan_pum');
+    expect((await pum.put(`/api/pengajuan/${id}`).send(dataKonsumsi(ctx.pegawai[0]))).status).toBe(409); // terkunci
     expect((await op.put(`/api/pengajuan/${id}/cek-berkas`).send({ jenis: 'notulen', status: 'sesuai' })).status).toBe(403);
     expect((await op.post(`/api/pengajuan/${id}/verifikasi`).send({})).status).toBe(403);
     expect((await op.post(`/api/pengajuan/${id}/kembalikan`).send({ catatan: 'abc' })).status).toBe(403);
@@ -308,13 +307,14 @@ describe('Alur status: Draft → PUM → Verifikasi PUM → Diajukan ke MDK → 
     expect((await pum.post(`/api/pengajuan/${id}/teruskan`).send({})).status).toBe(404);
   });
 
-  it('tarik kembali: hanya saat masih di PUM, lalu tersembunyi lagi dari PUM', async () => {
+  it('tarik kembali: hanya saat masih di PUM, lalu tersembunyi lagi dari pimpinan', async () => {
     const id = await buatDraft();
     await op.post(`/api/pengajuan/${id}/ajukan`);
+    expect((await pimpinan.get(`/api/pengajuan/${id}`)).status).toBe(200);
     const res = await op.post(`/api/pengajuan/${id}/tarik`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ status: 'draft', diajukan_at: null });
-    expect((await pum.get(`/api/pengajuan/${id}`)).status).toBe(404);
+    expect((await pimpinan.get(`/api/pengajuan/${id}`)).status).toBe(404);
   });
 
   it('ubah invoice & batalkan status selesai → kembali menunggu MDK, invoice tetap', async () => {

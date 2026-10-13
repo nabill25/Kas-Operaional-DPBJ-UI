@@ -2,7 +2,7 @@ import { FilePlus, FileSearch, FilterX, Layers, Search, SlidersHorizontal } from
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { ROLE_LIHAT_DRAFT, STATUS_INFO, STATUS_LIST, type Kategori } from '../../shared/constants';
+import { ROLE_LIHAT_DRAFT, ROLE_PENGAJU, STATUS_INFO, STATUS_LIST, type Kategori } from '../../shared/constants';
 import { formatAngka } from '../../shared/format';
 import { TabelPengajuan } from '../components/pengajuan/TabelPengajuan';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
@@ -98,7 +98,7 @@ export default function PengajuanListPage() {
         judul="Daftar Pengajuan"
         deskripsi="Semua pengajuan kas operasional — cari, saring, lalu buka untuk melihat detail dan berkas."
         aksi={
-          punyaPeran('operator', 'admin') && (
+          punyaPeran(...ROLE_PENGAJU) && (
             <TautanTombol to="/pengajuan/baru" ikon={<FilePlus className="size-4" />}>
               Buat Pengajuan
             </TautanTombol>
@@ -278,7 +278,7 @@ export default function PengajuanListPage() {
             }
             aksi={
               !adaFilter &&
-              punyaPeran('operator', 'admin') && (
+              punyaPeran(...ROLE_PENGAJU) && (
                 <TautanTombol to="/pengajuan/baru" ikon={<FilePlus className="size-4" />}>
                   Buat pengajuan pertama
                 </TautanTombol>

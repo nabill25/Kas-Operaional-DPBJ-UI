@@ -31,18 +31,24 @@ test('validasi form login kosong', async ({ page }) => {
 });
 
 test('halaman dibatasi sesuai peran', async ({ page }) => {
+  // PUM juga dapat membuat pengajuan (Okt 2026), tetapi tidak mengelola pengguna
   await masukAPI(page, 'pum');
   await page.goto('/pengajuan/baru');
-  await expect(page.getByText('Tidak memiliki akses')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Buat Pengajuan Baru' })).toBeVisible();
   await page.goto('/pengguna');
   await expect(page.getByText('Tidak memiliki akses')).toBeVisible();
   await page.goto('/verifikasi');
   await expect(page.getByRole('heading', { name: 'Verifikasi PUM' })).toBeVisible();
-  // Menu PUM tidak memuat "Buat Pengajuan" / "Pengguna"
   const nav = page.getByRole('navigation', { name: 'Navigasi utama' });
-  await expect(nav.getByRole('link', { name: 'Buat Pengajuan' })).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: 'Buat Pengajuan' })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Pengguna' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: /Verifikasi PUM/ })).toBeVisible();
+
+  // Pimpinan tidak dapat membuat pengajuan
+  await page.request.post('/api/auth/logout');
+  await masukAPI(page, 'pimpinan');
+  await page.goto('/pengajuan/baru');
+  await expect(page.getByText('Tidak memiliki akses')).toBeVisible();
 
   // Operator tidak dapat membuka halaman Verifikasi PUM
   await page.request.post('/api/auth/logout');

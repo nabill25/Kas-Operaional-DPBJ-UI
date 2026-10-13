@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { ROLE_PENGAJU } from '../../shared/constants';
 import { formatAngka, formatRupiah, formatRupiahRingkas } from '../../shared/format';
 import { KpiTile } from '../components/dashboard/KpiTile';
 import { Komposisi } from '../components/dashboard/Komposisi';
@@ -84,7 +85,7 @@ export default function DashboardPage() {
                 ))}
               </Select>
             </label>
-            {punyaPeran('operator', 'admin') && (
+            {punyaPeran(...ROLE_PENGAJU) && (
               <TautanTombol to="/pengajuan/baru" ikon={<FilePlus className="size-4" />}>
                 Buat Pengajuan
               </TautanTombol>

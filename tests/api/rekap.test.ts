@@ -58,20 +58,19 @@ describe('Dashboard', () => {
     expect(d.kpi.rataProsesHari).not.toBeNull();
   });
 
-  it('versi PUM & pimpinan: tanpa draft, aktivitas hanya dari pengajuan yang sudah diajukan', async () => {
+  it('versi pimpinan tanpa draft; PUM (juga pengaju) melihat draft; antrian PUM tetap berurutan tahap', async () => {
     const draftIds = new Set(
       (await ctx.db.all<{ id: number }>(`SELECT id FROM pengajuan WHERE status = 'draft'`)).map((r) => r.id),
     );
-    for (const agent of [pum, pimpinan]) {
-      const d = (await agent.get(`/api/dashboard?tahun=${TAHUN_INI}`)).body as DashboardData;
-      expect(d.kpi.draft).toBeNull();
-      expect(d.aktivitas.length).toBeGreaterThan(0);
-      for (const a of d.aktivitas) {
-        expect(a.pengajuan_id).not.toBeNull();
-        expect(draftIds.has(a.pengajuan_id!)).toBe(false);
-      }
+    const dPimpinan = (await pimpinan.get(`/api/dashboard?tahun=${TAHUN_INI}`)).body as DashboardData;
+    expect(dPimpinan.kpi.draft).toBeNull();
+    expect(dPimpinan.aktivitas.length).toBeGreaterThan(0);
+    for (const a of dPimpinan.aktivitas) {
+      expect(a.pengajuan_id).not.toBeNull();
+      expect(draftIds.has(a.pengajuan_id!)).toBe(false);
     }
     const dPum = (await pum.get(`/api/dashboard?tahun=${TAHUN_INI}`)).body as DashboardData;
+    expect(dPum.kpi.draft).not.toBeNull();
     expect(dPum.perluTindakan.length).toBeGreaterThan(0);
     for (const p of dPum.perluTindakan) expect(['diajukan_pum', 'diverifikasi_pum', 'diajukan_mdk']).toContain(p.status);
     expect(dPum.perluTindakan[0].status).toBe('diajukan_pum');

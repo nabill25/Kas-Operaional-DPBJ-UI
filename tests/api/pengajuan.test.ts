@@ -293,17 +293,33 @@ describe('Kode, ubah, hapus, hak akses', () => {
     expect(res.body.errors.kategori).toBeTruthy();
   });
 
-  it('PUM & pimpinan tidak dapat membuat pengajuan & tidak dapat melihat draft', async () => {
-    expect((await pum.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0]))).status).toBe(403);
+  it('PUM dapat membuat pengajuan & melihat/mengubah semua draft (sama seperti operator); pimpinan tidak', async () => {
     expect((await pimpinan.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0]))).status).toBe(403);
-    const { body } = await op.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0]));
-    expect((await pum.get(`/api/pengajuan/${body.id}`)).status).toBe(404);
+    const milikPum = await pum.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0]));
+    expect(milikPum.status).toBe(201);
+    expect(milikPum.body).toMatchObject({ status: 'draft', created_by_nama: 'Petugas PUM' });
+    const { body } = await op.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[1]));
+    expect((await pum.get(`/api/pengajuan/${body.id}`)).status).toBe(200);
     expect((await pimpinan.get(`/api/pengajuan/${body.id}`)).status).toBe(404);
-    expect((await pum.get('/api/pengajuan')).body.total).toBe(0);
-    const list = await pimpinan.get('/api/pengajuan');
-    expect(list.body.total).toBe(0);
-    const listOp = await op.get('/api/pengajuan');
-    expect(listOp.body.total).toBe(1);
+    expect((await pum.get('/api/pengajuan')).body.total).toBe(2);
+    expect((await pimpinan.get('/api/pengajuan')).body.total).toBe(0);
+    expect((await op.get('/api/pengajuan')).body.total).toBe(2);
+    // Tim kecil: operator boleh mengubah draft buatan PUM, dan PUM boleh mengubah/menghapus draft operator.
+    expect((await op.put(`/api/pengajuan/${milikPum.body.id}`).send(dataKonsumsi(ctx.pegawai[0], { jumlah_orang: 7 }))).status).toBe(200);
+    expect((await pum.put(`/api/pengajuan/${body.id}`).send(dataKonsumsi(ctx.pegawai[1], { jumlah_orang: 9 }))).body.jumlah_orang).toBe(9);
+    expect((await pum.delete(`/api/pengajuan/${body.id}`)).status).toBe(200);
+  });
+
+  it('PUM boleh memeriksa & memverifikasi pengajuan yang ia ajukan sendiri', async () => {
+    const { body } = await pum.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0]));
+    expect((await pum.post(`/api/pengajuan/${body.id}/ajukan`)).body.status).toBe('diajukan_pum');
+    for (const jenis of ['notulen', 'undangan', 'invoice', 'daftar_hadir']) {
+      expect((await pum.put(`/api/pengajuan/${body.id}/cek-berkas`).send({ jenis, status: 'sesuai' })).status).toBe(200);
+    }
+    const res = await pum.post(`/api/pengajuan/${body.id}/verifikasi`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('diverifikasi_pum');
+    expect(res.body.riwayat.map((r: { aksi: string }) => r.aksi).slice(0, 2)).toEqual(['diverifikasi', 'berkas_dicek']);
   });
 
   it('id tidak valid → 404', async () => {

@@ -115,9 +115,11 @@ describe('Tanda "sudah dibayarkan" oleh PUM', () => {
     expect(res.status).toBe(409);
     expect(res.body.message).toContain('Dikembalikan');
 
-    // Draft tidak terlihat oleh PUM
+    // Draft (kini terlihat oleh PUM sebagai pengaju) belum bisa ditandai dibayarkan
     const draft = await op.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0]));
-    expect((await pum.put(`/api/pengajuan/${draft.body.id}/dibayarkan`).send({ dibayarkan: true })).status).toBe(404);
+    const resDraft = await pum.put(`/api/pengajuan/${draft.body.id}/dibayarkan`).send({ dibayarkan: true });
+    expect(resDraft.status).toBe(409);
+    expect(resDraft.body.message).toContain('Draft');
 
     // Transport ditolak
     const rt = await op.post('/api/pengajuan').send(dataRumahTangga([{ pegawai_id: ctx.pegawai[0], nilai: 50_000 }]));

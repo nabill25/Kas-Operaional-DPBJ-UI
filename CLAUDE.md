@@ -30,8 +30,8 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 | Berkas wajib / opsional | Sifat berkas per jenis pengajuan (`jenis_pengajuan_berkas.wajib`, Okt 2026). **Wajib** = bertanda "Wajib", dihitung kelengkapan, harus dicentang sesuai PUM sebelum verifikasi, boleh ditandai N/A. **Opsional** = tampil di tabel berkas tanpa tanda wajib, tidak dihitung kelengkapan, boleh diunggah & diperiksa PUM (tanda revisinya tetap menahan verifikasi), tidak bisa N/A |
 | Daftar berkas pengajuan | `pengajuan.berkas_daftar`: salinan daftar berkas jenisnya `[{kode, wajib}]` (format lama `["kode"]` = semua wajib) — mengikuti master selama Draft/Dikembalikan, dibekukan sejak diajukan ke PUM (lihat §4) |
 | KO / LS | Pilihan mekanisme pembayaran, disimpan apa adanya `KO` / `LS` (kepanjangan belum dikonfirmasi — lihat §12). Jenis bermekanisme tetap (`jenis_pengajuan.mekanisme_tetap`; bawaan: Transport Rumah Tangga & Perjadin = **LS**) tidak menampilkan pilihan — server selalu menyimpan mekanisme tetapnya |
-| Operator / Pengaju | Pembuat pengajuan: mengisi data, mengunggah berkas, mengajukan ke PUM |
-| PUM | Pemeriksa di dalam sistem: mencentang berkas, mengembalikan, **memverifikasi**, menginput No. Invoice MDK (= mengajukan ke MDK), menekan **Selesai** setelah proses MDK selesai |
+| Operator / Pengaju | Pembuat pengajuan: mengisi data, mengunggah berkas, mengajukan ke PUM. Peran pengaju (`ROLE_PENGAJU`) = operator, **PUM** (sejak Okt 2026), admin |
+| PUM | Pemeriksa di dalam sistem: mencentang berkas, mengembalikan, **memverifikasi**, menginput No. Invoice MDK (= mengajukan ke MDK), menekan **Selesai** setelah proses MDK selesai. Sejak Okt 2026 juga **dapat mengajukan** seperti operator (melihat semua draft; boleh memeriksa & memverifikasi pengajuannya sendiri) |
 | MDK | Pihak **di luar sistem** yang memverifikasi & membayar pengajuan yang invoice-nya diinput PUM. Tidak punya akun & tidak ada tampilan input untuk MDK |
 | Verifikasi PUM | Persetujuan PUM setelah semua berkas wajib dicentang sesuai **dan** tidak ada berkas (wajib/opsional) bertanda revisi → status `diverifikasi_pum` (label "Diverifikasi PUM"; tahap stepper "Verifikasi PUM") |
 | Pimpinan | Pemantau (hanya lihat): dashboard, daftar, detail, rekap & laporan |
@@ -139,7 +139,7 @@ Stepper detail (5 tahap, label persis permintaan pemilik project, Okt 2026):
 
 | Status (`status`) | Label UI | Arti | Bisa diedit pengaju? |
 |---|---|---|---|
-| `draft` | Draft | Disimpan, belum diajukan. **Tidak terlihat oleh PUM & pimpinan** | Ya |
+| `draft` | Draft | Disimpan, belum diajukan. **Tidak terlihat oleh pimpinan** (PUM melihatnya sebagai pengaju, Okt 2026) | Ya |
 | `diajukan_pum` | Diajukan ke PUM | Menunggu pemeriksaan/centang berkas PUM | Tidak (boleh **tarik kembali**) |
 | `dikembalikan` | Dikembalikan | PUM minta revisi (`catatan_pum` + catatan per berkas) | Ya |
 | `diverifikasi_pum` | Diverifikasi PUM | Semua berkas sesuai & diverifikasi PUM, menunggu input No. Invoice MDK | Tidak |
@@ -190,10 +190,10 @@ otomatis menandai notifikasi pengajuan itu dibaca. Pimpinan tidak menerima notif
 | Aksi | operator | pum | pimpinan | admin |
 |---|---|---|---|---|
 | Lihat pengajuan non-draft, dashboard, rekap, unduh PDF/Excel | ✓ | ✓ | ✓ | ✓ |
-| Lihat draft | ✓ | ✗ | ✗ | ✓ |
-| Buat / edit / hapus (draft & dikembalikan) | ✓ | ✗ | ✗ | ✓ |
-| Unggah / hapus berkas, tandai N/A (draft & dikembalikan) | ✓ | ✗ | ✗ | ✓ |
-| Ajukan / ajukan ulang ke PUM / tarik kembali | ✓ | ✗ | ✗ | ✓ |
+| Lihat draft | ✓ | ✓ | ✗ | ✓ |
+| Buat / edit / hapus (draft & dikembalikan) | ✓ | ✓ | ✗ | ✓ |
+| Unggah / hapus berkas, tandai N/A (draft & dikembalikan) | ✓ | ✓ | ✗ | ✓ |
+| Ajukan / ajukan ulang ke PUM / tarik kembali | ✓ | ✓ | ✗ | ✓ |
 | Halaman **Verifikasi PUM**, centang berkas, kembalikan, verifikasi | ✗ | ✓ | ✗ | ✓ |
 | Isi/ubah Task Name, Project Costing & kode dana (diajukan_pum, diverifikasi_pum, diajukan_mdk, selesai) | ✗ | ✓ | ✗ | ✓ |
 | Input No. Invoice MDK (ajukan ke MDK), ubah invoice, tandai **Selesai**, batalkan selesai | ✗ | ✓ | ✗ | ✓ |
@@ -213,7 +213,10 @@ otomatis menandai notifikasi pengajuan itu dibaca. Pimpinan tidak menerima notif
 **Tolak** (profil & akun Supabase Auth dihapus). Pendaftar tidak memilih peran sendiri. Email yang sudah punya akun
 Supabase Auth hanya bisa didaftarkan dengan password akun itu.
 
-Konstanta peran: `ROLE_LIHAT_DRAFT`, `ROLE_PENGAJU` (`operator`,`admin`), `ROLE_PUM` (`pum`,`admin`) di `shared/constants.ts`.
+Konstanta peran: `ROLE_LIHAT_DRAFT` & `ROLE_PENGAJU` (`operator`,`pum`,`admin`), `ROLE_PUM` (`pum`,`admin`) di `shared/constants.ts`
+(UI memakai konstanta ini, bukan daftar peran manual). PUM sebagai pengaju (Okt 2026, dikonfirmasi pemilik project): sama seperti
+operator — melihat semua draft, mengubah draft/dikembalikan milik siapa pun — dan **boleh memeriksa & memverifikasi pengajuannya
+sendiri** (tercatat di riwayat). Notifikasi "diajukan" tetap ke semua PUM aktif selain pelaku.
 Keputusan: semua operator boleh mengedit pengajuan draft/dikembalikan milik siapa pun (tim kecil;
 akuntabilitas lewat `riwayat`). Bisa diperketat menjadi "hanya pembuat" bila diminta.
 
@@ -452,7 +455,8 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 - Login: password diverifikasi Supabase Auth (anon key), profil dicocokkan lewat `auth_id` (fallback: email untuk profil
   yang belum tertaut); sesi aplikasi = token acak (sha256) di tabel `sessions`; pembatas 10 gagal / 15 menit / IP+email.
   Pendaftaran: maks. 10 / jam / IP.
-- Rekap default = semua status **kecuali draft**; PUM & pimpinan tidak pernah melihat draft (daftar, detail, rekap, dashboard).
+- Rekap default = semua status **kecuali draft**; pimpinan tidak pernah melihat draft (daftar, detail, rekap, dashboard); PUM melihat
+  draft sejak ikut menjadi pengaju (Okt 2026).
 - Data demo: tanggal relatif terhadap hari ini (±11 bulan ke belakang), waktu aktivitas di jam kerja (Sen–Jum 08.00–16.30).
 - Master data dibaca server per permintaan (tanpa cache) & client lewat `useKamus()` (KonfigProvider, staleTime 5 menit,
   disegarkan setelah admin mengubah master). Kode jenis yang tak dikenal tetap tampil dengan tampilan cadangan.

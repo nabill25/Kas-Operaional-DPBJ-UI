@@ -149,15 +149,15 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 export const ROLE_KETERANGAN: Record<Role, string> = {
   operator: 'Membuat pengajuan, mengunggah berkas, dan mengajukan ke PUM',
-  pum: 'Memeriksa & mencentang berkas, mengembalikan, memverifikasi, menginput No. Invoice MDK, dan menandai selesai',
+  pum: 'Memeriksa & mencentang berkas, mengembalikan, memverifikasi, menginput No. Invoice MDK, menandai selesai, serta dapat membuat & mengajukan pengajuan',
   pimpinan: 'Memantau dashboard, daftar pengajuan, serta rekap & laporan (hanya lihat)',
   admin: 'Semua akses termasuk kelola pengguna & master data',
 };
 
-/** Peran yang boleh melihat pengajuan berstatus draft. */
-export const ROLE_LIHAT_DRAFT: readonly Role[] = ['operator', 'admin'];
-/** Peran yang membuat & mengelola pengajuan (operator/pengaju). */
-export const ROLE_PENGAJU: readonly Role[] = ['operator', 'admin'];
+/** Peran yang boleh melihat pengajuan berstatus draft (pengaju; PUM ikut mengajukan sejak Okt 2026). */
+export const ROLE_LIHAT_DRAFT: readonly Role[] = ['operator', 'pum', 'admin'];
+/** Peran yang membuat & mengelola pengajuan (pengaju: operator, PUM, admin). */
+export const ROLE_PENGAJU: readonly Role[] = ['operator', 'pum', 'admin'];
 /** Peran yang memeriksa berkas & memproses (PUM). */
 export const ROLE_PUM: readonly Role[] = ['pum', 'admin'];
 

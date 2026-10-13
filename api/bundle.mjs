@@ -43760,8 +43760,8 @@ var JENIS_BERKAS_LAINNYA = "lainnya";
 var LABEL_BERKAS_LAINNYA = "Dokumen Lainnya";
 var STATUS_CEK_LIST = ["sesuai", "revisi"];
 var ROLE_LIST = ["operator", "pum", "pimpinan", "admin"];
-var ROLE_LIHAT_DRAFT = ["operator", "admin"];
-var ROLE_PENGAJU = ["operator", "admin"];
+var ROLE_LIHAT_DRAFT = ["operator", "pum", "admin"];
+var ROLE_PENGAJU = ["operator", "pum", "admin"];
 var ROLE_PUM = ["pum", "admin"];
 var STATUS_BISA_DIBAYARKAN = ["diajukan_pum", "diverifikasi_pum", "diajukan_mdk", "selesai"];
 var MAX_PESERTA_TRANSPORT = 2;
@@ -45462,7 +45462,7 @@ async function simpanPeserta(db, pengajuanId, data) {
   }
 }
 async function buatPengajuan(db, user, data, jenis) {
-  if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat membuat pengajuan");
+  if (!bolehKelola(user)) throw forbidden("Hanya operator, PUM, atau admin yang dapat membuat pengajuan");
   if (!jenis.aktif) {
     throw badRequest(`Jenis pengajuan ${jenis.label} sudah nonaktif sehingga tidak dapat dipakai untuk pengajuan baru`, {
       kategori: "Jenis pengajuan nonaktif"
@@ -45510,7 +45510,7 @@ function teksRekening(bank, nomor) {
   return bank && nomor ? `${bank} ${nomor}` : "-";
 }
 function pastikanBisaEdit(user, row) {
-  if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat mengubah pengajuan");
+  if (!bolehKelola(user)) throw forbidden("Hanya operator, PUM, atau admin yang dapat mengubah pengajuan");
   if (!STATUS_BISA_EDIT.includes(row.status)) {
     throw conflict(
       row.status === "diajukan_pum" ? "Pengajuan sedang diperiksa PUM sehingga tidak dapat diubah. Tarik kembali terlebih dahulu." : row.status === "diverifikasi_pum" ? "Pengajuan sudah diverifikasi PUM sehingga tidak dapat diubah." : row.status === "diajukan_mdk" ? "Pengajuan sudah diajukan ke MDK sehingga tidak dapat diubah." : "Pengajuan yang sudah selesai tidak dapat diubah"
@@ -45592,7 +45592,7 @@ async function hapusPengajuan(db, user, id) {
 async function ajukan(db, user, id) {
   await db.tx(async (txDb) => {
     const awal = await ambilPengajuan(txDb, user, id);
-    if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat mengajukan");
+    if (!bolehKelola(user)) throw forbidden("Hanya operator, PUM, atau admin yang dapat mengajukan");
     if (!STATUS_BISA_EDIT.includes(awal.status)) {
       throw conflict("Hanya pengajuan berstatus Draft atau Dikembalikan yang dapat diajukan ke PUM");
     }
@@ -45628,7 +45628,7 @@ async function ajukan(db, user, id) {
 async function tarikKembali(db, user, id) {
   await db.tx(async (txDb) => {
     const row = await ambilPengajuan(txDb, user, id);
-    if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat menarik pengajuan");
+    if (!bolehKelola(user)) throw forbidden("Hanya operator, PUM, atau admin yang dapat menarik pengajuan");
     if (row.status !== "diajukan_pum") {
       throw conflict("Hanya pengajuan yang masih diperiksa PUM (belum diverifikasi) yang dapat ditarik kembali");
     }
@@ -45969,7 +45969,7 @@ async function batalkanSelesai(db, user, id, alasan) {
 }
 async function pastikanBisaKelolaBerkas(db, user, pengajuanId) {
   const row = await ambilPengajuan(db, user, pengajuanId);
-  if (!bolehKelola(user)) throw forbidden("Hanya operator/pengaju atau admin yang dapat mengelola berkas");
+  if (!bolehKelola(user)) throw forbidden("Hanya operator, PUM, atau admin yang dapat mengelola berkas");
   if (!STATUS_BISA_EDIT.includes(row.status)) {
     throw conflict("Berkas hanya dapat diubah saat pengajuan berstatus Draft atau Dikembalikan");
   }
@@ -46554,8 +46554,8 @@ async function dashboard(db, user, tahunInput) {
 }
 async function antrian(db, user) {
   const hitung = async (s) => (await db.get("SELECT COUNT(*)::int AS c FROM pengajuan WHERE status = ?", s))?.c ?? 0;
-  const pum = user.role === "pum" || user.role === "admin";
-  const pengaju = user.role === "operator" || user.role === "admin";
+  const pum = ROLE_PUM.includes(user.role);
+  const pengaju = ROLE_PENGAJU.includes(user.role);
   const pendaftar = user.role === "admin" ? (await db.get("SELECT COUNT(*)::int AS c FROM users WHERE menunggu_persetujuan = true"))?.c ?? 0 : 0;
   return {
     diajukan_pum: pum ? await hitung("diajukan_pum") : 0,
