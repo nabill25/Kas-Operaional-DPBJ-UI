@@ -19,6 +19,7 @@ import type {
   JenisPengajuanBersih,
   PasanganBersih,
   ProjectBersih,
+  SifatBerkasBersih,
   TaskBersih,
 } from '../../shared/validation';
 import { nowIso, type Db } from '../db-pg';
@@ -72,21 +73,29 @@ export async function daftarJenisPengajuan(db: Db, denganPemakaian = false): Pro
 }
 
 export async function daftarJenisBerkas(db: Db, denganPemakaian = false): Promise<JenisBerkasMaster[]> {
-  const rows = await db.all<Omit<JenisBerkasMaster, 'dipakai'> & { jp: string[] | null; jumlah_berkas: number | null }>(
+  const rows = await db.all<
+    Omit<JenisBerkasMaster, 'dipakai'> & { jp: string[] | null; jp_wajib: string[] | null; jumlah_berkas: number | null }
+  >(
     `SELECT jb.kode, jb.label, jb.keterangan, jb.aktif, jb.bawaan, jb.urutan
             ${
               denganPemakaian
-                ? `, (SELECT array_agg(m.jenis_pengajuan ORDER BY m.jenis_pengajuan) FROM jenis_pengajuan_berkas m
+                ? `, (SELECT array_agg(m.jenis_pengajuan ORDER BY j.urutan, m.jenis_pengajuan)
+                       FROM jenis_pengajuan_berkas m JOIN jenis_pengajuan j ON j.kode = m.jenis_pengajuan
                       WHERE m.jenis_berkas = jb.kode) AS jp,
+                   (SELECT array_agg(m.jenis_pengajuan ORDER BY j.urutan, m.jenis_pengajuan)
+                       FROM jenis_pengajuan_berkas m JOIN jenis_pengajuan j ON j.kode = m.jenis_pengajuan
+                      WHERE m.jenis_berkas = jb.kode AND m.wajib) AS jp_wajib,
                    (SELECT COUNT(*) FROM berkas b WHERE b.jenis = jb.kode)::int AS jumlah_berkas`
                 : ''
             }
        FROM jenis_berkas jb ORDER BY jb.urutan, jb.label`,
   );
-  return rows.map(({ jp, jumlah_berkas, ...r }) => ({
+  return rows.map(({ jp, jp_wajib, jumlah_berkas, ...r }) => ({
     ...r,
     urutan: Number(r.urutan),
-    ...(denganPemakaian ? { dipakai: { jenis_pengajuan: jp ?? [], berkas: Number(jumlah_berkas ?? 0) } } : {}),
+    ...(denganPemakaian
+      ? { dipakai: { jenis_pengajuan: jp ?? [], wajib: jp_wajib ?? [], berkas: Number(jumlah_berkas ?? 0) } }
+      : {}),
   }));
 }
 
@@ -313,6 +322,35 @@ export async function ubahJenisBerkas(db: Db, kode: string, data: JenisBerkasBer
     nowIso(),
     kode,
   );
+}
+
+/**
+ * Atur sifat jenis berkas (wajib / tidak wajib) pada jenis pengajuan yang memakainya (Master Jenis Berkas). Data sama dengan
+ * pilihan Wajib/Tidak wajib di form Master Jenis Pengajuan. Mengembalikan kode jenis pengajuan yang sifatnya berubah
+ * (draft/dikembalikan jenis itu perlu disinkronkan).
+ */
+export async function ubahSifatBerkas(db: Db, kodeBerkas: string, sifat: readonly SifatBerkasBersih[]): Promise<string[]> {
+  if (sifat.length === 0) return [];
+  const rows = await db.all<{ jenis_pengajuan: string; wajib: boolean }>(
+    'SELECT jenis_pengajuan, wajib FROM jenis_pengajuan_berkas WHERE jenis_berkas = ?',
+    kodeBerkas,
+  );
+  const sekarang = new Map(rows.map((r) => [r.jenis_pengajuan, r.wajib]));
+  if (sifat.some((s) => !sekarang.has(s.jenis_pengajuan))) {
+    throw conflict('Daftar jenis pengajuan yang memakai berkas ini sudah berubah. Muat ulang halaman, lalu coba lagi.');
+  }
+  const berubah = sifat.filter((s) => sekarang.get(s.jenis_pengajuan) !== s.wajib);
+  const waktu = nowIso();
+  for (const s of berubah) {
+    await db.run(
+      'UPDATE jenis_pengajuan_berkas SET wajib = ? WHERE jenis_pengajuan = ? AND jenis_berkas = ?',
+      s.wajib,
+      s.jenis_pengajuan,
+      kodeBerkas,
+    );
+    await db.run('UPDATE jenis_pengajuan SET updated_at = ? WHERE kode = ?', waktu, s.jenis_pengajuan);
+  }
+  return berubah.map((s) => s.jenis_pengajuan);
 }
 
 export async function hapusJenisBerkas(db: Db, kode: string): Promise<void> {

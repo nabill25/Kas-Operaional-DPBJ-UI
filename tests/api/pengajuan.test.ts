@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   TAHUN_INI,
+  ajukanLengkap,
   buatKonteks,
   dataKonsumsi,
   dataPerjadin,
@@ -312,7 +313,7 @@ describe('Kode, ubah, hapus, hak akses', () => {
 
   it('PUM boleh memeriksa & memverifikasi pengajuan yang ia ajukan sendiri', async () => {
     const { body } = await pum.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0]));
-    expect((await pum.post(`/api/pengajuan/${body.id}/ajukan`)).body.status).toBe('diajukan_pum');
+    expect((await ajukanLengkap(ctx, pum, body.id)).body.status).toBe('diajukan_pum');
     for (const jenis of ['notulen', 'undangan', 'invoice', 'daftar_hadir']) {
       expect((await pum.put(`/api/pengajuan/${body.id}/cek-berkas`).send({ jenis, status: 'sesuai' })).status).toBe(200);
     }

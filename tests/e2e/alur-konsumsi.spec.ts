@@ -242,7 +242,7 @@ test('PUM menandai berkas perlu revisi & mengembalikan; pengaju dinotifikasi, me
   await unggahBerkas(page, jenis, `${jenis}-revisi.pdf`);
   await expect(baris).toHaveAttribute('data-cek', 'belum');
   await page.getByRole('button', { name: 'Ajukan ulang ke PUM' }).click();
-  await page.getByRole('button', { name: /Ajukan sekarang|Tetap ajukan/ }).click();
+  await page.getByRole('dialog', { name: 'Ajukan ulang ke PUM?' }).getByRole('button', { name: 'Ajukan sekarang' }).click();
   await expect(page.getByRole('button', { name: 'Tarik kembali' })).toBeVisible();
   await expect(page.getByText('Diajukan ulang.')).toBeVisible();
 });

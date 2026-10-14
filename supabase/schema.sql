@@ -224,7 +224,7 @@ create table pengajuan (
   dibayar_by          bigint references users (id),
   total               bigint not null default 0 check (total >= 0),
   catatan             text,
-  berkas_na           jsonb not null default '[]'::jsonb,
+  berkas_na           jsonb not null default '[]'::jsonb, -- data lama: tanda "tidak diperlukan" (dihapus Okt 2026, tidak dipakai)
   -- Berkas pengajuan ini: [{"kode": "...", "wajib": true|false}] urut tampil (data lama: ["kode", …] = semua wajib).
   -- Mengikuti master selama draft/dikembalikan, dibekukan saat diajukan ke PUM. null = ikut master jenisnya.
   berkas_daftar       jsonb,

@@ -1,12 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Ban,
   Check,
   CircleAlert,
   CircleCheck,
   CloudUpload,
   Download,
-  Ellipsis,
   ExternalLink,
   Eye,
   FileArchive,
@@ -32,12 +30,11 @@ import { useKamus } from '../../context/KonfigContext';
 import { useKonfirmasi } from '../../context/KonfirmasiContext';
 import { ApiError, unggahBerkas, urlBerkas } from '../../lib/api';
 import { cn } from '../../lib/cn';
-import { segarkanSemua, useBerkasNa, useCekBerkas, useHapusBerkas } from '../../lib/queries';
+import { segarkanSemua, useCekBerkas, useHapusBerkas } from '../../lib/queries';
 import { Button, kelasTombol } from '../ui/Button';
 import { Input, Textarea } from '../ui/Field';
 import { GlassCard } from '../ui/GlassCard';
 import { Kosong } from '../ui/Kosong';
-import { Menu, MenuItem } from '../ui/Menu';
 import { Modal } from '../ui/Modal';
 
 interface Unggahan {
@@ -118,7 +115,6 @@ function statusBaris(b: Baris): { teks: string; nada: Nada } {
   if (b.sifat === 'lainnya') return { teks: b.files.length ? 'Tambahan' : 'Opsional', nada: 'abu' };
   if (b.sifat === 'di-luar') return { teks: 'Di luar daftar', nada: 'abu' };
   if (b.files.length > 0) return { teks: 'Belum Verifikasi', nada: 'kuning' };
-  if (b.item?.na) return { teks: 'Tidak Diperlukan', nada: 'abu' };
   return { teks: 'Belum Diunggah', nada: b.sifat === 'wajib' ? 'oranye' : 'abu' };
 }
 
@@ -154,7 +150,7 @@ export function BerkasPanel({
   footer,
 }: {
   p: PengajuanDetail;
-  /** Pengaju boleh mengunggah/menghapus/menandai N/A (draft & dikembalikan). */
+  /** Pengaju boleh mengunggah/menghapus berkas (draft & dikembalikan). */
   bisaKelola: boolean;
   /** PUM boleh mencentang berkas (status Diajukan ke PUM). */
   bisaCek?: boolean;
@@ -165,7 +161,6 @@ export function BerkasPanel({
   const qc = useQueryClient();
   const kamus = useKamus();
   const konfirmasi = useKonfirmasi();
-  const naMut = useBerkasNa(p.id);
   const hapusMut = useHapusBerkas();
   const cekMut = useCekBerkas(p.id);
   const [unggahan, setUnggahan] = useState<Record<string, Unggahan[]>>({});
@@ -278,15 +273,6 @@ export function BerkasPanel({
       toast.success('Berkas dihapus');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Gagal menghapus berkas');
-    }
-  };
-
-  const ubahNa = async (jenis: string, na: boolean) => {
-    try {
-      await naMut.mutateAsync({ jenis, na });
-      toast.success(na ? 'Ditandai tidak diperlukan' : 'Tanda tidak diperlukan dibatalkan');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Gagal memperbarui tanda berkas');
     }
   };
 
@@ -483,32 +469,6 @@ export function BerkasPanel({
               onPratinjau={setPratinjau}
               onHapus={hapus}
               onCek={(s, c) => (b.item ? cek(b.item, s, c) : Promise.resolve(false))}
-              menu={
-                mode === 'pengaju' && b.item?.wajib && b.files.length === 0 ? (
-                  <Menu
-                    lebar="w-64"
-                    pemicu={
-                      <button
-                        type="button"
-                        className="grid size-8 place-items-center rounded-lg text-fg-muted ring-1 ring-fg/10 transition hover:bg-fg/[0.06] hover:text-fg"
-                        aria-label={`Opsi ${b.label}`}
-                      >
-                        <Ellipsis className="size-4" />
-                      </button>
-                    }
-                  >
-                    {b.item.na ? (
-                      <MenuItem ikon={<RotateCcw />} onSelect={() => void ubahNa(b.kunci, false)}>
-                        Batalkan tanda “tidak diperlukan”
-                      </MenuItem>
-                    ) : (
-                      <MenuItem ikon={<Ban />} onSelect={() => void ubahNa(b.kunci, true)}>
-                        Tandai tidak diperlukan
-                      </MenuItem>
-                    )}
-                  </Menu>
-                ) : null
-              }
               tambahan={
                 b.sifat === 'lainnya' && mode === 'pengaju' ? (
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
@@ -632,7 +592,6 @@ function BarisDokumen({
   onPratinjau,
   onHapus,
   onCek,
-  menu,
   tambahan,
 }: {
   b: Baris;
@@ -645,7 +604,6 @@ function BarisDokumen({
   onPratinjau: (b: Berkas) => void;
   onHapus: (b: Berkas) => void;
   onCek: (status: StatusCek | null, catatan?: string) => Promise<boolean>;
-  menu: ReactNode;
   /** Isian tambahan selebar baris (Dokumen Lainnya: nama + unggah). */
   tambahan: ReactNode;
 }) {
@@ -657,7 +615,7 @@ function BarisDokumen({
   const item = b.item;
   const c = item?.cek ?? null;
   const sesuai = c?.status === 'sesuai';
-  const keadaan = b.files.length > 0 ? 'ada' : item?.na ? 'na' : 'kosong';
+  const keadaan = b.files.length > 0 ? 'ada' : 'kosong';
   const status = statusBaris(b);
   const bisaUnggah = mode === 'pengaju' && (b.sifat === 'wajib' || b.sifat === 'opsional');
   // PUM memeriksa berkas wajib (juga berkas fisik tanpa file) dan berkas opsional yang sudah diunggah/diperiksa.
@@ -820,24 +778,19 @@ function BarisDokumen({
 
         {b.files.length === 0 && unggahan.length === 0 && (
           <p className="text-xs text-fg-subtle @[52rem]:col-start-1">
-            {keadaan === 'na'
-              ? 'Ditandai tidak diperlukan oleh pengaju'
-              : bisaUnggah
-                ? 'Belum diunggah — klik Unggah atau seret file ke sini'
-                : b.sifat === 'lainnya'
-                  ? 'Belum ada dokumen lainnya'
-                  : 'Belum diunggah'}
+            {bisaUnggah
+              ? b.sifat === 'wajib'
+                ? 'Wajib diunggah sebelum diajukan — klik Unggah atau seret file ke sini'
+                : 'Belum diunggah — klik Unggah atau seret file ke sini'
+              : b.sifat === 'lainnya'
+                ? 'Belum ada dokumen lainnya'
+                : 'Belum diunggah'}
           </p>
         )}
 
         {adaAksiPeran && (
           <div className="flex flex-wrap items-center gap-1.5 @[52rem]:col-start-3">
-            {bisaUnggah && (
-              <>
-                <PilihFile label={b.files.length > 0 ? 'Tambah file' : 'Unggah'} onPilih={onUnggah} multiple />
-                {menu}
-              </>
-            )}
+            {bisaUnggah && <PilihFile label={b.files.length > 0 ? 'Tambah file' : 'Unggah'} onPilih={onUnggah} multiple />}
             {bisaCek && (
               <>
                 <label

@@ -36,7 +36,7 @@ import { useTema } from '../../context/ThemeContext';
 import { ApiError } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { useHapusJenisPengajuan, useMasterJenisPengajuan, useSimpanJenisPengajuan, type DataJenisPengajuan } from '../../lib/queries';
-import { BarisFilter, CentangAktif, ChipAktif, ChipInfo, MenuAksi, cocokCari, cocokFilter, type FilterAktif } from './bersama';
+import { BarisFilter, CentangAktif, ChipAktif, ChipInfo, MenuAksi, PilihSifat, cocokCari, cocokFilter, type FilterAktif } from './bersama';
 
 export default function MasterJenisPengajuanPage() {
   const { data = [], isLoading } = useMasterJenisPengajuan();
@@ -85,7 +85,7 @@ export default function MasterJenisPengajuanPage() {
     <div>
       <PageHeader
         judul="Master Jenis Pengajuan"
-        deskripsi="Kategori pengajuan beserta model form, awalan kode, mekanisme, dan berkas wajib/opsionalnya. Jenis aktif langsung muncul di Buat Pengajuan."
+        deskripsi="Kategori pengajuan beserta model form, awalan kode, mekanisme, dan berkas wajib/tidak wajibnya. Jenis aktif langsung muncul di Buat Pengajuan."
         aksi={
           <Button ikon={<Plus className="size-4" />} onClick={() => setForm({ open: true, j: null })}>
             Tambah Jenis Pengajuan
@@ -147,10 +147,10 @@ export default function MasterJenisPengajuanPage() {
                       <div className="mt-3">
                         <p className="text-[10.5px] font-bold tracking-[0.08em] text-fg-subtle uppercase">
                           Berkas · {j.berkas.filter((b) => b.wajib).length} wajib
-                          {j.berkas.some((b) => !b.wajib) ? `, ${j.berkas.filter((b) => !b.wajib).length} opsional` : ''}
+                          {j.berkas.some((b) => !b.wajib) ? `, ${j.berkas.filter((b) => !b.wajib).length} tidak wajib` : ''}
                         </p>
                         {j.berkas.length === 0 ? (
-                          <p className="mt-1 text-xs text-fg-muted">Tidak ada (hanya {LABEL_BERKAS_LAINNYA} opsional)</p>
+                          <p className="mt-1 text-xs text-fg-muted">Tidak ada (hanya {LABEL_BERKAS_LAINNYA}, tidak wajib)</p>
                         ) : (
                           <ol className="mt-1 flex flex-wrap gap-1.5" aria-label={`Berkas ${j.label}`}>
                             {j.berkas.map((b, i) => (
@@ -163,7 +163,7 @@ export default function MasterJenisPengajuanPage() {
                                 )}
                               >
                                 <span className="text-fg-subtle">{i + 1}.</span> {kamus.labelBerkas(b.kode)}
-                                {!b.wajib && <span className="text-fg-subtle"> · opsional</span>}
+                                {!b.wajib && <span className="text-fg-subtle"> · tidak wajib</span>}
                               </li>
                             ))}
                           </ol>
@@ -197,7 +197,7 @@ export default function MasterJenisPengajuanPage() {
 
       <div className="mt-5 space-y-1.5 text-xs text-fg-muted">
         <p className="flex items-start gap-2">
-          <Info className="mt-px size-3.5 shrink-0" aria-hidden /> Mengubah daftar berkas (wajib/opsional) berlaku untuk pengajuan baru dan
+          <Info className="mt-px size-3.5 shrink-0" aria-hidden /> Mengubah daftar berkas (wajib/tidak wajib) berlaku untuk pengajuan baru dan
           pengajuan yang masih Draft atau Dikembalikan. Pengajuan yang sudah diajukan ke PUM, diverifikasi, atau selesai tetap memakai daftar
           lamanya.
         </p>
@@ -212,7 +212,7 @@ export default function MasterJenisPengajuanPage() {
         onOpenChange={(o) => setForm((f) => ({ ...f, open: o }))}
         terkunci={simpan.isPending}
         judul={form.j ? `Ubah ${form.j.label}` : 'Tambah jenis pengajuan'}
-        deskripsi="Atur nama, awalan kode, model form, mekanisme, berkas wajib/opsional, dan tampilan di grafik."
+        deskripsi="Atur nama, awalan kode, model form, mekanisme, berkas wajib/tidak wajib, dan tampilan di grafik."
         ikon={<Shapes className="size-5" />}
         lebar="lg"
       >
@@ -424,7 +424,7 @@ function FormJenis({
         </Field>
       )}
 
-      {/* Berkas wajib & opsional */}
+      {/* Berkas wajib & tidak wajib (sifat yang sama juga dapat diatur dari Master Jenis Berkas) */}
       <fieldset data-field="berkas">
         <legend className="mb-1.5 flex w-full items-center justify-between gap-2 text-[13px] font-semibold text-fg">
           Berkas (urut tampil)
@@ -433,12 +433,12 @@ function FormJenis({
           </Link>
         </legend>
         <p className="mb-2 text-xs text-fg-muted">
-          <b className="text-fg">Wajib</b> dihitung kelengkapan & harus dicentang sesuai PUM sebelum verifikasi.{' '}
-          <b className="text-fg">Opsional</b> tetap tampil di tabel berkas tanpa tanda wajib.
+          <b className="text-fg">Wajib</b> harus diunggah sebelum pengajuan dapat diajukan ke PUM & dicentang sesuai PUM sebelum
+          verifikasi. <b className="text-fg">Tidak wajib</b> tetap tampil di tabel berkas tanpa tanda wajib & tidak menghalangi pengajuan.
         </p>
         {berkas.length === 0 ? (
           <p className="rounded-2xl bg-fg/[0.03] px-3.5 py-3 text-xs text-fg-muted ring-1 ring-fg/[0.06]">
-            Belum ada berkas. {LABEL_BERKAS_LAINNYA} selalu tersedia sebagai berkas opsional.
+            Belum ada berkas. {LABEL_BERKAS_LAINNYA} selalu tersedia sebagai berkas tidak wajib.
           </p>
         ) : (
           <ol className="space-y-1.5" aria-label="Berkas terpilih">
@@ -453,32 +453,7 @@ function FormJenis({
                 >
                   <span className="w-5 text-xs font-bold text-fg-subtle">{i + 1}.</span>
                   <span className="min-w-0 flex-1 basis-40 truncate text-sm font-semibold text-fg">{nama}</span>
-                  <div role="radiogroup" aria-label={`Sifat ${nama}`} className="flex rounded-lg bg-fg/[0.05] p-0.5 ring-1 ring-fg/[0.06]">
-                    {(
-                      [
-                        [true, 'Wajib'],
-                        [false, 'Opsional'],
-                      ] as const
-                    ).map(([nilai, teks]) => (
-                      <button
-                        key={teks}
-                        type="button"
-                        role="radio"
-                        aria-checked={b.wajib === nilai}
-                        onClick={() => ubahSifat(b.kode, nilai)}
-                        className={cn(
-                          'h-7 rounded-md px-2.5 text-xs font-semibold transition',
-                          b.wajib === nilai
-                            ? nilai
-                              ? 'bg-red-500/12 text-red-700 ring-1 ring-red-500/25 dark:text-red-300'
-                              : 'bg-surface text-fg shadow-sm ring-1 ring-fg/10'
-                            : 'text-fg-muted hover:text-fg',
-                        )}
-                      >
-                        {teks}
-                      </button>
-                    ))}
-                  </div>
+                  <PilihSifat label={`Sifat ${nama}`} wajib={b.wajib} onChange={(wajib) => ubahSifat(b.kode, wajib)} />
                   <div className="flex items-center">
                     <button
                       type="button"

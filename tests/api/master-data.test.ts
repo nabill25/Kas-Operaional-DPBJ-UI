@@ -11,7 +11,19 @@ import type {
   RekapPengajuanData,
 } from '../../shared/types';
 import { PROJECT_TASK_AWAL } from '../support/project-task-awal';
-import { FILE_CONTOH, TAHUN_INI, buatKonteks, dataKonsumsi, masuk, unggah, type Agent, type Konteks } from './helpers';
+import {
+  FILE_CONTOH,
+  TAHUN_INI,
+  ajukanLengkap,
+  buatKonteks,
+  dataKonsumsi,
+  dataPerjadin,
+  dataRumahTangga,
+  masuk,
+  unggah,
+  type Agent,
+  type Konteks,
+} from './helpers';
 
 let ctx: Konteks;
 let op: Agent;
@@ -161,7 +173,7 @@ describe('Master Jenis Berkas', () => {
     expect((await admin.delete('/api/master/jenis-berkas/kontrak')).status).toBe(200);
     expect((await admin.delete('/api/master/jenis-berkas/kontrak')).status).toBe(404);
     const daftar = (await admin.get('/api/master/jenis-berkas')).body as JenisBerkasMaster[];
-    expect(daftar.find((b) => b.kode === 'notulen')?.dipakai).toEqual({ jenis_pengajuan: ['konsumsi'], berkas: 0 });
+    expect(daftar.find((b) => b.kode === 'notulen')?.dipakai).toEqual({ jenis_pengajuan: ['konsumsi'], wajib: ['konsumsi'], berkas: 0 });
   });
 
   it('jenis berkas yang sudah punya file di pengajuan tidak dapat dihapus', async () => {
@@ -308,7 +320,7 @@ describe('Master Jenis Pengajuan', () => {
     const draft = (await op.post('/api/pengajuan').send(dataBorongan(satu))).body as PengajuanDetail;
     const diajukan = (await op.post('/api/pengajuan').send(dataBorongan(satu))).body as PengajuanDetail;
     expect((await unggah(ctx, op, draft.id, 'presensi', FILE_CONTOH.pdf, 'presensi.pdf')).status).toBe(201);
-    expect((await op.post(`/api/pengajuan/${diajukan.id}/ajukan`)).status).toBe(200);
+    expect((await ajukanLengkap(ctx, op, diajukan.id)).status).toBe(200);
 
     await admin.post('/api/master/jenis-berkas').send({ label: 'Kuitansi' });
     const res = await admin
@@ -325,11 +337,18 @@ describe('Master Jenis Pengajuan', () => {
 
     const d2 = (await pum.get(`/api/pengajuan/${diajukan.id}`)).body as PengajuanDetail;
     expect(d2.kelengkapan.items.map((i) => i.jenis)).toEqual(['laporan_pekerjaan', 'presensi', 'kontrak']);
-    // Dikembalikan lalu diajukan ulang → mengikuti daftar terbaru.
+    // Dikembalikan → daftar langsung mengikuti master terbaru; berkas wajib baru harus diunggah sebelum diajukan ulang.
     expect((await pum.post(`/api/pengajuan/${diajukan.id}/kembalikan`).send({ catatan: 'Lengkapi kuitansi' })).status).toBe(200);
-    expect((await op.post(`/api/pengajuan/${diajukan.id}/ajukan`)).status).toBe(200);
-    const d3 = (await pum.get(`/api/pengajuan/${diajukan.id}`)).body as PengajuanDetail;
+    const d3 = (await op.get(`/api/pengajuan/${diajukan.id}`)).body as PengajuanDetail;
     expect(d3.kelengkapan.items.map((i) => i.jenis)).toEqual(['kuitansi', 'laporan_pekerjaan', 'presensi']);
+    expect(d3.riwayat[0]).toMatchObject({ aksi: 'diubah', keterangan: 'Berkas mengikuti master — wajib baru: Kuitansi · tidak wajib lagi: Kontrak' });
+    const tolak = await op.post(`/api/pengajuan/${diajukan.id}/ajukan`);
+    expect(tolak.status).toBe(409);
+    expect(tolak.body.message).toContain('1 berkas wajib belum diunggah (Kuitansi)');
+    expect((await unggah(ctx, op, diajukan.id, 'kuitansi', FILE_CONTOH.pdf, 'kuitansi.pdf')).status).toBe(201);
+    expect((await op.post(`/api/pengajuan/${diajukan.id}/ajukan`)).status).toBe(200);
+    const d4 = (await pum.get(`/api/pengajuan/${diajukan.id}`)).body as PengajuanDetail;
+    expect(d4).toMatchObject({ status: 'diajukan_pum', berkas_wajib: 3, berkas_terpenuhi: 3 });
   });
 
   it('awalan kode, nonaktif, model tetap, dan hapus', async () => {
@@ -552,11 +571,13 @@ describe('Berkas wajib & opsional (master Jenis Pengajuan)', () => {
     expect(p).toMatchObject({ berkas_wajib: 2, berkas_terpenuhi: 0 });
     expect(p.kelengkapan).toMatchObject({ total: 2, terpenuhi: 0 });
 
-    // Berkas opsional boleh diunggah tetapi tidak menambah hitungan; N/A hanya untuk berkas wajib.
+    // Berkas opsional (tidak wajib) boleh diunggah tetapi tidak menambah hitungan; ajukan menunggu semua berkas wajib.
     expect((await unggah(ctx, op, p.id, 'presensi', FILE_CONTOH.pdf, 'presensi.pdf')).status).toBe(201);
-    expect((await op.put(`/api/pengajuan/${p.id}/berkas-na`).send({ jenis: 'presensi', na: true })).status).toBe(400);
-    expect((await op.put(`/api/pengajuan/${p.id}/berkas-na`).send({ jenis: 'kontrak', na: true })).status).toBe(200);
     expect((await unggah(ctx, op, p.id, 'laporan_pekerjaan', FILE_CONTOH.pdf, 'laporan.pdf')).status).toBe(201);
+    let res = await op.post(`/api/pengajuan/${p.id}/ajukan`);
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('1 berkas wajib belum diunggah (Kontrak)');
+    expect((await unggah(ctx, op, p.id, 'kontrak', FILE_CONTOH.pdf, 'kontrak.pdf')).status).toBe(201);
     p = (await op.get(`/api/pengajuan/${p.id}`)).body;
     expect(p).toMatchObject({ berkas_wajib: 2, berkas_terpenuhi: 2 });
     expect(p.kelengkapan).toMatchObject({ lengkap: true, terpenuhi: 2, total: 2 });
@@ -566,7 +587,7 @@ describe('Berkas wajib & opsional (master Jenis Pengajuan)', () => {
       expect((await pum.put(`/api/pengajuan/${p.id}/cek-berkas`).send({ jenis, status: 'sesuai' })).status).toBe(200);
     }
     // PUM menandai berkas opsional perlu revisi → verifikasi ditahan.
-    let res = await pum.put(`/api/pengajuan/${p.id}/cek-berkas`).send({ jenis: 'presensi', status: 'revisi', catatan: 'Presensi bulan salah' });
+    res = await pum.put(`/api/pengajuan/${p.id}/cek-berkas`).send({ jenis: 'presensi', status: 'revisi', catatan: 'Presensi bulan salah' });
     expect(res.status).toBe(200);
     expect(res.body.kelengkapan).toMatchObject({ sesuai: 2, total: 2, semuaSesuai: true, revisi: 1, bisaVerifikasi: false });
     expect((await pum.get('/api/pengajuan?status=diajukan_pum')).body.data[0]).toMatchObject({ berkas_sesuai: 2, berkas_wajib: 2, berkas_revisi: 1 });
@@ -580,10 +601,9 @@ describe('Berkas wajib & opsional (master Jenis Pengajuan)', () => {
     expect((await pum.post(`/api/pengajuan/${p.id}/verifikasi`).send({})).status).toBe(200);
   });
 
-  it('mengubah sifat wajib ↔ opsional: draft ikut berubah & tercatat; tanda N/A dilepas dari berkas yang jadi opsional', async () => {
+  it('mengubah sifat wajib ↔ tidak wajib di Master Jenis Pengajuan: draft ikut berubah & tercatat', async () => {
     await buatBorongan();
     const draft = (await op.post('/api/pengajuan').send(dataBorongan([{ pegawai_id: ctx.pegawai[0], nilai: 1 }]))).body as PengajuanDetail;
-    expect((await op.put(`/api/pengajuan/${draft.id}/berkas-na`).send({ jenis: 'presensi', na: true })).status).toBe(200);
     await admin.post('/api/master/jenis-berkas').send({ label: 'Kuitansi' });
     const res = await admin.put('/api/master/jenis-pengajuan/kontrak_borongan').send({
       ...BORONGAN,
@@ -603,9 +623,114 @@ describe('Berkas wajib & opsional (master Jenis Pengajuan)', () => {
       'kontrak:wajib',
       'kuitansi:opsional',
     ]);
-    expect(d.berkas_na).toEqual([]);
     expect(d).toMatchObject({ berkas_wajib: 2, berkas_terpenuhi: 0 });
     expect(d.riwayat[0].keterangan).toBe('Berkas mengikuti master — tidak wajib lagi: Presensi · opsional baru: Kuitansi');
+    // Sifat yang sama terlihat dari Master Jenis Berkas.
+    const jb = (await admin.get('/api/master/jenis-berkas')).body as JenisBerkasMaster[];
+    expect(jb.find((b) => b.kode === 'presensi')?.dipakai).toEqual({ jenis_pengajuan: ['kontrak_borongan'], wajib: [], berkas: 0 });
+    expect(jb.find((b) => b.kode === 'kontrak')?.dipakai).toEqual({ jenis_pengajuan: ['kontrak_borongan'], wajib: ['kontrak_borongan'], berkas: 0 });
+  });
+});
+
+describe('Sifat wajib / tidak wajib dari Master Jenis Berkas', () => {
+  it('admin mengatur wajib/tidak wajib per jenis pengajuan; draft ikut berubah; berkas tidak wajib tidak menghalangi pengajuan', async () => {
+    let daftar = (await admin.get('/api/master/jenis-berkas')).body as JenisBerkasMaster[];
+    // Urut master jenis pengajuan; belum dipakai → kosong.
+    expect(daftar.find((b) => b.kode === 'surat_tugas')?.dipakai).toEqual({
+      jenis_pengajuan: ['rumah_tangga', 'perjadin'],
+      wajib: ['rumah_tangga', 'perjadin'],
+      berkas: 0,
+    });
+    expect(daftar.find((b) => b.kode === 'presensi')?.dipakai).toEqual({ jenis_pengajuan: [], wajib: [], berkas: 0 });
+
+    // Draft Perjadin dengan semua berkas wajib kecuali Invoice Tiket → belum bisa diajukan.
+    const p = (await op.post('/api/pengajuan').send(dataPerjadin([{ pegawai_id: ctx.pegawai[0], uang_transport: 100_000 }])))
+      .body as PengajuanDetail;
+    for (const jenis of ['surat_tugas', 'laporan_kegiatan', 'invoice_hotel']) {
+      expect((await unggah(ctx, op, p.id, jenis, FILE_CONTOH.pdf, `${jenis}.pdf`)).status).toBe(201);
+    }
+    expect((await op.post(`/api/pengajuan/${p.id}/ajukan`)).status).toBe(409);
+
+    // Hanya admin; jenis yang tidak memakai berkas ini ditolak (409, data tetap); format salah 400.
+    const body = { label: 'Invoice Tiket', sifat: [{ jenis_pengajuan: 'perjadin', wajib: false }] };
+    for (const agent of [op, pum, pimpinan]) {
+      expect((await agent.put('/api/master/jenis-berkas/invoice_tiket').send(body)).status).toBe(403);
+    }
+    let res = await admin.put('/api/master/jenis-berkas/invoice_tiket').send({ label: 'Tiket Ganti', sifat: [{ jenis_pengajuan: 'konsumsi', wajib: false }] });
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('Muat ulang halaman');
+    res = await admin.put('/api/master/jenis-berkas/invoice_tiket').send({ ...body, sifat: [{ jenis_pengajuan: 'perjadin', wajib: 'tidak' }] });
+    expect(res.status).toBe(400);
+    expect(res.body.errors.sifat).toBeTruthy();
+    daftar = (await admin.get('/api/master/jenis-berkas')).body as JenisBerkasMaster[];
+    expect(daftar.find((b) => b.kode === 'invoice_tiket')).toMatchObject({ label: 'Invoice Tiket', dipakai: { wajib: ['perjadin'] } });
+
+    // Invoice Tiket jadi tidak wajib di Perjadin → draft ikut berubah & tercatat; konfigurasi (Master Jenis Pengajuan) sama.
+    res = await admin.put('/api/master/jenis-berkas/invoice_tiket').send(body);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body).toMatchObject({ kode: 'invoice_tiket', label: 'Invoice Tiket', disinkron: 1, dipakai: { jenis_pengajuan: ['perjadin'], wajib: [], berkas: 0 } });
+    const konfig = (await op.get('/api/master/konfig')).body as Konfig;
+    expect(konfig.jenisPengajuan.find((j) => j.kode === 'perjadin')?.berkas).toEqual([
+      { kode: 'surat_tugas', wajib: true },
+      { kode: 'laporan_kegiatan', wajib: true },
+      { kode: 'invoice_hotel', wajib: true },
+      { kode: 'invoice_tiket', wajib: false },
+    ]);
+    let d = (await op.get(`/api/pengajuan/${p.id}`)).body as PengajuanDetail;
+    expect(d).toMatchObject({ berkas_wajib: 3, berkas_terpenuhi: 3 });
+    expect(d.riwayat[0]).toMatchObject({ aksi: 'diubah', user_nama: 'Admin Sistem', keterangan: 'Berkas mengikuti master — tidak wajib lagi: Invoice Tiket' });
+
+    // Simpan lagi tanpa perubahan → tidak ada sinkron; tanpa `sifat` → sifat tetap.
+    expect((await admin.put('/api/master/jenis-berkas/invoice_tiket').send(body)).body.disinkron).toBe(0);
+    res = await admin.put('/api/master/jenis-berkas/invoice_tiket').send({ label: 'Invoice Tiket Pesawat' });
+    expect(res.body).toMatchObject({ label: 'Invoice Tiket Pesawat', disinkron: 0, dipakai: { wajib: [] } });
+
+    // Berkas tidak wajib yang belum diunggah tidak menghalangi pengajuan.
+    res = await op.post(`/api/pengajuan/${p.id}/ajukan`);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'diajukan', keterangan: 'Berkas lengkap (3/3)' });
+
+    // Kembali wajib: pengajuan yang sudah diajukan tidak berubah (dibekukan); pengajuan baru wajib lagi.
+    res = await admin
+      .put('/api/master/jenis-berkas/invoice_tiket')
+      .send({ label: 'Invoice Tiket', sifat: [{ jenis_pengajuan: 'perjadin', wajib: true }] });
+    expect(res.body).toMatchObject({ disinkron: 0, dipakai: { wajib: ['perjadin'] } });
+    d = (await pum.get(`/api/pengajuan/${p.id}`)).body as PengajuanDetail;
+    expect(d.kelengkapan.items.find((i) => i.jenis === 'invoice_tiket')?.wajib).toBe(false);
+    const baru = (await op.post('/api/pengajuan').send(dataPerjadin([{ pegawai_id: ctx.pegawai[1], uang_transport: 50_000 }])))
+      .body as PengajuanDetail;
+    expect(baru.kelengkapan.items.find((i) => i.jenis === 'invoice_tiket')?.wajib).toBe(true);
+  });
+
+  it('berkas yang sama boleh wajib di satu jenis & tidak wajib di jenis lain', async () => {
+    const res = await admin.put('/api/master/jenis-berkas/surat_tugas').send({
+      label: 'Surat Tugas',
+      sifat: [
+        { jenis_pengajuan: 'rumah_tangga', wajib: false },
+        { jenis_pengajuan: 'perjadin', wajib: true },
+      ],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.dipakai).toEqual({ jenis_pengajuan: ['rumah_tangga', 'perjadin'], wajib: ['perjadin'], berkas: 0 });
+    const jp = (await admin.get('/api/master/jenis-pengajuan')).body as JenisPengajuan[];
+    expect(jp.find((j) => j.kode === 'rumah_tangga')?.berkas).toEqual([
+      { kode: 'surat_tugas', wajib: false },
+      { kode: 'laporan_kegiatan', wajib: true },
+    ]);
+    expect(jp.find((j) => j.kode === 'perjadin')?.berkas[0]).toEqual({ kode: 'surat_tugas', wajib: true });
+
+    // Rumah Tangga cukup Laporan Kegiatan; Perjadin tetap butuh Surat Tugas.
+    const rt = (await op.post('/api/pengajuan').send(dataRumahTangga([{ pegawai_id: ctx.pegawai[0], nilai: 75_000 }]))).body as PengajuanDetail;
+    expect(rt.kelengkapan).toMatchObject({ total: 1, terpenuhi: 0 });
+    expect((await unggah(ctx, op, rt.id, 'laporan_kegiatan', FILE_CONTOH.pdf, 'lap.pdf')).status).toBe(201);
+    expect((await op.post(`/api/pengajuan/${rt.id}/ajukan`)).status).toBe(200);
+    const pd = (await op.post('/api/pengajuan').send(dataPerjadin([{ pegawai_id: ctx.pegawai[0], uang_harian: 150_000 }]))).body as PengajuanDetail;
+    for (const jenis of ['laporan_kegiatan', 'invoice_hotel', 'invoice_tiket']) {
+      expect((await unggah(ctx, op, pd.id, jenis, FILE_CONTOH.pdf, `${jenis}.pdf`)).status).toBe(201);
+    }
+    const tolak = await op.post(`/api/pengajuan/${pd.id}/ajukan`);
+    expect(tolak.status).toBe(409);
+    expect(tolak.body.message).toContain('(Surat Tugas)');
   });
 });
 

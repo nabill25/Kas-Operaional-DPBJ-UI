@@ -39,6 +39,7 @@ import {
   ubahJenisBerkas,
   ubahJenisPengajuan,
   ubahProject,
+  ubahSifatBerkas,
   ubahTask,
 } from '../services/master';
 import { sinkronDaftarBerkas } from '../services/pengajuan';
@@ -105,10 +106,20 @@ export function masterRoutes(db: Db): Router {
     res.status(201).json((await daftarJenisBerkas(db, true)).find((b) => b.kode === kode));
   });
 
+  // Nama/keterangan/aktif + sifat wajib/tidak wajib per jenis pengajuan pemakai (opsional, `sifat`).
   r.put('/jenis-berkas/:kode', admin, async (req, res) => {
     const kode = kodeParam(req.params.kode, 'Jenis berkas');
-    await ubahJenisBerkas(db, kode, assertValid(validateJenisBerkas(req.body)));
-    res.json((await daftarJenisBerkas(db, true)).find((b) => b.kode === kode));
+    const data = assertValid(validateJenisBerkas(req.body));
+    const disinkron = await db.tx(async (tx) => {
+      await ubahJenisBerkas(tx, kode, data);
+      // Draft/dikembalikan jenis yang sifat berkasnya berubah langsung mengikuti (sama seperti ubah jenis pengajuan).
+      let n = 0;
+      for (const jenis of await ubahSifatBerkas(tx, kode, data.sifat)) {
+        n += await sinkronDaftarBerkas(tx, { kategori: jenis }, userOf(req).id);
+      }
+      return n;
+    });
+    res.json({ ...(await daftarJenisBerkas(db, true)).find((b) => b.kode === kode), disinkron });
   });
 
   r.delete('/jenis-berkas/:kode', admin, async (req, res) => {

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { expect } from 'vitest';
 import type { Role } from '../../shared/constants';
+import type { PengajuanDetail } from '../../shared/types';
 import { createApp } from '../../server/app';
 import type { AppConfig } from '../../server/config';
 import { buatDb, nowIso, type Db } from '../../server/db-pg';
@@ -140,6 +141,29 @@ export async function unggah(
   return agent
     .post(`/api/pengajuan/${pengajuanId}/berkas/konfirmasi`)
     .send({ key: siap.body.key, jenis, nama_berkas: namaBerkas, nama_asli: nama });
+}
+
+/**
+ * Unggah satu PDF untuk setiap berkas wajib pengajuan yang belum punya file — syarat diajukan ke PUM (Okt 2026).
+ * Mengembalikan detail terakhir.
+ */
+export async function lengkapiBerkasWajib(ctx: Konteks, agent: Agent, pengajuanId: number): Promise<PengajuanDetail> {
+  const res = await agent.get(`/api/pengajuan/${pengajuanId}`);
+  expect(res.status, JSON.stringify(res.body)).toBe(200);
+  let detail = res.body as PengajuanDetail;
+  for (const item of detail.kelengkapan.items) {
+    if (!item.wajib || item.jumlah > 0) continue;
+    const up = await unggah(ctx, agent, pengajuanId, item.jenis, FILE_CONTOH.pdf, `${item.jenis}.pdf`);
+    expect(up.status, JSON.stringify(up.body)).toBe(201);
+    detail = up.body as PengajuanDetail;
+  }
+  return detail;
+}
+
+/** Lengkapi berkas wajib lalu ajukan ke PUM (respons POST ajukan). */
+export async function ajukanLengkap(ctx: Konteks, agent: Agent, pengajuanId: number) {
+  await lengkapiBerkasWajib(ctx, agent, pengajuanId);
+  return agent.post(`/api/pengajuan/${pengajuanId}/ajukan`);
 }
 
 export const TAHUN_INI = new Date().getFullYear();

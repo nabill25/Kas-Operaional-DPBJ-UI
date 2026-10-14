@@ -134,6 +134,10 @@ export function useAksiPengajuan(id: number) {
       segarkanSemua(qc, detail);
       if (a.aksi === 'verifikasi' || a.aksi === 'data-pum') void qc.invalidateQueries({ queryKey: qk.saranPum });
     },
+    // Ajukan ditolak (mis. berkas wajib baru dari master belum diunggah): muat ulang detail agar daftar berkas terbaru tampil.
+    onError: (_err, a) => {
+      if (a.aksi === 'ajukan') void qc.invalidateQueries({ queryKey: qk.pengajuan(id) });
+    },
   });
 }
 
@@ -164,15 +168,6 @@ export function useHapusPengajuan() {
       qc.removeQueries({ queryKey: qk.pengajuan(id) });
       segarkanSemua(qc);
     },
-  });
-}
-
-export function useBerkasNa(id: number) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (v: { jenis: string; na: boolean }) =>
-      api<PengajuanDetail>(`/pengajuan/${id}/berkas-na`, { method: 'PUT', body: v }),
-    onSuccess: (detail) => segarkanSemua(qc, detail),
   });
 }
 
@@ -406,12 +401,20 @@ export function useMasterJenisBerkas() {
   });
 }
 
+/** Data simpan jenis berkas; `sifat` = wajib/tidak wajib per jenis pengajuan pemakai (hanya yang dikirim diubah). */
+export interface DataJenisBerkas {
+  label: string;
+  keterangan: string;
+  aktif: boolean;
+  sifat?: { jenis_pengajuan: string; wajib: boolean }[];
+}
+
 export function useSimpanJenisBerkas() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ kode, data }: { kode?: string; data: { label: string; keterangan: string; aktif: boolean } }) =>
+    mutationFn: ({ kode, data }: { kode?: string; data: DataJenisBerkas }) =>
       kode
-        ? api<JenisBerkasMaster>(`/master/jenis-berkas/${kode}`, { method: 'PUT', body: data })
+        ? api<JenisBerkasMaster & { disinkron: number }>(`/master/jenis-berkas/${kode}`, { method: 'PUT', body: data })
         : api<JenisBerkasMaster>('/master/jenis-berkas', { method: 'POST', body: data }),
     onSuccess: () => segarkanMaster(qc),
   });

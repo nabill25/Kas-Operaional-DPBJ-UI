@@ -26,8 +26,8 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 | Pengajuan | Satu catatan biaya (Konsumsi / Transport RT / Transport Perjadin) |
 | Kategori / Jenis pengajuan | Kode jenis pengajuan dari **master Jenis Pengajuan** (tabel `jenis_pengajuan`). Bawaan: `konsumsi`, `rumah_tangga`, `perjadin` (dua terakhir = Transport); admin bisa menambah jenis baru |
 | Model form | Bentuk isian & aturan validasi jenis pengajuan: `konsumsi`, `rumah_tangga`, `perjadin`, atau `umum` (pegawai + nilai per orang). Tetap setelah jenis dibuat |
-| Jenis berkas | Master dokumen kelengkapan (tabel `jenis_berkas`, kunci = kode). Berkas tiap jenis pengajuan (urut, **wajib** atau **opsional**) diatur di master Jenis Pengajuan. "Dokumen Lainnya" (`lainnya`) bukan bagian master: selalu opsional |
-| Berkas wajib / opsional | Sifat berkas per jenis pengajuan (`jenis_pengajuan_berkas.wajib`, Okt 2026). **Wajib** = bertanda "Wajib", dihitung kelengkapan, harus dicentang sesuai PUM sebelum verifikasi, boleh ditandai N/A. **Opsional** = tampil di tabel berkas tanpa tanda wajib, tidak dihitung kelengkapan, boleh diunggah & diperiksa PUM (tanda revisinya tetap menahan verifikasi), tidak bisa N/A |
+| Jenis berkas | Master dokumen kelengkapan (tabel `jenis_berkas`, kunci = kode). Berkas tiap jenis pengajuan (urut) dicantumkan di master Jenis Pengajuan; sifatnya (**wajib** / **tidak wajib**) per jenis pengajuan diatur di master Jenis Pengajuan **atau** Master Jenis Berkas ("Atur wajib / tidak wajib", Okt 2026 — data sama). "Dokumen Lainnya" (`lainnya`) bukan bagian master: selalu tidak wajib |
+| Berkas wajib / tidak wajib (opsional) | Sifat berkas per jenis pengajuan (`jenis_pengajuan_berkas.wajib`, Okt 2026; boleh berbeda antarjenis untuk berkas yang sama). **Wajib** = bertanda "Wajib", **harus diunggah (≥ 1 file) sebelum pengajuan dapat diajukan / diajukan ulang ke PUM** (14 Okt 2026), dihitung kelengkapan, harus dicentang sesuai PUM sebelum verifikasi. **Tidak wajib** (di kode/kait test: `opsional`) = tampil di tabel berkas tanpa tanda wajib, tidak dihitung kelengkapan & tidak menghalangi pengajuan, boleh diunggah & diperiksa PUM (tanda revisinya tetap menahan verifikasi) |
 | Daftar berkas pengajuan | `pengajuan.berkas_daftar`: salinan daftar berkas jenisnya `[{kode, wajib}]` (format lama `["kode"]` = semua wajib) — mengikuti master selama Draft/Dikembalikan, dibekukan sejak diajukan ke PUM (lihat §4) |
 | KO / LS | Pilihan mekanisme pembayaran, disimpan apa adanya `KO` / `LS` (kepanjangan belum dikonfirmasi — lihat §12). Jenis bermekanisme tetap (`jenis_pengajuan.mekanisme_tetap`; bawaan: Transport Rumah Tangga & Perjadin = **LS**) tidak menampilkan pilihan — server selalu menyimpan mekanisme tetapnya |
 | Operator / Pengaju | Pembuat pengajuan: mengisi data, mengunggah berkas, mengajukan ke PUM. Peran pengaju (`ROLE_PENGAJU`) = operator, **PUM** (sejak Okt 2026), admin |
@@ -45,14 +45,14 @@ Prioritas: data akurat → alur jelas → mudah dipakai → tampilan modern (liq
 | Profil akun | Admin menautkan akun pengguna ke satu data pegawai (`users.pegawai_id`, menu Pengguna); pemilik akun lalu mengisi **Bank & No. Rekening miliknya** di Pengaturan → Profil (tersimpan di master Pegawai → terisi otomatis saat namanya dipilih di form) |
 | Peserta | Orang yang menerima nilai uang pada pengajuan bermodel selain Konsumsi (batas orang dari master jenis; bawaan Transport 2), masing-masing dengan bank & no. rekening (opsional). Perjadin: uang harian + uang transport per orang |
 | Berkas | Dokumen unggahan (PDF/gambar/Office) per jenis kelengkapan |
-| N/A berkas | Berkas **wajib** yang ditandai "tidak diperlukan" oleh pengaju (dianggap terpenuhi; tetap dicentang PUM). Berkas opsional tidak bisa N/A |
+| ~~N/A berkas~~ | **Dihapus 14 Okt 2026** (dikonfirmasi pemilik project): berkas wajib harus diunggah; berkas yang kadang tidak ada (mis. Tiket, Boarding Pass) dijadikan **tidak wajib** oleh admin. Kolom `pengajuan.berkas_na` & aksi riwayat `berkas_na`/`berkas_na_batal` hanya data lama (tidak dibaca/ditulis lagi) |
 | Notifikasi | Pemberitahuan otomatis di aplikasi (lonceng + toast) — tabel `notifikasi` |
 
 ## 3. Aturan Bisnis per Kategori (dari kebutuhan pemilik project)
 
 §3.1–§3.3 adalah **jenis bawaan** (master Jenis Pengajuan, `bawaan = true`, tidak dapat dihapus; kode & model form tetap).
 Label, deskripsi, awalan kode (selama belum ada pengajuan), batas orang, kata kunci task, warna, ikon, aktif/nonaktif,
-**mekanisme** (pilih KO/LS · selalu LS · selalu KO) dan **berkasnya** (urut, wajib/opsional) diatur admin; berkas & mekanisme
+**mekanisme** (pilih KO/LS · selalu LS · selalu KO) dan **berkasnya** (urut, wajib/tidak wajib) diatur admin; berkas & mekanisme
 yang tertulis di bawah adalah data awal. Jenis tambahan: §3.5.
 
 ### 3.1 Konsumsi (kode `KSM-YYYY-NNNN`)
@@ -99,7 +99,8 @@ Berkas wajib: **Surat Tugas, Laporan Kegiatan, Invoice Hotel, Invoice Tiket**.
 ### 3.5 Jenis pengajuan tambahan (master data, mis. Kontrak Borongan)
 Admin menambah jenis di **Master Data → Jenis Pengajuan**: nama, nama singkat (grafik/filter/badge), **awalan kode**
 (2–5 huruf A–Z, unik → kode `<AWALAN>-YYYY-NNNN`), deskripsi, **model form**, batas orang, **berkas** (urut, dari
-master Jenis Berkas, maks. 20; tiap berkas **Wajib** atau **Opsional** — berkas baru wajib secara bawaan), **mekanisme**
+master Jenis Berkas, maks. 20; tiap berkas **Wajib** atau **Tidak wajib** — berkas baru wajib secara bawaan; sifat juga bisa
+diatur dari Master Jenis Berkas), **mekanisme**
 ("KO atau LS" = pengaju memilih, "Selalu LS", "Selalu KO"), kata kunci Task Name, warna, ikon. Kode internal dibuat dari nama
 (`Kontrak Borongan` → `kontrak_borongan`).
 - **Model Umum**: nama kegiatan*, tanggal* (+ "sampai" opsional = periode, ≥ tanggal, maks. 366 hari), mekanisme* (kecuali
@@ -111,14 +112,16 @@ master Jenis Berkas, maks. 20; tiap berkas **Wajib** atau **Opsional** — berka
 - **Nonaktif** = tidak muncul di Buat Pengajuan (pengajuan lama tetap bisa diedit & diproses); minimal satu jenis aktif.
   **Hapus** hanya jenis tambahan yang belum pernah dipakai.
 - Jenis berkas: nama unik, keterangan opsional (petunjuk di tabel berkas). Tidak dapat dinonaktifkan selama masih tercantum
-  (wajib/opsional) pada suatu jenis; tidak dapat dihapus bila bawaan atau sudah tercatat di pengajuan (file, centang, atau
-  daftar berkas pengajuan — format lama maupun baru).
+  (wajib/tidak wajib) pada suatu jenis; tidak dapat dihapus bila bawaan atau sudah tercatat di pengajuan (file, centang, atau
+  daftar berkas pengajuan — format lama maupun baru). Kartunya menampilkan "Wajib di: …" / "Tidak wajib di: …"; **Atur wajib /
+  tidak wajib** (tautan di kartu & menu ⋯) mengubah sifatnya per jenis pengajuan yang **sudah** mencantumkannya (mencantumkan
+  berkas pada jenis lain tetap di Master Jenis Pengajuan). Draft/Dikembalikan jenis yang berubah langsung mengikuti (riwayat `diubah`).
   Data awal menyertakan contoh Laporan Pekerjaan, Presensi, Kontrak (belum dipakai jenis mana pun).
 
 ## 4. Alur (Workflow) & Status
 
 ```
- Operator: Buat ──► DRAFT ──(lengkapi data + unggah berkas)──► Ajukan ke PUM ──► DIAJUKAN KE PUM
+ Operator: Buat ──► DRAFT ──(lengkapi data + unggah SEMUA berkas wajib)──► Ajukan ke PUM ──► DIAJUKAN KE PUM
                       ▲                                                            │
                       └────────── Tarik kembali (operator, selama masih di PUM) ◄──┤
                                                                                    │
@@ -159,17 +162,23 @@ Aturan centang berkas (`cek_berkas`):
 - **Verifikasi** butuh semua berkas **wajib** sesuai **dan** tidak ada berkas bertanda revisi (termasuk berkas opsional) —
   server menolak 409 "Masih ada N berkas yang ditandai perlu revisi…". Hitungan sesuai/terpenuhi hanya berkas wajib.
 - Beberapa baris bisa dicentang sekaligus (kotak "Pilih …") untuk **Download (ZIP)** atau **Tandai Sesuai (n)** (PUM).
-- **Mengunggah/menghapus berkas atau mengubah tanda N/A suatu jenis menghapus centangnya** (harus diperiksa ulang).
+- **Mengunggah/menghapus berkas suatu jenis menghapus centangnya** (harus diperiksa ulang).
   Centang jenis lain tetap tersimpan saat dikembalikan & diajukan ulang.
-- Berkas wajib tanpa file boleh dicentang sesuai (berkas fisik) — UI memberi peringatan. Berkas opsional dapat diperiksa
-  bila sudah diunggah.
+- Berkas wajib tanpa file (data lama, diajukan sebelum 14 Okt 2026) boleh dicentang sesuai (berkas fisik) — UI memberi
+  peringatan. Berkas opsional dapat diperiksa bila sudah diunggah.
 - **Daftar berkas per pengajuan** (`berkas_daftar`, `[{kode, wajib}]`) = salinan dari master jenisnya saat dibuat. Bila admin
-  mengubah berkas (atau sifat wajib/opsional) suatu jenis, pengajuan berstatus Draft/Dikembalikan langsung mengikuti (riwayat
-  `diubah` "Berkas mengikuti master — wajib baru: … · tidak wajib lagi: … · opsional baru: …"; centang berkas yang keluar dari
-  daftar dihapus, tanda N/A hanya dipertahankan untuk berkas yang masih wajib, file berkas yang keluar tetap tampil sebagai
-  baris "Di luar daftar"); disamakan sekali lagi saat diajukan, lalu **dibekukan** sejak Diajukan ke PUM
-  (pengajuan yang sudah diajukan/diverifikasi/selesai tidak ikut berubah). `null` (data dari kode lama) = ikut master.
-- Mengajukan dengan berkas belum lengkap **diperbolehkan dengan konfirmasi** (berkas fisik kadang menyusul).
+  mengubah berkas (atau sifat wajib/tidak wajib — dari Master Jenis Pengajuan maupun Master Jenis Berkas) suatu jenis, pengajuan
+  berstatus Draft/Dikembalikan langsung mengikuti (riwayat `diubah` "Berkas mengikuti master — wajib baru: … · tidak wajib
+  lagi: … · opsional baru: …"; centang berkas yang keluar dari daftar dihapus, file berkas yang keluar tetap tampil sebagai baris
+  "Di luar daftar"). Disamakan juga saat pengajuan **kembali bisa diedit** (dikembalikan PUM / ditarik kembali — agar berkas wajib
+  baru dapat langsung diunggah) dan sekali lagi saat diajukan (transaksi sendiri: bila ditolak karena berkas wajib baru belum
+  diunggah, daftar barunya tetap tersimpan), lalu **dibekukan** sejak Diajukan ke PUM (pengajuan yang sudah
+  diajukan/diverifikasi/selesai tidak ikut berubah). `null` (data dari kode lama) = ikut master.
+- **Ajukan / ajukan ulang hanya bila semua berkas wajib sudah diunggah** (≥ 1 file per berkas wajib; 14 Okt 2026, dikonfirmasi
+  pemilik project — berlaku untuk semua pengaju termasuk PUM/admin). Server menolak 409 "Belum bisa diajukan: N berkas wajib
+  belum diunggah (…). Unggah semua berkas wajib terlebih dahulu." (status tetap, tanpa riwayat/notifikasi). Berkas tidak wajib &
+  Dokumen Lainnya tidak menghalangi. UI: tombol "Ajukan ke PUM" nonaktif + keterangan di bawah tabel berkas
+  (`data-testid="aksi-pengaju"`, tombol "Ajukan sekarang"). Riwayat `diajukan` = "Berkas lengkap (n/n)".
 - Setiap aksi dicatat di tabel `riwayat` (audit trail + timeline + aktivitas dashboard).
 - Draft/dikembalikan boleh dihapus (operator/admin); penghapusan tetap tercatat di `riwayat` (kode disimpan).
 
@@ -192,7 +201,7 @@ otomatis menandai notifikasi pengajuan itu dibaca. Pimpinan tidak menerima notif
 | Lihat pengajuan non-draft, dashboard, rekap, unduh PDF/Excel | ✓ | ✓ | ✓ | ✓ |
 | Lihat draft | ✓ | ✓ | ✗ | ✓ |
 | Buat / edit / hapus (draft & dikembalikan) | ✓ | ✓ | ✗ | ✓ |
-| Unggah / hapus berkas, tandai N/A (draft & dikembalikan) | ✓ | ✓ | ✗ | ✓ |
+| Unggah / hapus berkas (draft & dikembalikan) | ✓ | ✓ | ✗ | ✓ |
 | Ajukan / ajukan ulang ke PUM / tarik kembali | ✓ | ✓ | ✗ | ✓ |
 | Halaman **Verifikasi PUM**, centang berkas, kembalikan, verifikasi | ✗ | ✓ | ✗ | ✓ |
 | Isi/ubah Task Name, Project Costing & kode dana (diajukan_pum, diverifikasi_pum, diajukan_mdk, selesai) | ✗ | ✓ | ✗ | ✓ |
@@ -203,7 +212,7 @@ otomatis menandai notifikasi pengajuan itu dibaca. Pimpinan tidak menerima notif
 | Master Pegawai: tambah/ubah (termasuk rekening pegawai & "Tambah … sebagai pegawai baru" di form) | ✗ | ✗ | ✗ | ✓ |
 | Master Pegawai: hapus (hanya jika belum dipakai) / nonaktifkan | ✗ | ✗ | ✗ | ✓ |
 | Master Jenis Pengajuan, Jenis Berkas, Project & Task (+ Kode Dana), Bank: dibaca (form, tampilan, kotak cari) | ✓ | ✓ | ✓ | ✓ |
-| Master Jenis Pengajuan, Jenis Berkas, Project & Task (+ Kode Dana, salin tahun), Bank: menu & tambah/ubah/nonaktifkan/hapus | ✗ | ✗ | ✗ | ✓ |
+| Master Jenis Pengajuan, Jenis Berkas (+ atur wajib / tidak wajib), Project & Task (+ Kode Dana, salin tahun), Bank: menu & tambah/ubah/nonaktifkan/hapus | ✗ | ✗ | ✗ | ✓ |
 | Kelola Pengguna, setujui/tolak pendaftaran | ✗ | ✗ | ✗ | ✓ |
 | Halaman Pengaturan (profil: rekening sendiri bila akun ditautkan ke data pegawai, tema warna, info akun, ganti password) | ✓ | ✓ | ✓ | ✓ |
 | Menautkan akun ke data pegawai (menu Pengguna: tambah/ubah/setujui akun) | ✗ | ✗ | ✗ | ✓ |
@@ -233,7 +242,7 @@ Perubahan skema berikutnya = **file baru di `supabase/migrasi/`** (idempoten, ha
 - `pegawai` (id, nama, nip opsional unik, jabatan, **rekening_bank, rekening_nomor** (opsional, berpasangan), aktif)
 - Master data (admin): `jenis_pengajuan` (kode PK, label, label_pendek, prefix unik, deskripsi, model, maks_peserta,
   kata_kunci_task, warna, ikon, aktif, bawaan, urutan, **mekanisme_tetap** `KO|LS|null`) + `jenis_pengajuan_berkas`
-  (jenis_pengajuan, jenis_berkas, urutan, **wajib** boolean default true);
+  (jenis_pengajuan, jenis_berkas, urutan, **wajib** boolean default true — diubah dari Master Jenis Pengajuan atau Master Jenis Berkas);
   `jenis_berkas` (kode PK ≠ `lainnya`, label unik, keterangan, aktif, bawaan, urutan); `bank` (nama unik, aktif);
   `master_project` / `master_task` (**tahun** 2000–2100, kode unik per tahun `(tahun, lower(kode))`, nama, aktif) +
   `master_project_task` (project_id, task_id, **kode_dana** → `master_dana`; project & task harus setahun);
@@ -244,7 +253,7 @@ Perubahan skema berikutnya = **file baru di `supabase/migrasi/`** (idempoten, ha
 - `pengajuan` (kode, **kategori → jenis_pengajuan(kode)** (teks, bukan enum lagi), nama_kegiatan, tanggal_kegiatan DATE, tanggal_selesai, jumlah_orang,
   lokasi_tujuan, mekanisme, jenis_uang (data lama), jenis_transport, **jenis_konsumsi**, uang_siapa_id→pegawai,
   **rekening_bank, rekening_nomor, dibayar_at, dibayar_by**→users, total BIGINT, catatan,
-  berkas_na JSONB, **berkas_daftar JSONB** (`[{kode, wajib}]` berkas pengajuan ini), berkas_terpenuhi/berkas_wajib (denormalisasi,
+  berkas_na JSONB (data lama, tidak dipakai sejak 14 Okt 2026), **berkas_daftar JSONB** (`[{kode, wajib}]` berkas pengajuan ini), berkas_terpenuhi/berkas_wajib (denormalisasi,
   hanya berkas wajib), status, no_invoice_mdk, tanggal_invoice_mdk,
   catatan_pum, project_hosting, task_name, **kode_dana**, created_by, updated_by, diajukan_at, **diverifikasi_by/at, diajukan_mdk_by/at**,
   diproses_by/at (dikembalikan / selesai), diteruskan_by/at (data lama), …)
@@ -292,7 +301,7 @@ tests/         api/*.test.ts, unit/*.test.ts, e2e/*.spec.ts + e2e/server.ts, sup
 docs/          PANDUAN-UJI-MANUAL.md
 ```
 
-Endpoint alur (semua `/api/pengajuan/:id/...`): `POST ajukan`, `POST tarik`, `PUT cek-berkas` {jenis, status, catatan},
+Endpoint alur (semua `/api/pengajuan/:id/...`): `POST ajukan` (409 bila ada berkas wajib belum diunggah; `PUT berkas-na` dihapus), `POST tarik`, `PUT cek-berkas` {jenis, status, catatan},
 `POST kembalikan` {catatan}, `POST verifikasi` {project_hosting, task_name, kode_dana, catatan},
 `PUT data-pum` {project_hosting, task_name, kode_dana} (kode dana harus ada di `master_dana`; kosong = `null`),
 `POST ajukan-mdk` & `PUT invoice` {no_invoice_mdk, tanggal_invoice_mdk, catatan}, `POST selesai` (tanpa body),
@@ -304,7 +313,10 @@ langsung ke Storage; `POST berkas/konfirmasi` {key, …} (server cek isi & ukura
 Master data (`/api/master/...`; GET semua peran, tulis hanya admin): `GET konfig` (jenis pengajuan + `mekanisme_tetap` +
 berkasnya `[{kode, wajib}]` & jenis berkas — dimuat client sekali setelah login, `KonfigProvider`), `GET|POST jenis-pengajuan`,
 `PUT|DELETE jenis-pengajuan/:kode` {…, mekanisme_tetap, berkas: `[{kode, wajib}]` (string lama = wajib)}
-(PUT mengembalikan `disinkron` = jumlah draft/dikembalikan yang ikut berubah), `GET|POST jenis-berkas`, `PUT|DELETE jenis-berkas/:kode`,
+(PUT mengembalikan `disinkron` = jumlah draft/dikembalikan yang ikut berubah), `GET|POST jenis-berkas` (GET: `dipakai` {jenis_pengajuan
+(urut master), wajib, berkas}), `PUT jenis-berkas/:kode` {label, keterangan, aktif, sifat?: `[{jenis_pengajuan, wajib}]`} (hanya
+jenis pengajuan yang sudah mencantumkan berkas itu — selain itu 409; tanpa `sifat` = sifat tetap; mengembalikan `disinkron`),
+`DELETE jenis-berkas/:kode`,
 `GET|POST bank`, `PUT|DELETE bank/:id`, `GET project-task` → {project (tahun, tasks `[{id, kode_dana}]`), task (tahun), dana},
 `POST project`, `PUT|DELETE project/:id` {tahun, kode, nama, aktif, tasks: `[{id, kode_dana}]`} (`task_ids` lama tetap diterima;
 tahun tidak dapat diubah), `POST task`, `PUT|DELETE task/:id` {tahun, kode, nama, aktif}, `POST project-task/salin` {dari, ke}
@@ -354,16 +366,19 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
   **Jangan jalankan Vitest bersamaan dengan server E2E** — setup global menghapus database `kas_test_*`.
 - Fixture E2E (`tests/e2e/fixtures.ts`) **menggagalkan test bila ada `console.error`/error JS** di browser.
   Respons 4xx yang disengaja ikut tercatat browser sebagai error → kosongkan `galat` setelahnya.
-- Kait test di UI: `data-berkas` + `data-sifat` (`wajib|opsional|lainnya|di-luar`) + `data-keadaan` + `data-cek` (baris tabel
+- Kait test di UI: `data-berkas` + `data-sifat` (`wajib|opsional|lainnya|di-luar`) + `data-keadaan` (`ada|kosong`) + `data-cek` (baris tabel
   "List Dokumen Pendukung", list "Kelengkapan berkas"; baris Dokumen Lainnya `data-berkas="lainnya"`), kotak "Pilih <label>" /
   "Pilih semua dokumen" + `data-testid="aksi-terpilih"` (Download (ZIP), Tandai Sesuai (n)), kotak "<label> sesuai", tombol
   "<label> perlu revisi", tautan "Download <file>" & tombol "Preview <file>", kotak cari "Cari dokumen",
   `data-testid="ringkasan-berkas" | "kode-dana" | "tahun-kosong" | "kartu-profil" | "profil-pegawai" | "profil-belum-tertaut" |
   "pegawai-akun"`, isian profil `#profil-bank` / `#profil-nomor`, pilihan data pegawai akun `#u-pegawai` / `#s-pegawai`,
   `data-dana`, `data-berkas-master` + `data-sifat` (form master
-  Jenis Pengajuan; radiogroup "Sifat <berkas>"), `data-baris-penerima` + `#peserta-0-rekening_bank` / `#peserta-0-rekening_nomor`,
+  Jenis Pengajuan; radiogroup "Sifat <berkas>" dengan radio "Wajib" / "Tidak wajib"), Master Jenis Berkas: `data-testid="sifat-berkas"`
+  (kartu), tombol "Atur wajib / tidak wajib <label>", dialog "Atur wajib / tidak wajib" (radiogroup "Sifat di <jenis>",
+  `data-sifat-jenis` + `data-sifat`), `data-baris-penerima` + `#peserta-0-rekening_bank` / `#peserta-0-rekening_nomor`,
   isian PUM: combobox "Task Name" → "Project Costing" → select "Kode dana", `data-kode` (kartu Verifikasi PUM),
-  `data-testid="kartu-pum" | "aksi-pum" | "catatan-pengembalian"`, stepper = list "Tahapan pengajuan" + `aria-current="step"`,
+  `data-testid="kartu-pum" | "aksi-pum" | "aksi-pengaju" | "catatan-pengembalian"` (aksi-pengaju: keterangan berkas wajib +
+  tombol "Ajukan sekarang"), stepper = list "Tahapan pengajuan" + `aria-current="step"`,
   `data-pendaftar` (baris pendaftar), master: `data-jenis-pengajuan`, `data-jenis-berkas`, `data-bank`, `data-project`, `data-task`,
   `data-jenis` (kartu Buat Pengajuan), `data-model` (pilihan model form), `data-testid="pratinjau-jenis" | "sumber-rekening" |
   "rekening-pegawai" | "rekening-peserta"`,
@@ -373,6 +388,7 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
   `#uang_siapa_id`, `#rekening_bank`, `#rekening_nomor`, `#jenis_konsumsi`). Kotak cari Project/Task:
   combobox berlabel "Project Costing"/"Task Name", kotak pencarian "Cari project"/"Cari task".
 - Playwright `getByLabel(..., { exact: true })` ikut menghitung tanda `*` wajib → pakai `getByRole('textbox', { name })` atau id.
+- Nama role Playwright dicocokkan sebagian (tanpa `exact`): radio "Wajib" juga cocok dengan "Tidak wajib" → pakai `{ name: 'Wajib', exact: true }`.
 
 ## 10. Desain UI
 
@@ -407,8 +423,10 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 - **Berkas = tabel "List Dokumen Pendukung"** (Okt 2026, mengikuti contoh pemilik project): kotak "Cari dokumen" di kanan atas;
   kolom ☐ pilih · **Jenis Dokumen Pendukung** (pil merah "Wajib" di atas nama; opsional tanpa pil) · **Nama dokumen** (ikon +
   nama dipotong di tengah, `potongTengah`) · **Status dokumen** (Sudah Verifikasi hijau / Perlu Revisi merah / Belum Verifikasi
-  kuning / Belum Diunggah / Tidak Diperlukan / Tambahan / Di luar daftar) · **Action** (Download & Preview per file; pengaju:
-  hapus, Unggah/Tambah file, ⋯ tandai tidak diperlukan (wajib saja); PUM: centang **Sesuai** + **Revisi** dengan catatan).
+  kuning / Belum Diunggah / Tambahan / Di luar daftar) · **Action** (Download & Preview per file; pengaju: hapus, Unggah/Tambah
+  file — berkas wajib yang kosong bertuliskan "Wajib diunggah sebelum diajukan"; PUM: centang **Sesuai** + **Revisi** dengan
+  catatan). Pengaju (Draft/Dikembalikan): di bawah tabel kotak `aksi-pengaju` — "Belum dapat diajukan — unggah N berkas wajib
+  lagi: …" (tombol Ajukan nonaktif) atau "Semua berkas wajib sudah diunggah" + tombol **Ajukan sekarang** (seperti kotak aksi PUM).
   Baris yang dicentang → Download (ZIP, dibuat di browser) / Tandai Sesuai (PUM). Kolom mengikuti lebar panel (container
   query: 5 kolom ≥ 52rem dengan subgrid; lebih sempit = kartu bertumpuk). Di detail (desktop): [informasi | total & PUM],
   lalu tabel berkas dan riwayat selebar halaman; urutan di HP mengikuti DOM (informasi → berkas → total → riwayat).
@@ -481,7 +499,8 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
 2. ~~Jenis uang Perjadin~~ — **terjawab**: uang harian & uang transport diisi terpisah per orang (Okt 2026).
 3. Batas **maks. 2 orang** saat ini berlaku untuk Rumah Tangga **dan** Perjadin ("field sama seperti sebelumnya").
 4. Format resmi **No. Invoice MDK** (saat ini teks bebas, maks. 100 karakter, unik tidak diwajibkan).
-5. Apakah pengajuan wajib berkas lengkap sebelum diajukan (saat ini: boleh dengan peringatan).
+5. ~~Apakah pengajuan wajib berkas lengkap sebelum diajukan~~ — **terjawab** (14 Okt 2026): ya, semua berkas wajib harus diunggah;
+   tanda "tidak diperlukan" dihapus (lihat §4 & item 17).
 6. Logo resmi: ganti `public/logo.svg` dengan logo UI/DPBJ resmi bila diizinkan.
 7. **Project Costing & Task Name**: kini dipilih dari master Kasubdit (38 pasangan project–task 2026, Okt 2026) lewat kotak cari;
    sejak 12 Okt 2026 **Task Name dipilih lebih dulu** (terisi otomatis bila hanya satu task cocok dengan kata kunci jenis:
@@ -504,12 +523,17 @@ akun Vercel pemilik — bukan akun CLI di laptop ini) membangun otomatis. **Jala
     pengaju yang namanya belum terdaftar meminta admin menambahkannya di Master Pegawai.
 15. **Berkas wajib/opsional, mekanisme tetap, rekening per penerima, tahun & kode dana** (Okt 2026) — asumsi:
     berkas opsional yang ditandai revisi oleh PUM tetap menahan verifikasi (dikembalikan atau tanda revisinya dibatalkan);
-    berkas opsional tidak bisa ditandai N/A; mekanisme selalu LS hanya untuk Transport Rumah Tangga & Perjadin (jenis lain,
+    (N/A dihapus 14 Okt 2026); mekanisme selalu LS hanya untuk Transport Rumah Tangga & Perjadin (jenis lain,
     mis. Pengajuan Lain-lain bermodel Rumah Tangga, tetap memilih KO/LS — admin bisa mengubahnya ke "Selalu LS");
     rekening per penerima berlaku untuk semua model selain Konsumsi (termasuk Umum/Kontrak Borongan) dan opsional;
     kode dana per pasangan project–task sesuai Laporan Sisa Anggaran 2026 (kolom DANA: 51 & 61), boleh diubah/dikosongkan PUM;
     master 2027 belum diisi (bisa disalin dari 2026 lalu disesuaikan). Kode dana tampil di detail, PDF bukti, & Excel rekap —
     perlu juga di rekap per pegawai? Checkbox di tabel berkas dipakai untuk Download (ZIP) / Tandai Sesuai sekaligus.
+17. **Berkas wajib harus diunggah & atur wajib di Master Jenis Berkas** (14 Okt 2026, dikonfirmasi: sifat bisa berbeda per jenis
+    pengajuan; "tidak diperlukan" dihapus) — asumsi: aturan berlaku juga saat diajukan ulang & untuk PUM/admin sebagai pengaju;
+    pengajuan yang sudah diajukan/diproses sebelum aturan ini tidak terpengaruh; satu file per berkas wajib sudah cukup (isi
+    diperiksa PUM); Master Jenis Berkas hanya mengatur sifat pada jenis pengajuan yang sudah mencantumkan berkas itu; label admin
+    "Opsional" diganti "Tidak wajib" (Master Jenis Pengajuan, Buat Pengajuan, PDF bukti).
 8. **Verifikasi** (dulu "Teruskan ke MDK") diasumsikan hanya boleh bila **semua berkas wajib dicentang sesuai** (dan tidak ada
    tanda revisi). Benar?
 9. **Notifikasi** saat ini hanya di dalam aplikasi (lonceng + toast). Perlu email/WhatsApp? Perlu notifikasi untuk pimpinan?

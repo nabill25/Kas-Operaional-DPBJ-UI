@@ -33,7 +33,6 @@ import {
   pastikanBisaKelolaBerkas,
   saranPum,
   selesaikan,
-  setBerkasNa,
   tambahBerkas,
   tandaiDibayarkan,
   tarikKembali,
@@ -242,17 +241,6 @@ export function pengajuanRoutes(db: Db, storage: StorageProvider): Router {
     const id = parseId(req.params.id, 'Pengajuan');
     const { catatan } = assertValid(validateCatatanWajib(req.body, 'Alasan pembatalan'));
     await batalkanSelesai(db, user, id, catatan);
-    res.json(await getDetail(db, user, id));
-  });
-
-  r.put('/:id/berkas-na', async (req, res) => {
-    const user = userOf(req);
-    const id = parseId(req.params.id, 'Pengajuan');
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    if (typeof body.jenis !== 'string' || typeof body.na !== 'boolean') {
-      throw badRequest('Kirim jenis berkas dan nilai na (true/false)');
-    }
-    await setBerkasNa(db, user, id, body.jenis, body.na);
     res.json(await getDetail(db, user, id));
   });
 

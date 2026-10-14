@@ -387,11 +387,10 @@ export async function seedDemo(
         total = peserta.reduce((s, p) => s + p.nilai, 0);
       }
 
-      // Data awal master: semua berkas bawaan wajib.
+      // Data awal master: semua berkas bawaan wajib (harus diunggah sebelum diajukan; tidak ada lagi tanda "tidak diperlukan").
       const daftarBerkas = kamus.jenis(x.kategori).berkas;
       const wajib = daftarBerkas.filter((b) => b.wajib).map((b) => b.kode);
-      const na: string[] = x.kategori === 'perjadin' && jenisTransport === 'dalam_kota' ? ['invoice_hotel', 'invoice_tiket'] : [];
-      let diunggah: RencanaBerkas[] = wajib.filter((j) => !na.includes(j)).map((j) => ({ jenis: j, nama_berkas: null }));
+      let diunggah: RencanaBerkas[] = wajib.map((j) => ({ jenis: j, nama_berkas: null }));
       let menyusul: RencanaBerkas | null = null;
       let kurang: RencanaBerkas | null = null;
       if (x.status === 'draft') diunggah = diunggah.slice(0, 1);
@@ -414,15 +413,15 @@ export async function seedDemo(
       const terakhir =
         x.waktu.diproses ?? x.waktu.diajukanMdk ?? x.waktu.diverifikasi ?? x.waktu.kembali ?? x.waktu.diajukanUlang ??
         x.waktu.diajukan ??
-        x.waktu.dibuat + (diunggah.length + na.length) * 4 * MENIT;
+        x.waktu.dibuat + diunggah.length * 4 * MENIT;
 
       const { lastInsertRowid: id } = await txDb.run(
         `INSERT INTO pengajuan (kode, kategori, nama_kegiatan, tanggal_kegiatan, tanggal_selesai, jumlah_orang, lokasi_tujuan,
            mekanisme, jenis_uang, jenis_transport, jenis_konsumsi, uang_siapa_id, rekening_bank, rekening_nomor, dibayar_at,
-           dibayar_by, total, catatan, berkas_na, status, no_invoice_mdk, tanggal_invoice_mdk, catatan_pum, project_hosting,
+           dibayar_by, total, catatan, status, no_invoice_mdk, tanggal_invoice_mdk, catatan_pum, project_hosting,
            task_name, kode_dana, created_by, updated_by, diajukan_at, diverifikasi_by, diverifikasi_at, diajukan_mdk_by, diajukan_mdk_at,
            diproses_by, diproses_at, created_at, updated_at, berkas_daftar, berkas_terpenuhi, berkas_wajib)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) RETURNING id`,
         kode,
         x.kategori,
         nama,
@@ -443,7 +442,6 @@ export async function seedDemo(
         dibayar ? userId.pum : null,
         total,
         catatan,
-        JSON.stringify(na),
         x.status,
         x.invoice?.no ?? null,
         x.invoice?.tanggal ?? null,
@@ -518,20 +516,9 @@ export async function seedDemo(
         await simpanBerkas(diunggah[i], x.waktu.dibuat + (i + 1) * 4 * MENIT);
       }
       
-      for (let i = 0; i < na.length; i++) {
-        await catatRiwayat(
-          txDb,
-          ref,
-          userId.operator,
-          'berkas_na',
-          kamus.labelBerkas(na[i] as JenisBerkas),
-          iso(x.waktu.dibuat + (diunggah.length + i + 1) * 4 * MENIT),
-        );
-      }
-
       const totalWajib = wajib.length;
       if (x.waktu.diajukan) {
-        const terpenuhiAwal = diunggah.filter((b) => b.jenis !== 'lainnya').length + na.length;
+        const terpenuhiAwal = diunggah.filter((b) => b.jenis !== 'lainnya').length;
         await catatRiwayat(
           txDb,
           ref,

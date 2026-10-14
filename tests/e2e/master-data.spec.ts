@@ -32,12 +32,12 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
     /Kontrak/,
     /Presensi/,
   ]);
-  // Berkas baru wajib secara bawaan; Presensi dijadikan opsional.
+  // Berkas baru wajib secara bawaan; Presensi dijadikan tidak wajib.
   const presensiMaster = dialog.locator('[data-berkas-master="presensi"]');
   await expect(presensiMaster).toHaveAttribute('data-sifat', 'wajib');
-  await dialog.getByRole('radiogroup', { name: 'Sifat Presensi' }).getByRole('radio', { name: 'Opsional' }).click();
+  await dialog.getByRole('radiogroup', { name: 'Sifat Presensi' }).getByRole('radio', { name: 'Tidak wajib' }).click();
   await expect(presensiMaster).toHaveAttribute('data-sifat', 'opsional');
-  await expect(dialog.getByRole('radiogroup', { name: 'Sifat Kontrak' }).getByRole('radio', { name: 'Wajib' })).toBeChecked();
+  await expect(dialog.getByRole('radiogroup', { name: 'Sifat Kontrak' }).getByRole('radio', { name: 'Wajib', exact: true })).toBeChecked();
   await expect(dialog.getByRole('radio', { name: 'KO atau LS' })).toBeChecked();
   await dialog.locator('#jp-kata-kunci').fill('tenaga lepas');
   await dialog.getByTitle('Ungu').click();
@@ -55,11 +55,11 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   await expect(kartu).toContainText('KBR-YYYY-NNNN');
   await expect(kartu).toContainText('Maks. 3 orang');
   await expect(kartu).toContainText('KO / LS');
-  await expect(kartu).toContainText('Berkas · 2 wajib, 1 opsional');
+  await expect(kartu).toContainText('Berkas · 2 wajib, 1 tidak wajib');
   await expect(kartu.getByRole('list', { name: 'Berkas Kontrak Borongan' }).getByRole('listitem')).toHaveText([
     '1. Laporan Pekerjaan',
     '2. Kontrak',
-    '3. Presensi · opsional',
+    '3. Presensi · tidak wajib',
   ]);
 
   // Operator: jenis baru muncul di Buat Pengajuan dengan form model Umum.
@@ -68,7 +68,7 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   await page.goto('/pengajuan/baru');
   const pilih = page.getByRole('button', { name: 'Pilih Kontrak Borongan' });
   await expect(pilih).toContainText('Maks. 3 orang per pengajuan');
-  await expect(pilih).toContainText('Presensi · opsional');
+  await expect(pilih).toContainText('Presensi · tidak wajib');
   await pilih.click();
   await expect(page.getByRole('heading', { name: 'Pengajuan Kontrak Borongan' })).toBeVisible();
   await expect(page.locator('#lokasi_tujuan')).toHaveCount(0);
@@ -105,9 +105,9 @@ test('admin menambah jenis pengajuan baru (Kontrak Borongan, model Umum) → ope
   await unggahBerkas(page, 'presensi');
   await expect(baris.nth(2)).toContainText('Belum Verifikasi');
   await expect(page.getByText('0 dari 2 berkas wajib terpenuhi')).toBeVisible();
-  // Berkas opsional tidak bisa ditandai "tidak diperlukan" (hanya berkas wajib).
-  await expect(page.getByRole('button', { name: 'Opsi Presensi' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Opsi Kontrak' })).toBeVisible();
+  // Berkas tidak wajib tidak menghalangi pengajuan; berkas wajib harus diunggah dulu.
+  await expect(page.getByTestId('aksi-pengaju')).toContainText('Belum dapat diajukan — unggah 2 berkas wajib lagi: Laporan Pekerjaan, Kontrak.');
+  await expect(page.getByRole('button', { name: 'Ajukan ke PUM' })).toBeDisabled();
 
   // Daftar: 4 jenis → filter kategori berupa dropdown.
   await page.goto('/pengajuan');
@@ -301,5 +301,78 @@ test('menu & halaman Master Data (selain Pegawai) hanya untuk admin', async ({ p
   }
   await nav.getByRole('link', { name: 'Jenis Berkas' }).click();
   await expect(page.getByRole('heading', { name: 'Master Jenis Berkas' })).toBeVisible();
-  await expect(page.locator('[data-jenis-berkas="notulen"]')).toContainText('Dipakai pada: Konsumsi');
+  await expect(page.locator('[data-jenis-berkas="notulen"]').getByTestId('sifat-berkas')).toHaveText('Wajib di: Konsumsi');
+});
+
+test('berkas wajib harus diunggah sebelum diajukan; admin mengatur wajib / tidak wajib per jenis pengajuan di Master Jenis Berkas', async ({ page }) => {
+  // Pengaju: draft Rumah Tangga tanpa berkas → belum dapat diajukan.
+  await masukAPI(page, 'operator');
+  const pegawai = (await (await page.request.get('/api/pegawai')).json()) as { id: number; aktif: boolean }[];
+  const buat = await page.request.post('/api/pengajuan', {
+    data: {
+      kategori: 'rumah_tangga',
+      nama_kegiatan: `Antar Surat Uji ${Date.now()}`,
+      tanggal_kegiatan: `${TAHUN}-10-01`,
+      lokasi_tujuan: 'Gedung Rektorat UI',
+      mekanisme: 'LS',
+      peserta: [{ pegawai_id: pegawai.find((p) => p.aktif)!.id, nilai: 75_000 }],
+    },
+  });
+  expect(buat.status()).toBe(201);
+  const id = ((await buat.json()) as { id: number }).id;
+  await page.goto(`/pengajuan/${id}`);
+  const aksi = page.getByTestId('aksi-pengaju');
+  await expect(aksi).toContainText('Belum dapat diajukan — unggah 2 berkas wajib lagi: Surat Tugas, Laporan Kegiatan.');
+  await expect(page.getByRole('button', { name: 'Ajukan ke PUM' })).toBeDisabled();
+  await expect(aksi.getByRole('button', { name: 'Ajukan sekarang' })).toBeDisabled();
+  await expect(page.locator('[data-berkas="surat_tugas"]')).toContainText('Wajib diunggah sebelum diajukan');
+  await unggahBerkas(page, 'laporan_kegiatan');
+  await expect(aksi).toContainText('Belum dapat diajukan — unggah 1 berkas wajib lagi: Surat Tugas.');
+  await expect(page.getByRole('button', { name: 'Ajukan ke PUM' })).toBeDisabled();
+
+  // Admin: Surat Tugas jadi tidak wajib untuk Transport Rumah Tangga (tetap wajib di Perjadin).
+  await keluarAPI(page);
+  await masukAPI(page, 'admin');
+  try {
+    await page.goto('/master/jenis-berkas');
+    const kartu = page.locator('[data-jenis-berkas="surat_tugas"]');
+    await expect(kartu.getByTestId('sifat-berkas')).toHaveText('Wajib di: Transport Rumah Tangga, Transport Perjadin');
+    await kartu.getByRole('button', { name: 'Atur wajib / tidak wajib Surat Tugas' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Atur wajib / tidak wajib' });
+    await expect(dialog.getByRole('button', { name: 'Simpan' })).toBeDisabled();
+    await expect(dialog.getByRole('radiogroup', { name: 'Sifat di Transport Perjadin' }).getByRole('radio', { name: 'Wajib', exact: true })).toBeChecked();
+    await dialog.getByRole('radiogroup', { name: 'Sifat di Transport Rumah Tangga' }).getByRole('radio', { name: 'Tidak wajib' }).click();
+    await expect(dialog.locator('[data-sifat-jenis="rumah_tangga"]')).toHaveAttribute('data-sifat', 'opsional');
+    await dialog.getByRole('button', { name: 'Simpan' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText('Pengaturan wajib Surat Tugas disimpan')).toBeVisible();
+    await expect(kartu.getByTestId('sifat-berkas')).toContainText('Wajib di: Transport Perjadin');
+    await expect(kartu.getByTestId('sifat-berkas')).toContainText('Tidak wajib di: Transport Rumah Tangga');
+    // Sifat yang sama tampil di Master Jenis Pengajuan.
+    await page.goto('/master/jenis-pengajuan');
+    const rt = page.locator('[data-jenis-pengajuan="rumah_tangga"]');
+    await expect(rt).toContainText('Berkas · 1 wajib, 1 tidak wajib');
+    await expect(rt).toContainText('Surat Tugas · tidak wajib');
+
+    // Pengaju: Surat Tugas tidak wajib lagi → draft ikut berubah & bisa diajukan tanpa Surat Tugas.
+    await keluarAPI(page);
+    await masukAPI(page, 'operator');
+    await page.goto(`/pengajuan/${id}`);
+    await expect(page.locator('[data-berkas="surat_tugas"]')).toHaveAttribute('data-sifat', 'opsional');
+    await expect(aksi).toContainText('Semua berkas wajib sudah diunggah. Pengajuan siap diajukan ke PUM.');
+    await page.getByRole('button', { name: 'Ajukan ke PUM' }).click();
+    await page.getByRole('dialog', { name: 'Ajukan ke PUM?' }).getByRole('button', { name: 'Ajukan sekarang' }).click();
+    await expect(page.getByRole('button', { name: 'Tarik kembali' })).toBeVisible();
+    await expect(aksi).toHaveCount(0);
+  } finally {
+    // Pulihkan master agar test lain tidak terpengaruh.
+    await keluarAPI(page);
+    await masukAPI(page, 'admin');
+    const semua = (await (await page.request.get('/api/master/jenis-berkas')).json()) as { kode: string; label: string; keterangan: string | null; aktif: boolean }[];
+    const st = semua.find((b) => b.kode === 'surat_tugas')!;
+    const pulih = await page.request.put('/api/master/jenis-berkas/surat_tugas', {
+      data: { label: st.label, keterangan: st.keterangan ?? '', aktif: st.aktif, sifat: [{ jenis_pengajuan: 'rumah_tangga', wajib: true }] },
+    });
+    expect(pulih.ok()).toBeTruthy();
+  }
 });

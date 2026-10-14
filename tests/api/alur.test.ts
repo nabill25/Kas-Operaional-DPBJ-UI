@@ -307,8 +307,53 @@ describe('Alur status: Draft → PUM → Verifikasi PUM → Diajukan ke MDK → 
     expect((await pum.post(`/api/pengajuan/${id}/teruskan`).send({})).status).toBe(404);
   });
 
-  it('tarik kembali: hanya saat masih di PUM, lalu tersembunyi lagi dari pimpinan', async () => {
+  it('berkas wajib harus diunggah sebelum diajukan (juga saat diajukan ulang)', async () => {
     const id = await buatDraft();
+    let res = await op.post(`/api/pengajuan/${id}/ajukan`);
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe(
+      'Belum bisa diajukan: 4 berkas wajib belum diunggah (Notula, Undangan, Invoice, Daftar Hadir). Unggah semua berkas wajib terlebih dahulu.',
+    );
+    // Tetap draft: tanpa riwayat "diajukan" & tanpa notifikasi ke PUM
+    let d = (await op.get(`/api/pengajuan/${id}`)).body as PengajuanDetail;
+    expect(d.status).toBe('draft');
+    expect(d.riwayat.map((r) => r.aksi)).not.toContain('diajukan');
+    expect((await notif(pum)).belumDibaca).toBe(0);
+
+    // Sebagian terunggah → masih ditolak; Dokumen Lainnya tidak menggantikan berkas wajib
+    for (const jenis of ['notulen', 'undangan', 'invoice']) {
+      expect((await unggah(ctx, op, id, jenis, FILE_CONTOH.pdf, `${jenis}.pdf`)).status).toBe(201);
+    }
+    expect((await unggah(ctx, op, id, 'lainnya', FILE_CONTOH.pdf, 'foto.pdf', 'Foto Kegiatan')).status).toBe(201);
+    res = await op.post(`/api/pengajuan/${id}/ajukan`);
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('1 berkas wajib belum diunggah (Daftar Hadir)');
+    // PUM sebagai pengaju juga terkena aturan yang sama
+    expect((await pum.post(`/api/pengajuan/${id}/ajukan`)).status).toBe(409);
+
+    // Lengkap → boleh diajukan
+    expect((await unggah(ctx, op, id, 'daftar_hadir', FILE_CONTOH.pdf, 'daftar_hadir.pdf')).status).toBe(201);
+    res = await op.post(`/api/pengajuan/${id}/ajukan`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: 'diajukan_pum', berkas_terpenuhi: 4, berkas_wajib: 4 });
+    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'diajukan', keterangan: 'Berkas lengkap (4/4)' });
+
+    // Dikembalikan, lalu pengaju menghapus satu berkas wajib → tidak bisa diajukan ulang sebelum diunggah lagi
+    expect((await pum.post(`/api/pengajuan/${id}/kembalikan`).send({ catatan: 'Ganti undangan' })).status).toBe(200);
+    d = (await op.get(`/api/pengajuan/${id}`)).body as PengajuanDetail;
+    expect((await op.delete(`/api/berkas/${d.berkas.find((b) => b.jenis === 'undangan')!.id}`)).status).toBe(200);
+    res = await op.post(`/api/pengajuan/${id}/ajukan`);
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('1 berkas wajib belum diunggah (Undangan)');
+    expect((await op.get(`/api/pengajuan/${id}`)).body.status).toBe('dikembalikan');
+    expect((await unggah(ctx, op, id, 'undangan', FILE_CONTOH.pdf, 'undangan-baru.pdf')).status).toBe(201);
+    res = await op.post(`/api/pengajuan/${id}/ajukan`);
+    expect(res.body).toMatchObject({ status: 'diajukan_pum' });
+    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'diajukan', keterangan: 'Diajukan ulang · Berkas lengkap (4/4)' });
+  });
+
+  it('tarik kembali: hanya saat masih di PUM, lalu tersembunyi lagi dari pimpinan', async () => {
+    const id = await buatDraft(true);
     await op.post(`/api/pengajuan/${id}/ajukan`);
     expect((await pimpinan.get(`/api/pengajuan/${id}`)).status).toBe(200);
     const res = await op.post(`/api/pengajuan/${id}/tarik`);
@@ -361,7 +406,7 @@ describe('Alur status: Draft → PUM → Verifikasi PUM → Diajukan ke MDK → 
 
   it('notifikasi pengajuan baru jatuh ke admin bila tidak ada PUM aktif', async () => {
     await ctx.db.run(`UPDATE users SET aktif = false WHERE role = 'pum'`);
-    const id = await buatDraft();
+    const id = await buatDraft(true);
     await op.post(`/api/pengajuan/${id}/ajukan`);
     const nAdmin = await notif(admin);
     expect(nAdmin.items[0]).toMatchObject({ pengajuan_id: id, jenis: 'diajukan' });

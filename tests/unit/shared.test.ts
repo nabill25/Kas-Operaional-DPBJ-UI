@@ -18,7 +18,7 @@ import {
   STATUS_LIST,
   isBankMandiri,
 } from '../../shared/constants';
-import { hitungKelengkapan, kodeWajib, parseBerkasDaftar, parseBerkasNa, samaDaftarBerkas } from '../../shared/kelengkapan';
+import { hitungKelengkapan, kodeWajib, parseBerkasDaftar, samaDaftarBerkas, wajibBelumDiunggah } from '../../shared/kelengkapan';
 import { buatKamus, kodeDariLabel, maksPeserta } from '../../shared/konfig';
 import {
   cariProject,
@@ -523,9 +523,36 @@ describe('validasi', () => {
 
     expect(validateJenisBerkas({ label: ' Presensi  Bulanan ', keterangan: '' })).toEqual({
       ok: true,
-      data: { label: 'Presensi Bulanan', keterangan: null, aktif: true },
+      data: { label: 'Presensi Bulanan', keterangan: null, aktif: true, sifat: [] },
     });
     expect(validateJenisBerkas({ label: 'dokumen lainnya' })).toMatchObject({ ok: false });
+    // Sifat wajib / tidak wajib per jenis pengajuan pemakai (Master Jenis Berkas)
+    expect(
+      validateJenisBerkas({ label: 'Tiket', sifat: [{ jenis_pengajuan: ' perjadin ', wajib: false }, { jenis_pengajuan: 'kontrak_borongan', wajib: true }] }),
+    ).toEqual({
+      ok: true,
+      data: {
+        label: 'Tiket',
+        keterangan: null,
+        aktif: true,
+        sifat: [
+          { jenis_pengajuan: 'perjadin', wajib: false },
+          { jenis_pengajuan: 'kontrak_borongan', wajib: true },
+        ],
+      },
+    });
+    for (const sifat of [
+      'perjadin',
+      [{ jenis_pengajuan: 'perjadin' }],
+      [{ jenis_pengajuan: 'perjadin', wajib: 'ya' }],
+      [{ jenis_pengajuan: 'Perjadin!', wajib: true }],
+      [{ wajib: true }],
+    ]) {
+      expect(validateJenisBerkas({ label: 'Tiket', sifat })).toEqual({ ok: false, errors: { sifat: 'Pengaturan wajib/tidak wajib tidak valid' } });
+    }
+    expect(
+      validateJenisBerkas({ label: 'Tiket', sifat: [{ jenis_pengajuan: 'perjadin', wajib: true }, { jenis_pengajuan: 'perjadin', wajib: false }] }),
+    ).toEqual({ ok: false, errors: { sifat: 'Ada jenis pengajuan yang diatur dua kali' } });
     expect(validateBank({ nama: ' Bank  Jago ', aktif: false })).toEqual({ ok: true, data: { nama: 'Bank Jago', aktif: false } });
     expect(validateBank({ nama: 'B' })).toMatchObject({ ok: false });
 
@@ -642,21 +669,32 @@ describe('validasi PUM', () => {
 });
 
 describe('kelengkapan', () => {
-  it('menghitung terpenuhi dari file & N/A', () => {
+  it('terpenuhi = sudah ada file; berkas wajib yang belum diunggah menghalangi pengajuan', () => {
     const k = hitungKelengkapan(
       wajib('perjadin'),
       label,
-      [{ jenis: 'surat_tugas' }, { jenis: 'surat_tugas' }, { jenis: 'lainnya' }],
-      ['invoice_hotel', 'surat_tugas'],
+      [{ jenis: 'surat_tugas' }, { jenis: 'surat_tugas' }, { jenis: 'invoice_hotel' }, { jenis: 'lainnya' }],
     );
     expect(k.items.map((i) => i.label)).toEqual(['Surat Tugas', 'Laporan Kegiatan', 'Invoice Hotel', 'Invoice Tiket']);
     expect(k.total).toBe(4);
     expect(k.terpenuhi).toBe(2);
     expect(k.persen).toBe(50);
     expect(k.lengkap).toBe(false);
-    const st = k.items.find((i) => i.jenis === 'surat_tugas')!;
-    expect(st).toMatchObject({ jumlah: 2, na: false, terpenuhi: true });
-    expect(k.items.find((i) => i.jenis === 'invoice_hotel')).toMatchObject({ jumlah: 0, na: true, terpenuhi: true });
+    expect(k.items.find((i) => i.jenis === 'surat_tugas')).toEqual({
+      jenis: 'surat_tugas',
+      label: 'Surat Tugas',
+      wajib: true,
+      jumlah: 2,
+      terpenuhi: true,
+      cek: null,
+    });
+    expect(k.items.find((i) => i.jenis === 'invoice_tiket')).toMatchObject({ jumlah: 0, terpenuhi: false });
+    expect(wajibBelumDiunggah(k).map((i) => i.label)).toEqual(['Laporan Kegiatan', 'Invoice Tiket']);
+    // Semua wajib terunggah → tidak ada yang menghalangi; Dokumen Lainnya tidak pernah wajib.
+    const lengkap = hitungKelengkapan(wajib('rumah_tangga'), label, [{ jenis: 'surat_tugas' }, { jenis: 'laporan_kegiatan' }]);
+    expect(lengkap).toMatchObject({ terpenuhi: 2, total: 2, lengkap: true });
+    expect(wajibBelumDiunggah(lengkap)).toEqual([]);
+    expect(wajibBelumDiunggah(hitungKelengkapan([], label, []))).toEqual([]);
   });
 
   it('menghitung hasil centang PUM', () => {
@@ -665,7 +703,6 @@ describe('kelengkapan', () => {
       wajib('rumah_tangga'),
       label,
       [{ jenis: 'surat_tugas' }, { jenis: 'laporan_kegiatan' }],
-      [],
       [
         { ...cekDasar, jenis: 'surat_tugas', status: 'sesuai' },
         { ...cekDasar, jenis: 'laporan_kegiatan', status: 'revisi', catatan: 'Tanda tangan kurang' },
@@ -673,14 +710,15 @@ describe('kelengkapan', () => {
     );
     expect(k).toMatchObject({ sesuai: 1, revisi: 1, semuaSesuai: false, lengkap: true });
     expect(k.items[1].cek).toMatchObject({ status: 'revisi', catatan: 'Tanda tangan kurang' });
-    const semua = hitungKelengkapan(wajib('rumah_tangga'), label, [], ['surat_tugas', 'laporan_kegiatan'], [
+    // Data lama: berkas wajib tanpa file tetap bisa dicentang sesuai (berkas fisik) — tidak dihitung terpenuhi.
+    const semua = hitungKelengkapan(wajib('rumah_tangga'), label, [], [
       { ...cekDasar, jenis: 'surat_tugas', status: 'sesuai' },
       { ...cekDasar, jenis: 'laporan_kegiatan', status: 'sesuai' },
     ]);
-    expect(semua).toMatchObject({ sesuai: 2, semuaSesuai: true, lengkap: true });
-    expect(hitungKelengkapan(wajib('konsumsi'), label, [], [])).toMatchObject({ sesuai: 0, revisi: 0, semuaSesuai: false });
+    expect(semua).toMatchObject({ sesuai: 2, semuaSesuai: true, lengkap: false, terpenuhi: 0 });
+    expect(hitungKelengkapan(wajib('konsumsi'), label, [])).toMatchObject({ sesuai: 0, revisi: 0, semuaSesuai: false });
     // Jenis tanpa berkas wajib: lengkap & boleh diverifikasi tanpa centang.
-    expect(hitungKelengkapan([], label, [{ jenis: 'lainnya' }], [])).toMatchObject({ total: 0, persen: 100, lengkap: true, semuaSesuai: true, bisaVerifikasi: true });
+    expect(hitungKelengkapan([], label, [{ jenis: 'lainnya' }])).toMatchObject({ total: 0, persen: 100, lengkap: true, semuaSesuai: true, bisaVerifikasi: true });
   });
 
   it('berkas opsional: tampil di daftar tetapi tidak dihitung kelengkapan; revisi opsional menahan verifikasi', () => {
@@ -690,33 +728,34 @@ describe('kelengkapan', () => {
       { kode: 'invoice_tiket', wajib: false },
       { kode: 'laporan_kegiatan', wajib: true },
     ];
-    // N/A hanya berlaku untuk berkas wajib
-    const k = hitungKelengkapan(daftar, label, [{ jenis: 'surat_tugas' }], ['invoice_tiket', 'laporan_kegiatan']);
-    expect(k.items.map((i) => [i.jenis, i.wajib, i.terpenuhi, i.na])).toEqual([
-      ['surat_tugas', true, true, false],
-      ['invoice_tiket', false, false, false],
-      ['laporan_kegiatan', true, true, true],
+    // Berkas tidak wajib yang belum diunggah tidak menghalangi pengajuan.
+    const k = hitungKelengkapan(daftar, label, [{ jenis: 'surat_tugas' }, { jenis: 'laporan_kegiatan' }]);
+    expect(k.items.map((i) => [i.jenis, i.wajib, i.terpenuhi])).toEqual([
+      ['surat_tugas', true, true],
+      ['invoice_tiket', false, false],
+      ['laporan_kegiatan', true, true],
     ]);
     expect(k).toMatchObject({ total: 2, terpenuhi: 2, lengkap: true, persen: 100 });
+    expect(wajibBelumDiunggah(k)).toEqual([]);
+    expect(wajibBelumDiunggah(hitungKelengkapan(daftar, label, [{ jenis: 'invoice_tiket' }])).map((i) => i.jenis)).toEqual([
+      'surat_tugas',
+      'laporan_kegiatan',
+    ]);
     // Semua wajib sesuai → boleh diverifikasi; berkas opsional yang ditandai revisi menahan verifikasi
     const sesuai = [
       { ...cekDasar, jenis: 'surat_tugas', status: 'sesuai' as const },
       { ...cekDasar, jenis: 'laporan_kegiatan', status: 'sesuai' as const },
     ];
-    expect(hitungKelengkapan(daftar, label, [], [], sesuai)).toMatchObject({ sesuai: 2, semuaSesuai: true, revisi: 0, bisaVerifikasi: true });
+    expect(hitungKelengkapan(daftar, label, [], sesuai)).toMatchObject({ sesuai: 2, semuaSesuai: true, revisi: 0, bisaVerifikasi: true });
     expect(
-      hitungKelengkapan(daftar, label, [{ jenis: 'invoice_tiket' }], [], [...sesuai, { ...cekDasar, jenis: 'invoice_tiket', status: 'revisi', catatan: 'Buram' }]),
+      hitungKelengkapan(daftar, label, [{ jenis: 'invoice_tiket' }], [...sesuai, { ...cekDasar, jenis: 'invoice_tiket', status: 'revisi', catatan: 'Buram' }]),
     ).toMatchObject({ sesuai: 2, semuaSesuai: true, revisi: 1, bisaVerifikasi: false });
     // Centang sesuai pada berkas opsional tidak menambah hitungan sesuai (hanya wajib)
-    expect(hitungKelengkapan(daftar, label, [], [], [{ ...cekDasar, jenis: 'invoice_tiket', status: 'sesuai' }])).toMatchObject({ sesuai: 0, total: 2 });
+    expect(hitungKelengkapan(daftar, label, [], [{ ...cekDasar, jenis: 'invoice_tiket', status: 'sesuai' }])).toMatchObject({ sesuai: 0, total: 2 });
     expect(kodeWajib(daftar)).toEqual(['surat_tugas', 'laporan_kegiatan']);
   });
 
-  it('parse JSON N/A & daftar berkas dengan aman (format lama = semua wajib)', () => {
-    expect(parseBerkasNa('["a",1,"b"]')).toEqual(['a', 'b']);
-    expect(parseBerkasNa('rusak')).toEqual([]);
-    expect(parseBerkasNa(null)).toEqual([]);
-    expect(parseBerkasNa('{"a":1}')).toEqual([]);
+  it('parse JSON daftar berkas dengan aman (format lama = semua wajib)', () => {
     // Daftar berkas per pengajuan: null = belum tercatat (ikut master); data lama berupa daftar kode = semua wajib
     expect(parseBerkasDaftar('["notulen","undangan"]')).toEqual([
       { kode: 'notulen', wajib: true },

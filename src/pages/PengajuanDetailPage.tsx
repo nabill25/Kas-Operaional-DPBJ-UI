@@ -41,6 +41,7 @@ import {
   modelPeserta,
 } from '../../shared/constants';
 import { formatAngka, formatRentangTanggal, formatRupiah, formatTanggal, formatWaktu, lamaHari, selisihHari } from '../../shared/format';
+import { wajibBelumDiunggah } from '../../shared/kelengkapan';
 import type { PengajuanDetail, Peserta } from '../../shared/types';
 import { CatatanModal, DataPumModal, InvoiceModal, SelesaiModal, VerifikasiModal } from '../components/pengajuan/AksiModal';
 import { BerkasPanel } from '../components/pengajuan/BerkasPanel';
@@ -281,6 +282,8 @@ function Detail({ p }: { p: PengajuanDetail }) {
   const bisaDataPum = pum && (p.status === 'diajukan_pum' || lewatVerifikasi);
   const transport = modelPeserta(model);
   const k = p.kelengkapan;
+  // Berkas wajib harus diunggah semua sebelum diajukan ke PUM (server menolak 409 bila belum).
+  const belumDiunggah = wajibBelumDiunggah(k);
   const revisi = k.items.filter((i) => i.cek?.status === 'revisi');
   const bisaTandaiBayar = pum && model === 'konsumsi' && STATUS_BISA_DIBAYARKAN.includes(p.status);
   const lama = model === 'perjadin' ? lamaHari(p.tanggal_kegiatan, p.tanggal_selesai) : 1;
@@ -297,20 +300,11 @@ function Detail({ p }: { p: PengajuanDetail }) {
   };
 
   const ajukan = async () => {
+    if (belumDiunggah.length > 0) return;
     const ok = await konfirmasi({
       judul: p.status === 'dikembalikan' ? 'Ajukan ulang ke PUM?' : 'Ajukan ke PUM?',
-      pesan: k.lengkap ? (
-        <>Data dan berkas akan terkunci selama diperiksa PUM. Pastikan semua isian sudah benar.</>
-      ) : (
-        <>
-          <span className="mb-2 flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-300">
-            <Info className="size-4" /> Berkas wajib baru {k.terpenuhi} dari {k.total}.
-          </span>
-          Berkas yang belum lengkap: {k.items.filter((i) => !i.terpenuhi).map((i) => i.label).join(', ')}. Tetap ajukan
-          sekarang? PUM dapat mengembalikan pengajuan bila berkas kurang.
-        </>
-      ),
-      teksYa: k.lengkap ? 'Ajukan sekarang' : 'Tetap ajukan',
+      pesan: <>Data dan berkas akan terkunci selama diperiksa PUM. Pastikan semua isian sudah benar.</>,
+      teksYa: 'Ajukan sekarang',
     });
     if (ok) {
       await jalankan(() => aksi.mutateAsync({ aksi: 'ajukan' }), `${p.kode} diajukan ke PUM`, 'PUM menerima notifikasi otomatis.');
@@ -419,7 +413,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                 <TautanTombol to={`/pengajuan/${p.id}/ubah`} varian="kedua" ikon={<PencilLine className="size-4" />}>
                   Ubah
                 </TautanTombol>
-                <Button ikon={<Send className="size-4" />} onClick={ajukan} memuat={aksi.isPending}>
+                <Button ikon={<Send className="size-4" />} onClick={ajukan} memuat={aksi.isPending} disabled={belumDiunggah.length > 0}>
                   {p.status === 'dikembalikan' ? 'Ajukan ulang ke PUM' : 'Ajukan ke PUM'}
                 </Button>
               </>
@@ -517,7 +511,8 @@ function Detail({ p }: { p: PengajuanDetail }) {
           <div className="text-sm">
             <p className="font-bold text-fg">Draft tersimpan! Langkah berikutnya:</p>
             <p className="text-fg-muted">
-              Unggah berkas wajib pada panel <b>Kelengkapan berkas</b> di bawah, lalu klik <b>Ajukan ke PUM</b>.
+              Unggah semua berkas wajib pada <b>List Dokumen Pendukung</b> di bawah, lalu klik <b>Ajukan ke PUM</b>. Pengajuan
+              belum dapat diajukan selama masih ada berkas wajib yang belum diunggah.
             </p>
           </div>
         </motion.div>
@@ -796,7 +791,44 @@ function Detail({ p }: { p: PengajuanDetail }) {
             bisaCek={bisaCek}
             sorot={baru && p.status === 'draft'}
             footer={
-              bisaCek && (
+              bisaEdit ? (
+                <div
+                  className={cn(
+                    'mt-5 flex flex-col gap-3 rounded-2xl p-4 ring-1 sm:flex-row sm:items-center',
+                    belumDiunggah.length === 0 ? 'bg-emerald-500/10 ring-emerald-500/25' : 'bg-fg/[0.03] ring-fg/[0.08]',
+                  )}
+                  data-testid="aksi-pengaju"
+                >
+                  <p className="flex flex-1 items-start gap-2 text-sm text-fg">
+                    {belumDiunggah.length === 0 ? (
+                      <>
+                        <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                        <span>
+                          <b>{k.total === 0 ? 'Tidak ada berkas wajib.' : 'Semua berkas wajib sudah diunggah.'}</b> Pengajuan siap
+                          {p.status === 'dikembalikan' ? ' diajukan ulang' : ' diajukan'} ke PUM.
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Info className="mt-0.5 size-4 shrink-0 text-fg-muted" />
+                        <span className="text-fg-muted">
+                          Belum dapat diajukan — unggah <b className="text-fg">{belumDiunggah.length} berkas wajib lagi</b>:{' '}
+                          {belumDiunggah.map((i) => i.label).join(', ')}.
+                        </span>
+                      </>
+                    )}
+                  </p>
+                  <Button
+                    ikon={<Send className="size-4" />}
+                    className="sm:self-center"
+                    onClick={ajukan}
+                    memuat={aksi.isPending}
+                    disabled={belumDiunggah.length > 0}
+                  >
+                    Ajukan sekarang
+                  </Button>
+                </div>
+              ) : bisaCek ? (
                 <div
                   className={cn(
                     'mt-5 flex flex-col gap-3 rounded-2xl p-4 ring-1',
@@ -841,7 +873,7 @@ function Detail({ p }: { p: PengajuanDetail }) {
                     </Button>
                   </div>
                 </div>
-              )
+              ) : null
             }
           />
         </div>

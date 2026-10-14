@@ -52,12 +52,14 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | B11a | ☐ Ketik "undangan" di kotak **Cari dokumen** | Hanya baris *Undangan* yang tampil; kosongkan → semua baris kembali |
 | B11b | ☐ Centang kotak di awal 2 baris yang sudah ada file → **Download (ZIP)** | Satu file `KSM-…_dokumen.zip` berisi folder per jenis dokumen |
 | B12 | ☐ Isi "Dokumen Lainnya" (nama + **Unggah dokumen**) | Tercatat sebagai tambahan (status "Tambahan"), **tidak** mengubah hitungan berkas wajib |
-| B13 | ☐ Klik **Ajukan ke PUM** saat berkas baru 2/4 | Konfirmasi menyebut berkas yang kurang; **Tetap ajukan** → status **Diajukan ke PUM** |
+| B13 | ☐ Perhatikan tombol **Ajukan ke PUM** saat berkas wajib baru 2/4 | Tombol **nonaktif**; di bawah tabel berkas: "Belum dapat diajukan — unggah 2 berkas wajib lagi: …" (tombol **Ajukan sekarang** juga nonaktif); baris berkas wajib yang kosong bertuliskan "Wajib diunggah sebelum diajukan" |
+| B13a | ☐ Unggah 2 berkas wajib sisanya → **Ajukan ke PUM** → **Ajukan sekarang** | Kotak di bawah tabel berubah hijau "Semua berkas wajib sudah diunggah…"; status **Diajukan ke PUM** |
 | B14 | ☐ Perhatikan halaman setelah diajukan | Tombol Ubah/Hapus hilang; berkas terkunci ("sedang diperiksa PUM"); ada **Tarik kembali** |
 | B15 | ☐ **Tarik kembali** → konfirmasi | Status kembali **Draft**; bisa diedit lagi |
 | B16 | ☐ **Ubah** → ganti jumlah uang → **Simpan perubahan** | Total baru tampil; riwayat mencatat "Nilai Rp … → Rp …" |
 | B17 | ☐ Buat draft lain lalu **Hapus** | Terhapus; kembali ke daftar; riwayat penghapusan tetap tercatat di Aktivitas terbaru |
-| B18 | ☐ Lengkapi 4 berkas pengajuan B7 → **Ajukan ke PUM** | Status **Diajukan ke PUM**; stepper 5 tahap: Draft dibuat ✓ → *Diajukan ke PUM* (aktif) → Verifikasi PUM → Diajukan ke MDK → Paid |
+| B18 | ☐ Ajukan lagi pengajuan B7 (4 berkas wajib sudah lengkap) → **Ajukan ke PUM** | Status **Diajukan ke PUM**; stepper 5 tahap: Draft dibuat ✓ → *Diajukan ke PUM* (aktif) → Verifikasi PUM → Diajukan ke MDK → Paid |
+| B19 | ☐ (Setelah PUM mengembalikan, lihat E) hapus salah satu berkas wajib → coba **Ajukan ulang ke PUM** | Tombol nonaktif sampai berkas wajib itu diunggah lagi; tidak ada lagi pilihan "Tandai tidak diperlukan" |
 
 ## C. Operator — Transport Rumah Tangga
 
@@ -82,8 +84,8 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | D3a | ☐ Pilih **Dalam Kota**, isi lokasi; orang 1: **Uang harian** `450000`; orang 2: biarkan kedua uang kosong → simpan | Orang 2: "Isi uang harian dan/atau uang transport" |
 | D3b | ☐ Orang 2: Uang harian `200000` + Uang transport `100000` → simpan | "Jumlah orang 2: Rp 300.000"; total Rp 750.000; detail menampilkan rincian uang harian & uang transport per orang |
 | D3c | ☐ Perhatikan baris orang (laptop/desktop) | Satu baris: **Nama · Uang harian · Uang transport · Bank · No. Rekening**; rekening terisi otomatis dari master Pegawai bila ada; No. rekening 15 digit tampil utuh |
-| D4 | ☐ Berkas *Invoice Hotel* → tombol **⋯** → **Tandai tidak diperlukan** (juga *Invoice Tiket*) | Baris abu-abu "Ditandai tidak diperlukan oleh pengaju"; dihitung terpenuhi |
-| D5 | ☐ Unggah file ke baris yang ditandai tidak diperlukan | Tanda dilepas otomatis, baris menjadi hijau |
+| D4 | ☐ Perhatikan baris *Invoice Hotel* & *Invoice Tiket* (perjalanan dalam kota) | Tetap berpil **Wajib** ("Wajib diunggah sebelum diajukan"); tidak ada menu "Tandai tidak diperlukan". Bila berkas ini memang tidak selalu ada, admin menjadikannya **Tidak wajib** (L15–L17) |
+| D5 | ☐ Unggah keempat berkas wajib | Kotak hijau "Semua berkas wajib sudah diunggah. Pengajuan siap diajukan ke PUM."; tombol **Ajukan ke PUM** aktif |
 
 ## E. PUM — pemeriksaan & centang berkas
 
@@ -193,15 +195,15 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
 | L1 | ☐ Login `operator`/`pum`/`pimpinan` → lihat menu **Master Data** | Hanya **Pegawai** (dan Pengguna untuk admin); membuka `/master/jenis-pengajuan` → "Tidak memiliki akses" |
-| L2 | ☐ Login `admin` → **Jenis Pengajuan** | 3 jenis bawaan (Konsumsi KSM, Rumah Tangga TRT, Perjadin TPD) beserta berkas berurutan ("Berkas · n wajib, m opsional"), model form, mekanisme (**KO / LS** atau **Selalu LS** untuk Rumah Tangga & Perjadin), jumlah pengajuan |
+| L2 | ☐ Login `admin` → **Jenis Pengajuan** | 3 jenis bawaan (Konsumsi KSM, Rumah Tangga TRT, Perjadin TPD) beserta berkas berurutan ("Berkas · n wajib, m tidak wajib"), model form, mekanisme (**KO / LS** atau **Selalu LS** untuk Rumah Tangga & Perjadin), jumlah pengajuan |
 | L3 | ☐ **Jenis Berkas** → **Tambah Jenis Berkas** (mis. "Kuitansi", keterangan opsional) | Muncul di daftar; nama yang sama / "Dokumen Lainnya" ditolak |
-| L4 | ☐ Menu ⋯ **Notula** → Nonaktifkan / Hapus | Tidak bisa: masih tercantum pada Konsumsi ("Dipakai pada: Konsumsi") / jenis bawaan |
-| L5 | ☐ **Jenis Pengajuan** → **Tambah Jenis Pengajuan**: "Kontrak Borongan", singkat "Borongan", awalan **KBR**, model **Umum**, batas 3 orang, berkas Laporan Pekerjaan, Presensi, Kontrak (**Tambah berkas**, atur urutan dengan ↑↓; Presensi diubah ke **Opsional**), mekanisme **KO atau LS**, kata kunci "tenaga lepas", warna & ikon | Tersimpan; kartu menampilkan KBR-YYYY-NNNN, model, maks. 3 orang, "Berkas · 2 wajib, 1 opsional" (Presensi bertanda "· opsional"). Saat mengeklik warna/ikon, judul dialog tetap di tempat (tidak bergeser & tidak ada ruang kosong di bawah) |
+| L4 | ☐ Menu ⋯ **Notula** → Nonaktifkan / Hapus | Tidak bisa: masih tercantum pada Konsumsi ("Wajib di: Konsumsi") / jenis bawaan |
+| L5 | ☐ **Jenis Pengajuan** → **Tambah Jenis Pengajuan**: "Kontrak Borongan", singkat "Borongan", awalan **KBR**, model **Umum**, batas 3 orang, berkas Laporan Pekerjaan, Presensi, Kontrak (**Tambah berkas**, atur urutan dengan ↑↓; Presensi diubah ke **Tidak wajib**), mekanisme **KO atau LS**, kata kunci "tenaga lepas", warna & ikon | Tersimpan; kartu menampilkan KBR-YYYY-NNNN, model, maks. 3 orang, "Berkas · 2 wajib, 1 tidak wajib" (Presensi bertanda "· tidak wajib"). Saat mengeklik warna/ikon, judul dialog tetap di tempat (tidak bergeser & tidak ada ruang kosong di bawah) |
 | L6 | ☐ Coba awalan yang sudah dipakai (mis. KSM) / nama yang sama | Ditolak dengan pesan pada isian terkait |
-| L7 | ☐ Login operator → **Buat Pengajuan** | Ada kartu **Kontrak Borongan** (UMUM, maks. 3 orang, berkasnya; Presensi "· opsional") |
+| L7 | ☐ Login operator → **Buat Pengajuan** | Ada kartu **Kontrak Borongan** (UMUM, maks. 3 orang, berkasnya; Presensi "· tidak wajib") |
 | L8 | ☐ Pilih Kontrak Borongan: isi nama, **Tanggal / mulai periode** + **Sampai (opsional)**, mekanisme, 1–3 penerima + nilai (+ bank & rekening opsional) → Simpan draft | Tidak ada isian lokasi; tombol tambah orang berhenti di 3; kode **KBR-YYYY-0001**; tabel berkas: Laporan Pekerjaan & Kontrak berpil **Wajib**, Presensi tanpa pil; kelengkapan "0 dari 2 berkas wajib"; total = jumlah nilai |
-| L8a | ☐ Unggah Presensi (opsional) | Status *Belum Verifikasi*, hitungan berkas wajib tetap 0/2; menu ⋯ "tidak diperlukan" hanya ada di berkas wajib |
-| L9 | ☐ Admin ubah berkas Kontrak Borongan (tambah "Kuitansi" sebagai **Opsional**, ubah Kontrak ke **Opsional**) | Toast "1 pengajuan Draft/Dikembalikan ikut …"; draft tadi menampilkan Kuitansi + riwayat "Berkas mengikuti master — tidak wajib lagi: Kontrak · opsional baru: Kuitansi"; pengajuan yang sudah diajukan ke PUM tidak berubah |
+| L8a | ☐ Unggah Presensi (tidak wajib) | Status *Belum Verifikasi*, hitungan berkas wajib tetap 0/2; di bawah tabel: "Belum dapat diajukan — unggah 2 berkas wajib lagi: Laporan Pekerjaan, Kontrak." |
+| L9 | ☐ Admin ubah berkas Kontrak Borongan (tambah "Kuitansi" sebagai **Tidak wajib**, ubah Kontrak ke **Tidak wajib**) | Toast "1 pengajuan Draft/Dikembalikan ikut …"; draft tadi menampilkan Kuitansi + riwayat "Berkas mengikuti master — tidak wajib lagi: Kontrak · opsional baru: Kuitansi"; pengajuan yang sudah diajukan ke PUM tidak berubah |
 | L9a | ☐ Ubah **Transport Perjadin** → mekanisme **KO atau LS**, simpan; lalu kembalikan ke **Selalu LS** | Saat "KO atau LS", form Perjadin kembali menampilkan pilihan Mekanisme; saat "Selalu LS" pilihan hilang dan pengajuan baru tersimpan LS |
 | L10 | ☐ PUM memproses pengajuan Kontrak Borongan sampai **Selesai (Paid)** | Alur sama dengan jenis lain; muncul di dashboard (warna sendiri), rekap per pengajuan & per pegawai, filter kategori (dropdown), PDF/Excel |
 | L11 | ☐ Nonaktifkan Kontrak Borongan | Hilang dari Buat Pengajuan; pengajuan lama tetap bisa dibuka & diproses; awalan kode terkunci bila sudah dipakai |
@@ -211,6 +213,10 @@ dan mencentang berkas, atau mengembalikan dengan catatan) → **Verifikasi PUM**
 | L12c | ☐ Tab **Kode Dana** → **Tambah Kode Dana** (mis. `71`, "Dana Hibah"); ubah nama; nonaktifkan; hapus | Kode dana baru bisa dipilih pada pasangan project–task & oleh PUM; kode yang sudah dipakai pasangan/pengajuan tidak bisa dihapus (nonaktifkan saja) |
 | L13 | ☐ **Bank** → tambah "Bank Nagari", lalu nonaktifkan | Muncul / hilang dari saran isian Bank pada form Konsumsi & Pegawai; rekening yang sudah tersimpan tidak berubah |
 | L14 | ☐ Operator → Konsumsi → pilih "uang siapa" pegawai yang punya rekening | Bank & No. Rekening terisi otomatis ("diisi otomatis dari data pegawai"); ganti pegawai → ikut berganti; isian yang diubah manual tidak ditimpa |
+| L15 | ☐ Admin → **Jenis Berkas** → kartu *Surat Tugas* | Tertulis "Wajib di: Transport Rumah Tangga, Transport Perjadin" + tautan **Atur wajib / tidak wajib** (juga di menu ⋯) |
+| L16 | ☐ **Atur wajib / tidak wajib** → *Transport Rumah Tangga* = **Tidak wajib** (Perjadin tetap **Wajib**) → **Simpan** | Toast "Pengaturan wajib Surat Tugas disimpan" (+ jumlah Draft/Dikembalikan yang ikut berubah); kartu: "Wajib di: Transport Perjadin" & "Tidak wajib di: Transport Rumah Tangga"; Master **Jenis Pengajuan** → Rumah Tangga menampilkan "Surat Tugas · tidak wajib" (data sama) |
+| L17 | ☐ Operator → draft Rumah Tangga yang baru berisi *Laporan Kegiatan* | Surat Tugas tanpa pil Wajib; kotak hijau "Semua berkas wajib sudah diunggah"; bisa diajukan. Setelah selesai menguji, kembalikan Surat Tugas ke **Wajib** |
+| L18 | ☐ Kartu jenis berkas yang belum dipakai (mis. *Kuitansi* baru dari L3) | "Belum dipakai jenis pengajuan mana pun"; menu ⋯ "Atur wajib (belum dipakai)" nonaktif — cantumkan dulu di Master Jenis Pengajuan |
 
 ## M. Pengaju tanpa master data & Profil (rekening sendiri)
 

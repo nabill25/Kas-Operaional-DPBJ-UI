@@ -733,10 +733,18 @@ export function validateJenisPengajuan(raw: unknown, modelTetap?: ModelForm): Ha
   };
 }
 
+/** Sifat sebuah jenis berkas pada satu jenis pengajuan yang memakainya. */
+export interface SifatBerkasBersih {
+  jenis_pengajuan: string;
+  wajib: boolean;
+}
+
 export interface JenisBerkasBersih {
   label: string;
   keterangan: string | null;
   aktif: boolean;
+  /** Wajib / tidak wajib per jenis pengajuan pemakai (hanya yang dikirim diubah; kosong = sifat tetap). */
+  sifat: SifatBerkasBersih[];
 }
 
 export function validateJenisBerkas(raw: unknown): Hasil<JenisBerkasBersih> {
@@ -750,8 +758,30 @@ export function validateJenisBerkas(raw: unknown): Hasil<JenisBerkasBersih> {
   const keterangan = teks(r.keterangan);
   if (keterangan.length > 200) e.keterangan = 'Keterangan maksimal 200 karakter';
   const aktif = bacaAktif(r.aktif, e);
+
+  // Sifat per jenis pengajuan: [{ jenis_pengajuan, wajib }].
+  const sifat: SifatBerkasBersih[] = [];
+  const daftar = r.sifat === undefined || r.sifat === null ? [] : r.sifat;
+  if (!Array.isArray(daftar) || daftar.length > 50) {
+    e.sifat = 'Pengaturan wajib/tidak wajib tidak valid';
+  } else {
+    for (const item of daftar) {
+      const o = objek(item);
+      const jenis = typeof o.jenis_pengajuan === 'string' ? o.jenis_pengajuan.trim() : '';
+      if (!/^[a-z][a-z0-9_]{1,39}$/.test(jenis) || typeof o.wajib !== 'boolean') {
+        e.sifat = 'Pengaturan wajib/tidak wajib tidak valid';
+        break;
+      }
+      if (sifat.some((s) => s.jenis_pengajuan === jenis)) {
+        e.sifat = 'Ada jenis pengajuan yang diatur dua kali';
+        break;
+      }
+      sifat.push({ jenis_pengajuan: jenis, wajib: o.wajib });
+    }
+  }
+
   if (Object.keys(e).length > 0) return { ok: false, errors: e };
-  return { ok: true, data: { label, keterangan: keterangan || null, aktif } };
+  return { ok: true, data: { label, keterangan: keterangan || null, aktif, sifat } };
 }
 
 export interface BankBersih {

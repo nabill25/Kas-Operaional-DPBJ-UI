@@ -124,6 +124,38 @@ export function CentangAktif({
   );
 }
 
+/** Pilihan sifat berkas Wajib / Tidak wajib (form Master Jenis Pengajuan & Master Jenis Berkas). */
+export function PilihSifat({ label, wajib, onChange }: { label: string; wajib: boolean; onChange: (wajib: boolean) => void }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex rounded-lg bg-fg/[0.05] p-0.5 ring-1 ring-fg/[0.06]">
+      {(
+        [
+          [true, 'Wajib'],
+          [false, 'Tidak wajib'],
+        ] as const
+      ).map(([nilai, teks]) => (
+        <button
+          key={teks}
+          type="button"
+          role="radio"
+          aria-checked={wajib === nilai}
+          onClick={() => onChange(nilai)}
+          className={cn(
+            'h-7 rounded-md px-2.5 text-xs font-semibold transition',
+            wajib === nilai
+              ? nilai
+                ? 'bg-red-500/12 text-red-700 ring-1 ring-red-500/25 dark:text-red-300'
+                : 'bg-surface text-fg shadow-sm ring-1 ring-fg/10'
+              : 'text-fg-muted hover:text-fg',
+          )}
+        >
+          {teks}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Teks pencarian cocok (setiap kata harus ada, urutan bebas). */
 export function cocokCari(q: string, ...teks: (string | null | undefined)[]): boolean {
   const kata = q.trim().toLowerCase().split(/\s+/).filter(Boolean);

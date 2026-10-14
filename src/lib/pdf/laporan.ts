@@ -554,8 +554,8 @@ export async function pdfBuktiPengajuan(p: PengajuanDetail, dicetakOleh: string,
   y = judulBagian(doc, 'Kelengkapan berkas', y);
   const barisBerkas: RowInput[] = p.kelengkapan.items.map((it) => [
     it.label,
-    it.wajib ? 'Wajib' : 'Opsional',
-    it.jumlah > 0 ? `Ada (${it.jumlah} file)` : it.na ? 'Tidak diperlukan' : it.wajib ? 'BELUM ADA' : '-',
+    it.wajib ? 'Wajib' : 'Tidak wajib',
+    it.jumlah > 0 ? `Ada (${it.jumlah} file)` : it.wajib ? 'BELUM ADA' : '-',
     !it.cek ? '-' : it.cek.status === 'sesuai' ? 'Sesuai' : bersihkan(`Perlu revisi: ${it.cek.catatan ?? ''}`),
     bersihkan(p.berkas.filter((x) => x.jenis === it.jenis).map((x) => x.nama_asli).join(', ') || '-'),
   ]);

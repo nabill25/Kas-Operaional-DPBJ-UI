@@ -153,7 +153,7 @@ export default function PengajuanBaruPage() {
                             )}
                           >
                             {kamus.labelBerkas(b.kode)}
-                            {!b.wajib && <span className="text-fg-subtle"> · opsional</span>}
+                            {!b.wajib && <span className="text-fg-subtle"> · tidak wajib</span>}
                           </li>
                         ))}
                       </ul>

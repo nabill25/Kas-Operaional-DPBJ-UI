@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { NotifikasiData } from '../../shared/types';
-import { buatKonteks, dataKonsumsi, dataRumahTangga, masuk, type Agent, type Konteks } from './helpers';
+import { ajukanLengkap, buatKonteks, dataKonsumsi, dataRumahTangga, masuk, type Agent, type Konteks } from './helpers';
 
 let ctx: Konteks;
 let op: Agent;
@@ -17,12 +17,12 @@ afterEach(() => ctx.tutup());
 
 const REKENING = { rekening_bank: 'Bank Mandiri', rekening_nomor: '157-000 1234.567' };
 
-/** Buat konsumsi lalu ajukan ke PUM (berkas boleh menyusul). */
+/** Buat konsumsi, unggah berkas wajibnya, lalu ajukan ke PUM. */
 async function konsumsiDiPum(ubah: Record<string, unknown> = REKENING): Promise<number> {
   const res = await op.post('/api/pengajuan').send(dataKonsumsi(ctx.pegawai[0], ubah));
   expect(res.status, JSON.stringify(res.body)).toBe(201);
-  const aj = await op.post(`/api/pengajuan/${res.body.id}/ajukan`);
-  expect(aj.status).toBe(200);
+  const aj = await ajukanLengkap(ctx, op, res.body.id as number);
+  expect(aj.status, JSON.stringify(aj.body)).toBe(200);
   return res.body.id as number;
 }
 
@@ -123,7 +123,7 @@ describe('Tanda "sudah dibayarkan" oleh PUM', () => {
 
     // Transport ditolak
     const rt = await op.post('/api/pengajuan').send(dataRumahTangga([{ pegawai_id: ctx.pegawai[0], nilai: 50_000 }]));
-    expect((await op.post(`/api/pengajuan/${rt.body.id}/ajukan`)).status).toBe(200);
+    expect((await ajukanLengkap(ctx, op, rt.body.id as number)).status).toBe(200);
     const tolak = await pum.put(`/api/pengajuan/${rt.body.id}/dibayarkan`).send({ dibayarkan: true });
     expect(tolak.status).toBe(409);
     expect(tolak.body.message).toContain('Konsumsi');

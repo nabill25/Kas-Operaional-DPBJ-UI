@@ -176,44 +176,33 @@ describe('Berkas', () => {
     expect(jumlahObjekStorage(ctx)).toBe(0);
   });
 
-  it('tanda N/A (tidak diperlukan) untuk berkas wajib', async () => {
+  it('tanda "tidak diperlukan" (N/A) sudah tidak ada: berkas wajib terpenuhi hanya bila diunggah', async () => {
     const id = (
       await op.post('/api/pengajuan').send(
         dataPerjadin([{ pegawai_id: ctx.pegawai[0], uang_transport: 300_000 }], { jenis_transport: 'dalam_kota' }),
       )
     ).body.id as number;
 
-    let res = await op.put(`/api/pengajuan/${id}/berkas-na`).send({ jenis: 'invoice_hotel', na: true });
-    expect(res.status).toBe(200);
-    expect(res.body.berkas_na).toEqual(['invoice_hotel']);
-    expect(res.body.kelengkapan.terpenuhi).toBe(1);
+    // Endpoint N/A lama sudah dihapus; detail tidak lagi memuat tanda N/A
+    expect((await op.put(`/api/pengajuan/${id}/berkas-na`).send({ jenis: 'invoice_hotel', na: true })).status).toBe(404);
+    let res = await op.get(`/api/pengajuan/${id}`);
+    expect(res.body).not.toHaveProperty('berkas_na');
+    expect(res.body.kelengkapan.items[0]).not.toHaveProperty('na');
 
-    res = await op.put(`/api/pengajuan/${id}/berkas-na`).send({ jenis: 'invoice_tiket', na: true });
     await unggah(op, id, 'surat_tugas', FILE_CONTOH.pdf, 'st.pdf');
     res = await unggah(op, id, 'laporan_kegiatan', FILE_CONTOH.pdf, 'lap.pdf');
-    expect(res.body.kelengkapan).toMatchObject({ terpenuhi: 4, total: 4, lengkap: true });
-    expect(res.body.berkas_terpenuhi).toBe(4);
-
-    // N/A pada jenis yang sudah ada file → 409; jenis bukan wajib → 400
-    expect((await op.put(`/api/pengajuan/${id}/berkas-na`).send({ jenis: 'surat_tugas', na: true })).status).toBe(409);
-    expect((await op.put(`/api/pengajuan/${id}/berkas-na`).send({ jenis: 'notulen', na: true })).status).toBe(400);
-    expect((await op.put(`/api/pengajuan/${id}/berkas-na`).send({ jenis: 'invoice_hotel' })).status).toBe(400);
-
-    // Unggah file untuk jenis N/A → tanda N/A dilepas otomatis
-    res = await unggah(op, id, 'invoice_hotel', FILE_CONTOH.pdf, 'hotel.pdf');
-    expect(res.body.berkas_na).toEqual(['invoice_tiket']);
-    expect(res.body.kelengkapan.terpenuhi).toBe(4);
-
-    // Batalkan N/A
-    res = await op.put(`/api/pengajuan/${id}/berkas-na`).send({ jenis: 'invoice_tiket', na: false });
-    expect(res.body.riwayat[0]).toMatchObject({ aksi: 'berkas_na_batal', keterangan: 'Invoice Tiket' });
-    expect(res.body.kelengkapan).toMatchObject({ terpenuhi: 3, lengkap: false });
+    expect(res.body.kelengkapan).toMatchObject({ terpenuhi: 2, total: 4, lengkap: false });
+    expect(res.body.berkas_terpenuhi).toBe(2);
 
     // Filter kelengkapan di daftar
-    const belum = await op.get('/api/pengajuan?kelengkapan=belum_lengkap');
-    expect(belum.body.total).toBe(1);
-    const lengkap = await op.get('/api/pengajuan?kelengkapan=lengkap');
-    expect(lengkap.body.total).toBe(0);
+    expect((await op.get('/api/pengajuan?kelengkapan=belum_lengkap')).body.total).toBe(1);
+    expect((await op.get('/api/pengajuan?kelengkapan=lengkap')).body.total).toBe(0);
+
+    await unggah(op, id, 'invoice_hotel', FILE_CONTOH.pdf, 'hotel.pdf');
+    res = await unggah(op, id, 'invoice_tiket', FILE_CONTOH.jpg, 'tiket.jpg');
+    expect(res.body.kelengkapan).toMatchObject({ terpenuhi: 4, total: 4, lengkap: true });
+    expect(res.body.berkas_terpenuhi).toBe(4);
+    expect((await op.get('/api/pengajuan?kelengkapan=lengkap')).body.total).toBe(1);
   });
 
   it('PUM (juga pengaju) melihat & mengelola berkas saat draft; setelah diajukan berkas terkunci untuk semua pengaju', async () => {
@@ -223,7 +212,9 @@ describe('Berkas', () => {
     // Saat draft, PUM boleh melihat & mengunggah (sama seperti operator)
     expect((await pum.get(`/api/berkas/${berkasId}/file`).redirects(0)).status).toBe(302);
     expect((await unggah(pum, id, 'undangan', FILE_CONTOH.pdf, 'u.pdf')).status).toBe(201);
-    await op.post(`/api/pengajuan/${id}/ajukan`);
+    expect((await unggah(op, id, 'invoice', FILE_CONTOH.pdf, 'i.pdf')).status).toBe(201);
+    expect((await unggah(op, id, 'daftar_hadir', FILE_CONTOH.pdf, 'dh.pdf')).status).toBe(201);
+    expect((await op.post(`/api/pengajuan/${id}/ajukan`)).status).toBe(200);
     expect((await pum.get(`/api/berkas/${berkasId}/file`).redirects(0)).status).toBe(302);
     // Setelah diajukan: berkas terkunci bagi operator maupun PUM
     expect((await pum.delete(`/api/berkas/${berkasId}`)).status).toBe(409);

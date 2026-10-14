@@ -12,8 +12,8 @@ hingga **Selesai (Paid)** setelah proses MDK selesai, notifikasi otomatis, dashb
 
 - **Jenis pengajuan dari master data**: bawaan Konsumsi, Transport Rumah Tangga, Transport Perjadin; admin dapat menambah jenis baru
   (mis. Kontrak Borongan) dengan model form **Umum** (pegawai + nilai per orang), awalan kode, dan berkas sendiri.
-- **Master Data (admin)**: Jenis Pengajuan (berkas **wajib/opsional**, mekanisme KO/LS atau tetap, batas orang, warna, ikon),
-  Jenis Berkas, Project Costing & Task Name **per tahun anggaran** (2026, 2027, …; salin dari tahun lain) beserta **kode dana**
+- **Master Data (admin)**: Jenis Pengajuan (berkas **wajib/tidak wajib**, mekanisme KO/LS atau tetap, batas orang, warna, ikon),
+  Jenis Berkas (**atur wajib / tidak wajib** per jenis pengajuan), Project Costing & Task Name **per tahun anggaran** (2026, 2027, …; salin dari tahun lain) beserta **kode dana**
   tiap pasangan (51/61 sesuai laporan sisa anggaran), Bank, Pegawai; **rekening pegawai** mengisi otomatis rekening di form.
 - **Profil akun**: admin menautkan akun ke data pegawai; pemilik akun (mis. pengaju) mengisi Bank & No. Rekening miliknya sendiri
   di **Pengaturan → Profil**. Pengaju tidak mengelola master data.
@@ -23,8 +23,8 @@ hingga **Selesai (Paid)** setelah proses MDK selesai, notifikasi otomatis, dashb
   Perjadin = **uang harian + uang transport**; tiap orang + **bank & no. rekening** (otomatis dari data pegawai), satu baris per orang.
   Total dijumlahkan otomatis & bisa direkap per orang.
 - **List Dokumen Pendukung**: tabel berkas (tanda *Wajib*, nama dokumen, status Sudah/Belum Verifikasi, Download & Preview),
-  kotak cari, unggah (klik / seret-lepas) PDF, gambar, Word, Excel; tandai "tidak diperlukan"; dokumen tambahan bebas;
-  centang beberapa baris → Download (ZIP) / Tandai Sesuai.
+  kotak cari, unggah (klik / seret-lepas) PDF, gambar, Word, Excel; dokumen tambahan bebas; centang beberapa baris →
+  Download (ZIP) / Tandai Sesuai. **Semua berkas wajib harus diunggah** sebelum pengajuan dapat diajukan ke PUM.
 - **Alur status** (stepper 5 tahap): Draft → **Diajukan ke PUM** → (Dikembalikan → Diajukan ulang) → **Diverifikasi PUM** →
   **Diajukan ke MDK** (No. Invoice diinput, menunggu verifikasi MDK) → **Selesai (Paid)**. Riwayat (audit trail) lengkap.
 - **Verifikasi PUM**: centang tiap berkas wajib (*Sesuai* / *Revisi* + catatan), kembalikan dengan alasan, **Verifikasi**

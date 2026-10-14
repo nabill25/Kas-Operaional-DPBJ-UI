@@ -111,10 +111,10 @@ export interface BerkasDaftar {
 export interface KelengkapanItem {
   jenis: JenisBerkas;
   label: string;
-  /** false = berkas opsional (tidak dihitung kelengkapan & tidak bisa ditandai "tidak diperlukan"). */
+  /** true = wajib diunggah sebelum diajukan ke PUM; false = tidak wajib (opsional, tidak dihitung kelengkapan). */
   wajib: boolean;
   jumlah: number;
-  na: boolean;
+  /** Sudah ada ≥1 file. */
   terpenuhi: boolean;
   cek: CekBerkas | null;
 }
@@ -203,7 +203,6 @@ export interface PengajuanRingkas {
 export interface PengajuanDetail extends PengajuanRingkas {
   catatan: string | null;
   catatan_pum: string | null;
-  berkas_na: string[];
   peserta: Peserta[];
   berkas: Berkas[];
   riwayat: Riwayat[];
@@ -406,8 +405,11 @@ export interface JenisBerkasMaster {
   aktif: boolean;
   bawaan: boolean;
   urutan: number;
-  /** Pemakaian (hanya pada daftar master): jenis pengajuan yang mewajibkan & jumlah file terunggah. */
-  dipakai?: { jenis_pengajuan: string[]; berkas: number };
+  /**
+   * Pemakaian (hanya pada daftar master): jenis pengajuan yang mencantumkan berkas ini (urut master), yang mewajibkannya
+   * (sisanya = tidak wajib), & jumlah file terunggah.
+   */
+  dipakai?: { jenis_pengajuan: string[]; wajib: string[]; berkas: number };
 }
 
 /** Konfigurasi master yang dibutuhkan semua halaman (dimuat sekali setelah login). */

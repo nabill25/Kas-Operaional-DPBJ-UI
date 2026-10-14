@@ -1,11 +1,11 @@
 import type { JenisBerkas } from './constants';
-import type { BerkasDaftar, CekBerkas, Kelengkapan } from './types';
+import type { BerkasDaftar, CekBerkas, Kelengkapan, KelengkapanItem } from './types';
 
 /**
  * Hitung kelengkapan berkas sebuah pengajuan.
  * - `daftar`: berkas pengajuan ini (snapshot `berkas_daftar`, atau master jenisnya) beserta sifatnya, urut tampil.
- * - Hitungan terpenuhi/total/sesuai hanya untuk berkas wajib. Terpenuhi: sudah ada ≥1 file, atau ditandai
- *   "tidak diperlukan" (N/A) oleh pengaju — tanda N/A hanya berlaku untuk berkas wajib.
+ * - Hitungan terpenuhi/total/sesuai hanya untuk berkas wajib. Terpenuhi = sudah ada ≥1 file: berkas wajib harus diunggah
+ *   sebelum pengajuan dapat diajukan ke PUM (Okt 2026; tanda "tidak diperlukan" tidak ada lagi).
  * - Sesuai/revisi: hasil centang pemeriksaan PUM per jenis berkas (berkas opsional juga boleh diperiksa).
  * - Boleh diverifikasi: semua berkas wajib sesuai dan tidak ada berkas (wajib/opsional) yang ditandai revisi.
  */
@@ -13,19 +13,16 @@ export function hitungKelengkapan(
   daftar: readonly BerkasDaftar[],
   label: (kode: JenisBerkas) => string,
   berkas: readonly { jenis: string }[],
-  berkasNa: readonly string[],
   cek: readonly CekBerkas[] = [],
 ): Kelengkapan {
   const items = daftar.map(({ kode: jenis, wajib }) => {
     const jumlah = berkas.filter((b) => b.jenis === jenis).length;
-    const na = wajib && jumlah === 0 && berkasNa.includes(jenis);
     return {
       jenis,
       label: label(jenis),
       wajib,
       jumlah,
-      na,
-      terpenuhi: jumlah > 0 || na,
+      terpenuhi: jumlah > 0,
       cek: cek.find((c) => c.jenis === jenis) ?? null,
     };
   });
@@ -48,14 +45,9 @@ export function hitungKelengkapan(
   };
 }
 
-/** Parse kolom JSON `berkas_na` dengan aman. */
-export function parseBerkasNa(json: string | null | undefined): string[] {
-  try {
-    const v: unknown = JSON.parse(json ?? '[]');
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
+/** Berkas wajib yang belum diunggah (menghalangi pengajuan diajukan ke PUM). */
+export function wajibBelumDiunggah(k: Pick<Kelengkapan, 'items'>): KelengkapanItem[] {
+  return k.items.filter((i) => i.wajib && !i.terpenuhi);
 }
 
 /**

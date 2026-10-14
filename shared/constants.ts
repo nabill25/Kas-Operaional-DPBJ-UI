@@ -225,6 +225,7 @@ export const AKSI_RIWAYAT_LABEL: Record<AksiRiwayat, string> = {
   dihapus: 'Pengajuan dihapus',
   berkas_diunggah: 'Berkas diunggah',
   berkas_dihapus: 'Berkas dihapus',
+  // Data lama: tanda "tidak diperlukan" dihapus sejak Okt 2026 (berkas wajib harus diunggah sebelum diajukan).
   berkas_na: 'Berkas ditandai tidak diperlukan',
   berkas_na_batal: 'Tanda "tidak diperlukan" dibatalkan',
   diajukan: 'Diajukan ke PUM',

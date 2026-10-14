@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, masukAPI, pilihPegawai, test } from './fixtures';
+import { expect, masukAPI, pilihPegawai, test, unggahBerkas } from './fixtures';
 
 /** Posisi kotak isian (data-field = id input). */
 async function kotak(page: Page, field: string) {
@@ -17,7 +17,7 @@ async function harusSebaris(page: Page, fields: string[]) {
   }
 }
 
-test('Perjadin: selalu LS, uang harian & transport + bank & rekening per orang, validasi, pengaju tanpa tambah pegawai, maks. 2 orang, berkas N/A', async ({ page }) => {
+test('Perjadin: selalu LS, uang harian & transport + bank & rekening per orang, validasi, pengaju tanpa tambah pegawai, maks. 2 orang, berkas wajib harus diunggah sebelum diajukan', async ({ page }) => {
   const nama = `Perjalanan Dinas Uji ${Date.now()}`;
 
   await masukAPI(page, 'operator');
@@ -97,14 +97,25 @@ test('Perjadin: selalu LS, uang harian & transport + bank & rekening per orang, 
     await expect(page.locator(`[data-berkas="${jenis}"]`)).toHaveAttribute('data-keadaan', 'kosong');
   }
 
-  // Dalam kota: tandai invoice hotel & tiket tidak diperlukan
-  for (const label of ['Invoice Hotel', 'Invoice Tiket']) {
-    await page.getByRole('button', { name: `Opsi ${label}` }).click();
-    await page.getByRole('menuitem', { name: 'Tandai tidak diperlukan' }).click();
-  }
-  await expect(page.locator('[data-berkas="invoice_hotel"]')).toHaveAttribute('data-keadaan', 'na');
-  await expect(page.locator('[data-berkas="invoice_tiket"]')).toHaveAttribute('data-keadaan', 'na');
+  // Berkas wajib harus diunggah semua sebelum diajukan (tidak ada lagi tanda "tidak diperlukan").
+  const aksiPengaju = page.getByTestId('aksi-pengaju');
+  await expect(aksiPengaju).toContainText(
+    'Belum dapat diajukan — unggah 4 berkas wajib lagi: Surat Tugas, Laporan Kegiatan, Invoice Hotel, Invoice Tiket.',
+  );
+  await expect(page.getByRole('button', { name: 'Ajukan ke PUM' })).toBeDisabled();
+  await expect(aksiPengaju.getByRole('button', { name: 'Ajukan sekarang' })).toBeDisabled();
+  await expect(page.locator('[data-berkas="invoice_tiket"]')).toContainText('Wajib diunggah sebelum diajukan');
+  await expect(page.getByRole('button', { name: /^Opsi / })).toHaveCount(0);
+  await unggahBerkas(page, 'surat_tugas');
+  await unggahBerkas(page, 'laporan_kegiatan');
   await expect(page.getByText('2 dari 4 berkas wajib terpenuhi')).toBeVisible();
+  await expect(aksiPengaju).toContainText('unggah 2 berkas wajib lagi: Invoice Hotel, Invoice Tiket.');
+  await expect(page.getByRole('button', { name: 'Ajukan ke PUM' })).toBeDisabled();
+  await unggahBerkas(page, 'invoice_hotel');
+  await unggahBerkas(page, 'invoice_tiket');
+  await expect(aksiPengaju).toContainText('Semua berkas wajib sudah diunggah. Pengajuan siap diajukan ke PUM.');
+  await expect(page.getByRole('button', { name: 'Ajukan ke PUM' })).toBeEnabled();
+  await expect(aksiPengaju.getByRole('button', { name: 'Ajukan sekarang' })).toBeEnabled();
 
   // Ubah data: nilai diperbarui & total dihitung ulang
   await page.getByRole('link', { name: 'Ubah' }).click();
